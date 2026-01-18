@@ -1,0 +1,116 @@
+# Family Hub
+
+가족 공유 앱 - TodoList, 스케줄러, 추억 지도, 가계부
+
+## 기능
+
+### 1. TodoList (메인)
+- 원클릭 체크로 간편하게 완료 표시
+- 각 할일에 간단 노트 첨부 가능
+- 가족 구성원에게 할일 할당
+- 반복 할일 설정 (매일/매주/매월)
+- **Gemini AI 요약**: 오늘의 가족 할일 요약
+
+### 2. 스케줄러 (캘린더)
+- 월간/주간 뷰 전환
+- 일정 생성 시 참여자 선택
+- 구성원별 색상으로 일정 표시
+- 일정 상세에서 댓글/메모 가능
+
+### 3. 추억 지도
+- 네이버 지도 기반 추억 장소 마킹
+- 각 장소에 사진 여러 장 업로드
+- 가족 댓글 쓰레드 (대화형)
+- 날짜/장소별 타임라인 뷰
+- 장소 카테고리 (여행, 맛집, 일상 등)
+
+### 4. 공유 가계부
+- 수입/지출 기록 (금액, 날짜, 메모)
+- 카테고리별 분류 (식비, 교통, 쇼핑 등)
+- 고정 지출 등록 (월세, 구독 등)
+- 월간/연간 통계 차트
+
+## 기술 스택
+
+- **프레임워크**: Flutter 3.x (Dart)
+- **상태관리**: Riverpod 2.x
+- **인증**: Firebase Auth
+- **데이터베이스**: Cloud Firestore
+- **파일 저장**: Firebase Storage
+- **AI**: Google Gemini
+- **지도**: 네이버 지도 SDK (연동 필요)
+- **알림**: Firebase Cloud Messaging
+- **차트**: fl_chart
+
+## 시작하기
+
+### 1. Firebase 설정
+
+1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
+2. iOS/Android 앱 등록
+3. `google-services.json` (Android) 또는 `GoogleService-Info.plist` (iOS) 다운로드
+4. 해당 위치에 파일 배치:
+   - Android: `android/app/google-services.json`
+   - iOS: `ios/Runner/GoogleService-Info.plist`
+
+### 2. 네이버 지도 설정 (선택)
+
+추억 지도 기능을 사용하려면 네이버 지도 SDK를 연동해야 합니다.
+현재는 플레이스홀더로 구현되어 있습니다.
+
+### 3. Gemini AI 설정 (선택)
+
+AI 요약 기능을 사용하려면:
+1. [Google AI Studio](https://makersuite.google.com/)에서 API 키 발급
+2. `lib/services/gemini/gemini_service.dart`의 `_apiKey` 값을 발급받은 키로 교체
+
+### 4. 실행
+
+```bash
+flutter pub get
+flutter run
+```
+
+## 프로젝트 구조
+
+```
+lib/
+├── main.dart
+├── app/
+│   ├── app.dart
+│   ├── router.dart
+│   └── main_shell.dart
+├── core/
+│   └── theme/
+│       ├── app_colors.dart
+│       ├── app_typography.dart
+│       └── app_theme.dart
+├── features/
+│   ├── auth/
+│   ├── home/
+│   ├── todo/
+│   ├── calendar/
+│   ├── memory/
+│   ├── budget/
+│   └── settings/
+├── shared/
+│   ├── widgets/
+│   ├── models/
+│   └── providers/
+└── services/
+    ├── firebase/
+    └── gemini/
+```
+
+## 디자인
+
+- **테마**: 따뜻하고 포근한 파스텔톤
+- **Primary Color**: Coral (#E8A87C)
+- **Secondary Color**: Sage (#85DCBA)
+- **Accent Color**: Lavender (#C3B1E1)
+- **다크 모드 지원**: 시스템 설정 자동 감지
+
+## 라이선스
+
+MIT License
+# babba_busy

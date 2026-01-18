@@ -1,0 +1,180 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:iconsax/iconsax.dart';
+import '../core/theme/app_colors.dart';
+
+/// 메인 쉘 (하단 네비게이션 바 포함)
+class MainShell extends StatelessWidget {
+  final Widget child;
+
+  const MainShell({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: const _BottomNavBar(),
+    );
+  }
+}
+
+class _BottomNavBar extends StatelessWidget {
+  const _BottomNavBar();
+
+  int _calculateSelectedIndex(BuildContext context) {
+    final location = GoRouterState.of(context).matchedLocation;
+    if (location.startsWith('/home')) return 0;
+    if (location.startsWith('/calendar')) return 1;
+    if (location.startsWith('/memory')) return 2;
+    if (location.startsWith('/budget')) return 3;
+    if (location.startsWith('/settings')) return 4;
+    return 0;
+  }
+
+  void _onItemTapped(BuildContext context, int index) {
+    switch (index) {
+      case 0:
+        context.go('/home');
+        break;
+      case 1:
+        context.go('/calendar');
+        break;
+      case 2:
+        context.go('/memory');
+        break;
+      case 3:
+        context.go('/budget');
+        break;
+      case 4:
+        context.go('/settings');
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIndex = _calculateSelectedIndex(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 20,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _NavItem(
+                icon: Iconsax.home_2,
+                activeIcon: Iconsax.home_25,
+                label: '홈',
+                isSelected: selectedIndex == 0,
+                color: AppColors.todoColor,
+                onTap: () => _onItemTapped(context, 0),
+              ),
+              _NavItem(
+                icon: Iconsax.calendar_1,
+                activeIcon: Iconsax.calendar5,
+                label: '캘린더',
+                isSelected: selectedIndex == 1,
+                color: AppColors.calendarColor,
+                onTap: () => _onItemTapped(context, 1),
+              ),
+              _NavItem(
+                icon: Iconsax.map_1,
+                activeIcon: Iconsax.map5,
+                label: '추억',
+                isSelected: selectedIndex == 2,
+                color: AppColors.memoryColor,
+                onTap: () => _onItemTapped(context, 2),
+              ),
+              _NavItem(
+                icon: Iconsax.wallet_3,
+                activeIcon: Iconsax.wallet_15,
+                label: '가계부',
+                isSelected: selectedIndex == 3,
+                color: AppColors.budgetColor,
+                onTap: () => _onItemTapped(context, 3),
+              ),
+              _NavItem(
+                icon: Iconsax.setting_2,
+                activeIcon: Iconsax.setting5,
+                label: '설정',
+                isSelected: selectedIndex == 4,
+                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                onTap: () => _onItemTapped(context, 4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final bool isSelected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.isSelected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final inactiveColor = isDark 
+        ? AppColors.textSecondaryDark 
+        : AppColors.textSecondaryLight;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.15) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? color : inactiveColor,
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                color: isSelected ? color : inactiveColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
