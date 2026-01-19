@@ -35,10 +35,13 @@ final userMembershipsProvider = StreamProvider<List<Membership>>((ref) {
   return firestore
       .collection('memberships')
       .where('userId', isEqualTo: user.uid)
-      .orderBy('joinedAt')
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => Membership.fromFirestore(doc)).toList());
+      .map((snapshot) {
+    final memberships = snapshot.docs.map((doc) => Membership.fromFirestore(doc)).toList();
+    // 로컬에서 정렬 (인덱스 생성 전까지 임시 방편)
+    memberships.sort((a, b) => a.joinedAt.compareTo(b.joinedAt));
+    return memberships;
+  });
 });
 
 /// 현재 선택된 그룹의 멤버십 정보
@@ -93,14 +96,14 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 });
 
 /// 온보딩 완료 표시
-Future<void> completeOnboarding(WidgetRef ref) async {
+Future<void> completeOnboarding(dynamic ref) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('onboarding_status', 'completed');
   ref.read(onboardingCompletedProvider.notifier).state = true;
 }
 
 /// 그룹 전환
-Future<void> switchGroup(WidgetRef ref, String groupId) async {
+Future<void> switchGroup(dynamic ref, String groupId) async {
   ref.read(selectedGroupIdProvider.notifier).state = groupId;
   
   // 로컬 저장소에 저장

@@ -9,6 +9,7 @@ import '../../shared/providers/demo_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
+import '../auth/widgets/group_setup_dialog.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
 import '../../app/router.dart';
@@ -124,19 +125,27 @@ class SettingsScreen extends ConsumerWidget {
                     ],
                   ),
                 ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideY(begin: 0.1),
-              const SizedBox(height: AppTheme.spacingL),
-
-              // 그룹 정보
+              
+              // 그룹 정보 (프로필 바로 아래에 배치)
               if (currentGroup != null) ...[
-                Text(
-                  '그룹',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ).animate().fadeIn(duration: 300.ms, delay: 150.ms),
-                const SizedBox(height: AppTheme.spacingS),
+                const SizedBox(height: AppTheme.spacingM),
                 AppCard(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          Icon(Iconsax.home_hashtag, size: 20, color: AppColors.primaryLight),
+                          const SizedBox(width: 8),
+                          Text(
+                            '참여 중인 그룹',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppTheme.spacingM),
                       Row(
                         children: [
                           Container(
@@ -147,7 +156,7 @@ class SettingsScreen extends ConsumerWidget {
                               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                             ),
                             child: const Icon(
-                              Iconsax.home_hashtag5,
+                              Iconsax.buildings,
                               color: AppColors.primaryLight,
                             ),
                           ),
@@ -202,31 +211,38 @@ class SettingsScreen extends ConsumerWidget {
                           const Icon(Iconsax.key, size: 18),
                           const SizedBox(width: 8),
                           const Text('초대 코드: '),
-                          Text(
-                            currentGroup.inviteCode,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryLight,
-                              letterSpacing: 2,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              currentGroup.inviteCode,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primaryLight,
+                                letterSpacing: 1.5,
+                              ),
                             ),
                           ),
                           const Spacer(),
-                          IconButton(
+                          TextButton.icon(
                             onPressed: () {
-                              // 복사
+                              // TODO: 실제 복사 로직 (Clipboard)
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('그룹 초대 코드가 복사되었습니다')),
+                                const SnackBar(content: Text('초대 코드가 복사되었습니다')),
                               );
                             },
-                            icon: const Icon(Iconsax.copy, size: 18),
+                            icon: const Icon(Iconsax.copy, size: 16),
+                            label: const Text('복사', style: TextStyle(fontSize: 12)),
                           ),
                         ],
                       ),
                       const SizedBox(height: AppTheme.spacingS),
-                      // 구성원 목록
                       Text(
-                        '구성원',
-                        style: Theme.of(context).textTheme.titleSmall,
+                        '구성원 목록',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 13),
                       ),
                       const SizedBox(height: AppTheme.spacingS),
                       Wrap(
@@ -235,10 +251,29 @@ class SettingsScreen extends ConsumerWidget {
                         children: members
                             .map((member) => MemberAvatar(
                                   member: member,
-                                  size: 40,
+                                  size: 36,
                                   showName: true,
                                 ))
                             .toList(),
+                      ),
+                      const SizedBox(height: AppTheme.spacingL),
+                      // 다른 그룹 추가 버튼
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            showDialog(
+                              context: context,
+                              builder: (context) => const GroupSetupDialog(),
+                            );
+                          },
+                          icon: const Icon(Iconsax.add_square, size: 18),
+                          label: const Text('다른 그룹 추가하거나 참여하기'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: AppColors.primaryLight.withValues(alpha: 0.5)),
+                          ),
+                        ),
                       ),
                     ],
                   ),

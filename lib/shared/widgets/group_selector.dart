@@ -4,6 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/group_provider.dart';
+import '../../features/auth/widgets/group_setup_dialog.dart';
 
 /// 그룹 선택 위젯
 class GroupSelector extends ConsumerWidget {
@@ -96,42 +97,77 @@ class GroupSelector extends ConsumerWidget {
           ],
         ),
       ),
-      itemBuilder: (context) => memberships.map((membership) {
-        final isSelected = membership.groupId == selectedGroupId;
-        return PopupMenuItem<String>(
-          value: membership.groupId,
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(right: 12),
-                decoration: BoxDecoration(
-                  color: _parseColor(membership.color),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Expanded(
-                child: Text(
-                  membership.groupName,
-                  style: TextStyle(
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                    color: isSelected ? AppColors.primaryLight : null,
+      itemBuilder: (context) => <PopupMenuEntry<String>>[
+        ...memberships.map((membership) {
+          final isSelected = membership.groupId == selectedGroupId;
+          return PopupMenuItem<String>(
+            value: membership.groupId,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    color: _parseColor(membership.color),
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
-              if (isSelected)
-                Icon(
-                  Iconsax.tick_circle,
-                  size: 18,
-                  color: AppColors.primaryLight,
+                Expanded(
+                  child: Text(
+                    membership.groupName,
+                    style: TextStyle(
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      color: isSelected ? AppColors.primaryLight : null,
+                    ),
+                  ),
                 ),
+                if (isSelected)
+                  Icon(
+                    Iconsax.tick_circle,
+                    size: 18,
+                    color: AppColors.primaryLight,
+                  ),
+              ],
+            ),
+          );
+        }),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'create_new',
+          child: Row(
+            children: [
+              Icon(Iconsax.add_circle, size: 20),
+              SizedBox(width: 12),
+              Text('새 그룹 만들기'),
             ],
           ),
-        );
-      }).toList(),
-      onSelected: (groupId) async {
-        await switchGroup(ref, groupId);
+        ),
+        const PopupMenuItem<String>(
+          value: 'join_existing',
+          child: Row(
+            children: [
+              Icon(Iconsax.key, size: 20),
+              SizedBox(width: 12),
+              Text('초대 코드로 참여'),
+            ],
+          ),
+        ),
+      ],
+      onSelected: (value) async {
+        if (value == 'create_new') {
+          showDialog(
+            context: context,
+            builder: (context) => const GroupSetupDialog(),
+          );
+        } else if (value == 'join_existing') {
+          showDialog(
+            context: context,
+            builder: (context) => const GroupSetupDialog(isJoinOnly: true),
+          );
+        } else {
+          await switchGroup(ref, value);
+        }
       },
     );
   }

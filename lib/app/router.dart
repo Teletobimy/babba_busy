@@ -55,8 +55,15 @@ class RouterNotifier extends ChangeNotifier {
     final hasGroups = (memberships.valueOrNull ?? []).isNotEmpty;
 
     // 3. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
-    if (!hasGroups && !onboardingCompleted && !isOnboarding) {
-      return '/onboarding';
+    // 만약 그룹이 이미 있다면 (다른 기기에서 생성했거나 등) 온보딩을 건너뜁니다.
+    if (!isOnboarding && !isAuthRoute) {
+      if (!hasGroups && !onboardingCompleted) {
+        return '/onboarding';
+      }
+      // 그룹이 있는데 온보딩 상태가 아니면 온보딩 완료로 간주 (기기 이동 등)
+      if (hasGroups && !onboardingCompleted) {
+        Future.microtask(() => completeOnboarding(_ref));
+      }
     }
 
     // 4. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로

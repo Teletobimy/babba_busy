@@ -28,19 +28,26 @@ final smartCurrentMemberProvider = Provider<FamilyMember?>((ref) {
   }
   
   final membership = ref.watch(currentMembershipProvider);
-  final user = ref.watch(currentUserProvider);
+  final user = ref.watch(currentUserProvider); // Firebase Auth User
+  final userData = ref.watch(currentUserDataProvider).value; // Firestore User Document
   
   if (membership == null) return null;
+  
+  // 이름 우선순위: 1. 멤버십 닉네임, 2. Firestore 사용자 이름, 3. Google/Firebase 이름, 4. 기본값
+  String displayName = membership.name;
+  if (displayName.isEmpty) {
+    displayName = userData?.name ?? user?.displayName ?? '사용자';
+  }
   
   return FamilyMember(
     id: membership.userId,
     familyId: membership.groupId,
-    name: membership.name.isEmpty ? (user?.displayName ?? '사용자') : membership.name,
-    email: user?.email ?? '',
+    name: displayName,
+    email: user?.email ?? userData?.email ?? '',
     color: membership.color,
     role: membership.role,
     createdAt: membership.joinedAt,
-    avatarUrl: user?.photoURL,
+    avatarUrl: userData?.avatarUrl ?? user?.photoURL,
   );
 });
 
