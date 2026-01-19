@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/providers/auth_provider.dart';
+import '../shared/providers/group_provider.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/signup_screen.dart';
-import '../features/auth/family_setup_screen.dart';
+import '../features/auth/onboarding_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/todo/todo_screen.dart';
 import '../features/calendar/calendar_screen.dart';
@@ -14,48 +15,73 @@ import '../main.dart' show firebaseInitialized;
 import 'main_shell.dart';
 
 /// 데모 모드 Provider (Firebase 연결 여부에 따라 자동 설정)
-/// - Firebase 초기화 성공: 데모 모드 OFF (실제 데이터 사용)
-/// - Firebase 초기화 실패: 데모 모드 ON (샘플 데이터 사용)
 final demoModeProvider = StateProvider<bool>((ref) => !firebaseInitialized);
+
+/// 라우터 리다이렉션 관리를 위한 Notifier
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    // 관련 Provider들의 상태 변화를 감시하여 리다이렉션 트리거
+    _ref.listen(authStateProvider, (_, __) => notifyListeners());
+    _ref.listen(userMembershipsProvider, (_, __) => notifyListeners());
+    _ref.listen(onboardingCompletedProvider, (_, __) => notifyListeners());
+    _ref.listen(demoModeProvider, (_, __) => notifyListeners());
+  }
+
+  String? redirect(BuildContext context, GoRouterState state) {
+    final authState = _ref.read(authStateProvider);
+    final memberships = _ref.read(userMembershipsProvider);
+    final demoMode = _ref.read(demoModeProvider);
+    final onboardingCompleted = _ref.read(onboardingCompletedProvider);
+
+    // 데모 모드에서는 리다이렉트 없이 바로 홈으로
+    if (demoMode) return null;
+
+    final isLoggedIn = authState.valueOrNull != null;
+    final isAuthRoute = state.matchedLocation.startsWith('/auth');
+    final isOnboarding = state.matchedLocation == '/onboarding';
+
+    // 1. 로그인하지 않은 경우
+    if (!isLoggedIn) {
+      if (!isAuthRoute) return '/auth/login';
+      return null;
+    }
+
+    // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
+    // 앱 시작 시 memberships가 null/Loading인 동안은 /home 시도 방지
+    if (memberships.isLoading && !isOnboarding && !isAuthRoute) return null;
+
+    final hasGroups = (memberships.valueOrNull ?? []).isNotEmpty;
+
+    // 3. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
+    if (!hasGroups && !onboardingCompleted && !isOnboarding) {
+      return '/onboarding';
+    }
+
+    // 4. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
+    if (isLoggedIn && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding))) {
+      return '/home';
+    }
+
+    return null;
+  }
+}
+
+/// RouterNotifier Provider
+final routerNotifierProvider = Provider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
 
 /// 라우터 Provider
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final memberState = ref.watch(currentMemberProvider);
-  final demoMode = ref.watch(demoModeProvider);
+  final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
     initialLocation: '/home',
+    refreshListenable: notifier,
+    redirect: notifier.redirect,
     debugLogDiagnostics: true,
-    redirect: (context, state) {
-      // 데모 모드에서는 리다이렉트 없이 바로 홈으로
-      if (demoMode) {
-        return null;
-      }
-
-      final isLoggedIn = authState.value != null;
-      final hasFamilySetup = memberState.value != null;
-      final isAuthRoute = state.matchedLocation.startsWith('/auth');
-      final isFamilySetup = state.matchedLocation == '/family-setup';
-
-      // 로그인하지 않은 경우
-      if (!isLoggedIn) {
-        if (!isAuthRoute) return '/auth/login';
-        return null;
-      }
-
-      // 로그인했지만 가족 설정이 안 된 경우
-      if (!hasFamilySetup && !isFamilySetup) {
-        return '/family-setup';
-      }
-
-      // 로그인한 상태에서 인증 페이지 접근 시
-      if (isLoggedIn && hasFamilySetup && (isAuthRoute || isFamilySetup)) {
-        return '/home';
-      }
-
-      return null;
-    },
     routes: [
       // 인증 라우트
       GoRoute(
@@ -68,11 +94,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'signup',
         builder: (context, state) => const SignupScreen(),
       ),
-      // 가족 설정
+      // 온보딩 (그룹 설정)
       GoRoute(
-        path: '/family-setup',
-        name: 'family-setup',
-        builder: (context, state) => const FamilySetupScreen(),
+        path: '/onboarding',
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingScreen(),
       ),
       // 메인 쉘 (하단 네비게이션)
       ShellRoute(
@@ -108,19 +134,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      // 할일 상세 (전체 화면)
-      GoRoute(
-        path: '/todo/:id',
-        name: 'todo-detail',
-        builder: (context, state) => TodoScreen(
-          todoId: state.pathParameters['id'],
-        ),
-      ),
     ],
-    errorBuilder: (context, state) => Scaffold(
-      body: Center(
-        child: Text('페이지를 찾을 수 없습니다: ${state.error}'),
-      ),
-    ),
   );
 });

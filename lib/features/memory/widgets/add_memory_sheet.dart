@@ -53,24 +53,24 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
     setState(() => _isLoading = true);
 
     try {
-      final memoryService = ref.read(memoryServiceProvider);
+      // final memoryService = ref.read(memoryServiceProvider); // Removed as it's directly called
       
       // 실제로는 Firebase Storage에 이미지 업로드 후 URL 획득
       // 여기서는 로컬 경로를 그대로 사용 (데모용)
       final photoUrls = _selectedPhotoPaths;
 
-      await memoryService.addMemory(
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
-        latitude: _latitude,
-        longitude: _longitude,
-        placeName: _placeNameController.text.trim(),
-        category: _selectedCategory,
-        date: _selectedDate,
-        photoUrls: photoUrls,
-      );
+          await ref.read(memoryServiceProvider).addMemory(
+            title: _titleController.text.trim(),
+            description: _descriptionController.text.trim().isEmpty
+                ? null
+                : _descriptionController.text.trim(),
+            latitude: _latitude,
+            longitude: _longitude,
+            placeName: _placeNameController.text.trim(),
+            category: _selectedCategory,
+            date: _selectedDate,
+            photoUrls: photoUrls,
+          );
       if (mounted) {
         Navigator.of(context).pop();
       }

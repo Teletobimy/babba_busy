@@ -1,28 +1,30 @@
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/family_member.dart';
 import '../models/family.dart';
+import '../models/user.dart';
+import '../models/membership.dart';
 
 /// Firebase Auth 인스턴스
-final firebaseAuthProvider = Provider<FirebaseAuth?>((ref) {
+final firebaseAuthProvider = Provider<firebase.FirebaseAuth?>((ref) {
   try {
-    return FirebaseAuth.instance;
+    return firebase.FirebaseAuth.instance;
   } catch (e) {
     return null;
   }
 });
 
 /// 현재 인증 상태 스트림
-final authStateProvider = StreamProvider<User?>((ref) {
+final authStateProvider = StreamProvider<firebase.User?>((ref) {
   final auth = ref.watch(firebaseAuthProvider);
   if (auth == null) return Stream.value(null);
   return auth.authStateChanges();
 });
 
-/// 현재 사용자
-final currentUserProvider = Provider<User?>((ref) {
+/// 현재 사용자 (Firebase User)
+final currentUserProvider = Provider<firebase.User?>((ref) {
   return ref.watch(authStateProvider).value;
 });
 
@@ -35,20 +37,51 @@ final firestoreProvider = Provider<FirebaseFirestore?>((ref) {
   }
 });
 
-/// 현재 사용자의 가족 멤버 정보
-final currentMemberProvider = StreamProvider<FamilyMember?>((ref) {
+/// 현재 사용자 정보 (User 모델)
+final currentUserDataProvider = StreamProvider<User?>((ref) {
   final user = ref.watch(currentUserProvider);
   final firestore = ref.watch(firestoreProvider);
   if (user == null || firestore == null) return Stream.value(null);
 
   return firestore
-      .collection('members')
+      .collection('users')
       .doc(user.uid)
       .snapshots()
-      .map((doc) => doc.exists ? FamilyMember.fromFirestore(doc) : null);
+      .map((doc) => doc.exists ? User.fromFirestore(doc) : null);
 });
 
-/// 현재 사용자의 가족 정보
+/// 현재 사용자의 가족 멤버 정보 (DEPRECATED - 하위 호환성용)
+/// 대신 group_provider.dart의 currentMembershipProvider 사용
+@Deprecated('Use currentMembershipProvider from group_provider.dart instead')
+final currentMemberProvider = StreamProvider<FamilyMember?>((ref) {
+  final user = ref.watch(currentUserProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (user == null || firestore == null) return Stream.value(null);
+
+  // 임시: 첫 번째 membership을 FamilyMember로 변환
+  return firestore
+      .collection('memberships')
+      .where('userId', isEqualTo: user.uid)
+      .limit(1)
+      .snapshots()
+      .map((snapshot) {
+    if (snapshot.docs.isEmpty) return null;
+    final membership = Membership.fromFirestore(snapshot.docs.first);
+    return FamilyMember(
+      id: user.uid,
+      familyId: membership.groupId,
+      name: membership.name,
+      email: user.email ?? '',
+      color: membership.color,
+      role: membership.role,
+      createdAt: membership.joinedAt,
+    );
+  });
+});
+
+/// 현재 사용자의 가족 정보 (DEPRECATED)
+/// 대신 group_provider.dart의 currentGroupProvider 사용
+@Deprecated('Use currentGroupProvider from group_provider.dart instead')
 final currentFamilyProvider = StreamProvider<FamilyGroup?>((ref) {
   final member = ref.watch(currentMemberProvider).value;
   final firestore = ref.watch(firestoreProvider);
@@ -61,18 +94,30 @@ final currentFamilyProvider = StreamProvider<FamilyGroup?>((ref) {
       .map((doc) => doc.exists ? FamilyGroup.fromFirestore(doc) : null);
 });
 
-/// 가족 구성원 목록
+/// 가족 구성원 목록 (DEPRECATED)
+/// 대신 group_provider.dart의 groupMembershipsProvider 사용
+@Deprecated('Use groupMembershipsProvider from group_provider.dart instead')
 final familyMembersProvider = StreamProvider<List<FamilyMember>>((ref) {
   final member = ref.watch(currentMemberProvider).value;
   final firestore = ref.watch(firestoreProvider);
   if (member == null || firestore == null) return Stream.value([]);
 
   return firestore
-      .collection('members')
-      .where('familyId', isEqualTo: member.familyId)
+      .collection('memberships')
+      .where('groupId', isEqualTo: member.familyId)
       .snapshots()
-      .map((snapshot) => 
-          snapshot.docs.map((doc) => FamilyMember.fromFirestore(doc)).toList());
+      .map((snapshot) => snapshot.docs.map((doc) {
+            final membership = Membership.fromFirestore(doc);
+            return FamilyMember(
+              id: membership.userId,
+              familyId: membership.groupId,
+              name: membership.name,
+              email: '', // membership에는 email 없음
+              color: membership.color,
+              role: membership.role,
+              createdAt: membership.joinedAt,
+            );
+          }).toList());
 });
 
 /// 인증 서비스 Provider
@@ -86,11 +131,11 @@ class AuthService {
 
   AuthService(this._ref);
 
-  FirebaseAuth? get _auth => _ref.read(firebaseAuthProvider);
+  firebase.FirebaseAuth? get _auth => _ref.read(firebaseAuthProvider);
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
   /// 이메일/비밀번호 로그인
-  Future<UserCredential?> signInWithEmail(String email, String password) async {
+  Future<firebase.UserCredential?> signInWithEmail(String email, String password) async {
     if (_auth == null) return null;
     return await _auth!.signInWithEmailAndPassword(
       email: email,
@@ -99,7 +144,7 @@ class AuthService {
   }
 
   /// 이메일/비밀번호 회원가입
-  Future<UserCredential?> signUpWithEmail(String email, String password) async {
+  Future<firebase.UserCredential?> signUpWithEmail(String email, String password) async {
     if (_auth == null) return null;
     return await _auth!.createUserWithEmailAndPassword(
       email: email,
@@ -108,11 +153,11 @@ class AuthService {
   }
 
   /// Google 로그인
-  Future<UserCredential?> signInWithGoogle() async {
+  Future<firebase.UserCredential?> signInWithGoogle() async {
     if (_auth == null) return null;
 
     try {
-      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      final firebase.GoogleAuthProvider googleProvider = firebase.GoogleAuthProvider();
       googleProvider.addScope('email');
       googleProvider.addScope('profile');
 
@@ -133,7 +178,7 @@ class AuthService {
     await _auth?.signOut();
   }
 
-  /// 가족 생성
+  /// 그룹 생성 및 참여 (다중 그룹 지원)
   Future<String?> createFamily(String familyName, String memberName, String color) async {
     final user = _auth?.currentUser;
     if (user == null || _firestore == null) return null;
@@ -141,27 +186,44 @@ class AuthService {
     // 초대 코드 생성
     final inviteCode = _generateInviteCode();
 
-    // 가족 문서 생성
+    // 1. 가족(그룹) 문서 생성
     final familyRef = await _firestore!.collection('families').add({
       'name': familyName,
       'inviteCode': inviteCode,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // 멤버 문서 생성
-    await _firestore!.collection('members').doc(user.uid).set({
-      'familyId': familyRef.id,
+    // 2. 사용자 문서 생성 (없는 경우)
+    final userDoc = await _firestore!.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) {
+      await _firestore!.collection('users').doc(user.uid).set({
+        'name': memberName,
+        'email': user.email,
+        'defaultGroupId': familyRef.id, // 첫 그룹을 기본값으로
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      // 기존 사용자인 경우 defaultGroupId만 업데이트
+      await _firestore!.collection('users').doc(user.uid).update({
+        'defaultGroupId': familyRef.id,
+      });
+    }
+
+    // 3. 멤버십 문서 생성
+    await _firestore!.collection('memberships').add({
+      'userId': user.uid,
+      'groupId': familyRef.id,
+      'groupName': familyName,
       'name': memberName,
-      'email': user.email,
       'color': color,
       'role': 'admin',
-      'createdAt': FieldValue.serverTimestamp(),
+      'joinedAt': FieldValue.serverTimestamp(),
     });
 
     return inviteCode;
   }
 
-  /// 초대 코드로 가족 참여
+  /// 초대 코드로 그룹 참여 (다중 그룹 지원)
   Future<void> joinFamily(String inviteCode, String memberName, String color) async {
     final user = _auth?.currentUser;
     if (user == null || _firestore == null) throw Exception('로그인이 필요합니다.');
@@ -178,15 +240,39 @@ class AuthService {
     }
 
     final familyId = familyQuery.docs.first.id;
+    final familyName = familyQuery.docs.first.data()['name'] as String;
 
-    // 멤버 문서 생성
-    await _firestore!.collection('members').doc(user.uid).set({
-      'familyId': familyId,
+    // 이미 참여했는지 확인
+    final existingMembership = await _firestore!
+        .collection('memberships')
+        .where('userId', isEqualTo: user.uid)
+        .where('groupId', isEqualTo: familyId)
+        .get();
+
+    if (existingMembership.docs.isNotEmpty) {
+      throw Exception('이미 참여한 그룹입니다.');
+    }
+
+    // 사용자 문서 생성 (없는 경우)
+    final userDoc = await _firestore!.collection('users').doc(user.uid).get();
+    if (!userDoc.exists) {
+      await _firestore!.collection('users').doc(user.uid).set({
+        'name': memberName,
+        'email': user.email,
+        'defaultGroupId': familyId,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 멤버십 문서 생성
+    await _firestore!.collection('memberships').add({
+      'userId': user.uid,
+      'groupId': familyId,
+      'groupName': familyName,
       'name': memberName,
-      'email': user.email,
       'color': color,
       'role': 'member',
-      'createdAt': FieldValue.serverTimestamp(),
+      'joinedAt': FieldValue.serverTimestamp(),
     });
   }
 
@@ -197,17 +283,49 @@ class AuthService {
     return List.generate(6, (index) => chars[(random + index * 17) % chars.length]).join();
   }
 
-  /// 프로필 업데이트
-  Future<void> updateProfile({String? name, String? color}) async {
+  /// 프로필 업데이트 (전역)
+  Future<void> updateProfile({String? name, String? avatarUrl}) async {
     final user = _auth?.currentUser;
     if (user == null || _firestore == null) return;
+
+    final updates = <String, dynamic>{};
+    if (name != null) updates['name'] = name;
+    if (avatarUrl != null) updates['avatarUrl'] = avatarUrl;
+
+    if (updates.isNotEmpty) {
+      await _firestore!.collection('users').doc(user.uid).update(updates);
+    }
+  }
+
+  /// 그룹별 프로필 업데이트 (멤버십)
+  Future<void> updateMembershipProfile(String membershipId, {String? name, String? color}) async {
+    if (_firestore == null) return;
 
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name;
     if (color != null) updates['color'] = color;
 
     if (updates.isNotEmpty) {
-      await _firestore!.collection('members').doc(user.uid).update(updates);
+      await _firestore!.collection('memberships').doc(membershipId).update(updates);
+    }
+  }
+
+  /// 가족 이름 업데이트
+  Future<void> updateFamilyName(String familyId, String newName) async {
+    if (_firestore == null) return;
+    
+    // 1. families 컬렉션 업데이트
+    await _firestore!.collection('families').doc(familyId).update({'name': newName});
+    
+    // 2. 해당 그룹의 모든 memberships의 groupName도 업데이트 (캐시 동기화)
+    final memberships = await _firestore!
+        .collection('memberships')
+        .where('groupId', isEqualTo: familyId)
+        .get();
+    
+    for (final doc in memberships.docs) {
+      await doc.reference.update({'groupName': newName});
     }
   }
 }
+

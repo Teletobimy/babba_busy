@@ -13,6 +13,7 @@ import 'todo_provider.dart';
 import 'event_provider.dart';
 import 'memory_provider.dart';
 import 'budget_provider.dart';
+import 'group_provider.dart';
 
 /// ========================================
 /// 스마트 Provider - 데모/실제 데이터 자동 선택
@@ -25,21 +26,48 @@ final smartCurrentMemberProvider = Provider<FamilyMember?>((ref) {
     final members = ref.watch(demoMembersProvider);
     return members.isNotEmpty ? members.first : null;
   }
-  return ref.watch(currentMemberProvider).value;
+  
+  final membership = ref.watch(currentMembershipProvider);
+  final user = ref.watch(currentUserProvider);
+  
+  if (membership == null) return null;
+  
+  return FamilyMember(
+    id: membership.userId,
+    familyId: membership.groupId,
+    name: membership.name.isEmpty ? (user?.displayName ?? '사용자') : membership.name,
+    email: user?.email ?? '',
+    color: membership.color,
+    role: membership.role,
+    createdAt: membership.joinedAt,
+    avatarUrl: user?.photoURL,
+  );
 });
 
 /// 현재 가족 (데모/실제)
 final smartCurrentFamilyProvider = Provider<FamilyGroup?>((ref) {
   final demoMode = ref.watch(demoModeProvider);
   if (demoMode) return ref.watch(demoFamilyProvider);
-  return ref.watch(currentFamilyProvider).value;
+  return ref.watch(currentGroupProvider).value;
 });
 
 /// 가족 구성원 목록 (데모/실제)
 final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
   final demoMode = ref.watch(demoModeProvider);
   if (demoMode) return ref.watch(demoMembersProvider);
-  return ref.watch(familyMembersProvider).value ?? [];
+  
+  final memberships = ref.watch(groupMembershipsProvider).value ?? [];
+  // 사용자 정보 가져오기 (이상적으로는 별도 Provider로 조인해야 함)
+  // 여기서는 Membership 정보만으로 FamilyMember 구성
+  return memberships.map((m) => FamilyMember(
+    id: m.userId,
+    familyId: m.groupId,
+    name: m.name.isEmpty ? '구성원' : m.name,
+    email: '', // email 정보는 Membership에 없음
+    color: m.color,
+    role: m.role,
+    createdAt: m.joinedAt,
+  )).toList();
 });
 
 /// 할일 목록 (데모/실제)

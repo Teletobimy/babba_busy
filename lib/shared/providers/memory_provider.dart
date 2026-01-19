@@ -2,18 +2,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/memory.dart';
 import 'auth_provider.dart';
+import 'group_provider.dart';
 
 /// 추억 목록 스트림
 final memoriesProvider = StreamProvider<List<Memory>>((ref) {
-  final member = ref.watch(currentMemberProvider).value;
+  final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (member == null || firestore == null) return Stream.value([]);
+  if (membership == null || firestore == null) return Stream.value([]);
 
   return firestore
       .collection('families')
-      .doc(member.familyId)
+      .doc(membership.groupId)
       .collection('memories')
-      .orderBy('date', descending: true)
+      .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) =>
           snapshot.docs.map((doc) => Memory.fromFirestore(doc)).toList());
@@ -58,16 +59,16 @@ class MemoryService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
-  String? get _familyId => _ref.read(currentMemberProvider).value?.familyId;
+  String? get _familyId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
-  CollectionReference? get _memoriesRef {
+  CollectionReference? get _memoriesCollection {
     if (_familyId == null || _firestore == null) return null;
     return _firestore!.collection('families').doc(_familyId).collection('memories');
   }
 
   /// 추억 추가
-  Future<String?> addMemory({
+  Future<void> addMemory({
     required String title,
     String? description,
     required double latitude,
@@ -77,10 +78,10 @@ class MemoryService {
     required DateTime date,
     required List<String> photoUrls,
   }) async {
-    final memoriesRef = _memoriesRef;
-    if (memoriesRef == null || _userId == null) return null;
+    final memoriesRef = _memoriesCollection;
+    if (memoriesRef == null || _userId == null) return;
 
-    final docRef = await memoriesRef.add({
+    await memoriesRef.add({
       'familyId': _familyId,
       'title': title,
       'description': description,
@@ -92,8 +93,6 @@ class MemoryService {
       'createdBy': _userId,
       'createdAt': FieldValue.serverTimestamp(),
     });
-
-    return docRef.id;
   }
 
   /// 추억 수정
@@ -107,7 +106,7 @@ class MemoryService {
     DateTime? date,
     List<String>? photoUrls,
   }) async {
-    final memoriesRef = _memoriesRef;
+    final memoriesRef = _memoriesCollection;
     if (memoriesRef == null) return;
     
     final updates = <String, dynamic>{};
@@ -128,14 +127,34 @@ class MemoryService {
 
   /// 추억 삭제
   Future<void> deleteMemory(String memoryId) async {
-    final memoriesRef = _memoriesRef;
+    final memoriesRef = _memoriesCollection;
     if (memoriesRef == null) return;
     await memoriesRef.doc(memoryId).delete();
   }
 
+  /// 사진 추가
+  Future<void> addPhotos(String memoryId, List<String> newPhotoUrls) async {
+    final memoriesRef = _memoriesCollection;
+    if (memoriesRef == null) return;
+
+    await memoriesRef.doc(memoryId).update({
+      'photoUrls': FieldValue.arrayUnion(newPhotoUrls),
+    });
+  }
+
+  /// 사진 삭제
+  Future<void> removePhoto(String memoryId, String photoUrl) async {
+    final memoriesRef = _memoriesCollection;
+    if (memoriesRef == null) return;
+
+    await memoriesRef.doc(memoryId).update({
+      'photoUrls': FieldValue.arrayRemove([photoUrl]),
+    });
+  }
+
   /// 댓글 추가
   Future<void> addComment(String memoryId, String text) async {
-    final memoriesRef = _memoriesRef;
+    final memoriesRef = _memoriesCollection;
     if (memoriesRef == null || _userId == null) return;
 
     await memoriesRef.doc(memoryId).collection('comments').add({
@@ -148,7 +167,7 @@ class MemoryService {
 
   /// 댓글 삭제
   Future<void> deleteComment(String memoryId, String commentId) async {
-    final memoriesRef = _memoriesRef;
+    final memoriesRef = _memoriesCollection;
     if (memoriesRef == null) return;
     await memoriesRef.doc(memoryId).collection('comments').doc(commentId).delete();
   }

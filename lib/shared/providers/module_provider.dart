@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 enum AppModule {
   memory('추억', 'memory'),
   budget('가계부', 'budget'),
-  people('사람들', 'people');
+  people('사람들', 'people'),
+  chat('대화방', 'chat');
 
   final String label;
   final String key;
@@ -64,6 +65,11 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
       module: AppModule.people,
       isEnabled: true,
       order: 2,
+    ),
+    AppModule.chat: const ModuleInfo(
+      module: AppModule.chat,
+      isEnabled: true,
+      order: 3,
     ),
   };
 

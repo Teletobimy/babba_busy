@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/demo_provider.dart';
+import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/app_card.dart';
@@ -19,15 +20,10 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final demoMode = ref.watch(demoModeProvider);
     
-    final currentMember = demoMode 
-        ? ref.watch(demoMembersProvider).first
-        : ref.watch(currentMemberProvider).value;
-    final currentFamily = demoMode 
-        ? ref.watch(demoFamilyProvider)
-        : ref.watch(currentFamilyProvider).value;
-    final members = demoMode 
-        ? ref.watch(demoMembersProvider)
-        : (ref.watch(familyMembersProvider).value ?? []);
+    
+    final currentMember = ref.watch(smartCurrentMemberProvider);
+    final currentGroup = ref.watch(smartCurrentFamilyProvider);
+    final members = ref.watch(smartMembersProvider);
     final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
@@ -130,10 +126,10 @@ class SettingsScreen extends ConsumerWidget {
                 ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideY(begin: 0.1),
               const SizedBox(height: AppTheme.spacingL),
 
-              // 가족 정보
-              if (currentFamily != null) ...[
+              // 그룹 정보
+              if (currentGroup != null) ...[
                 Text(
-                  '가족',
+                  '그룹',
                   style: Theme.of(context).textTheme.titleMedium,
                 ).animate().fadeIn(duration: 300.ms, delay: 150.ms),
                 const SizedBox(height: AppTheme.spacingS),
@@ -160,9 +156,33 @@ class SettingsScreen extends ConsumerWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  currentFamily.name,
-                                  style: Theme.of(context).textTheme.titleSmall,
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        currentGroup.name,
+                                        style: Theme.of(context).textTheme.titleSmall,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    InkWell(
+                                      onTap: () => _showEditFamilyNameDialog(
+                                        context, 
+                                        ref, 
+                                        currentGroup.id, 
+                                        currentGroup.name
+                                      ),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(4.0),
+                                        child: Icon(
+                                          Iconsax.edit_2, 
+                                          size: 14, 
+                                          color: AppColors.textSecondaryLight,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 Text(
                                   '구성원 ${members.length}명',
@@ -183,7 +203,7 @@ class SettingsScreen extends ConsumerWidget {
                           const SizedBox(width: 8),
                           const Text('초대 코드: '),
                           Text(
-                            currentFamily.inviteCode,
+                            currentGroup.inviteCode,
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               color: AppColors.primaryLight,
@@ -195,7 +215,7 @@ class SettingsScreen extends ConsumerWidget {
                             onPressed: () {
                               // 복사
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('초대 코드가 복사되었습니다')),
+                                const SnackBar(content: Text('그룹 초대 코드가 복사되었습니다')),
                               );
                             },
                             icon: const Icon(Iconsax.copy, size: 18),
@@ -307,9 +327,9 @@ class SettingsScreen extends ConsumerWidget {
                       onTap: () {
                         showAboutDialog(
                           context: context,
-                          applicationName: 'Family Hub',
+                          applicationName: 'BABBA',
                           applicationVersion: '1.0.0',
-                          applicationLegalese: '© 2024 Family Hub',
+                          applicationLegalese: '© 2024 BABBA',
                         );
                       },
                     ),
@@ -359,6 +379,58 @@ class SettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _showEditFamilyNameDialog(
+    BuildContext context, 
+    WidgetRef ref, 
+    String familyId, 
+    String currentName
+  ) async {
+    final controller = TextEditingController(text: currentName);
+    
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('그룹 이름 수정'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: '그룹 이름',
+            hintText: '예: 우리 팀, 친구들, 개인 등',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result.isNotEmpty && result != currentName) {
+      try {
+        await ref.read(authServiceProvider).updateFamilyName(familyId, result);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('그룹 이름이 수정되었습니다')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('수정 실패: $e')),
+          );
+        }
+      }
+    }
+    controller.dispose();
   }
 }
 
@@ -559,6 +631,8 @@ class _ModuleTile extends StatelessWidget {
         return Iconsax.wallet_3;
       case AppModule.people:
         return Iconsax.people;
+      case AppModule.chat:
+        return Iconsax.message;
     }
   }
 
@@ -570,6 +644,8 @@ class _ModuleTile extends StatelessWidget {
         return AppColors.budgetColor;
       case AppModule.people:
         return const Color(0xFF5B8DEF);
+      case AppModule.chat:
+        return const Color(0xFF9B59B6);
     }
   }
 
@@ -581,6 +657,8 @@ class _ModuleTile extends StatelessWidget {
         return '가계부 관리';
       case AppModule.people:
         return '인맥 정보 관리';
+      case AppModule.chat:
+        return '그룹 대화방';
     }
   }
 }

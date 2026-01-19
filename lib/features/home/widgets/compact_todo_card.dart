@@ -36,8 +36,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
     setState(() => _isCompleting = true);
 
     try {
-      final todoService = ref.read(todoServiceProvider);
-      await todoService.toggleComplete(
+      await ref.read(todoServiceProvider).toggleTodo(
         widget.todo.id,
         !widget.todo.isCompleted,
       );

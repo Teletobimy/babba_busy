@@ -543,9 +543,10 @@ class _MonthView extends StatelessWidget {
     final availableHeight = screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 100;
     final rowHeight = (availableHeight / 6).clamp(70.0, 100.0);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
-      child: Container(
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+        child: Container(
         decoration: BoxDecoration(
           color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
@@ -640,7 +641,7 @@ class _MonthView extends StatelessWidget {
           ),
         ),
       ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
-    );
+    ));
   }
 
   Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday) {

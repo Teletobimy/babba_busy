@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
@@ -43,9 +44,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-    } catch (e) {
+
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String message = '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.';
+      if (e.code == 'user-not-found') {
+        message = '존재하지 않는 계정입니다.';
+      } else if (e.code == 'wrong-password') {
+        message = '비밀번호가 일치하지 않습니다.';
+      } else if (e.code == 'invalid-email') {
+        message = '유효하지 않은 이메일 형식입니다.';
+      } else if (e.code == 'user-disabled') {
+        message = '비활성화된 계정입니다.';
+      }
       setState(() {
-        _errorMessage = '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.';
+        _errorMessage = message;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = '로그인 중 오류가 발생했습니다.';
       });
     } finally {
       if (mounted) {
@@ -64,9 +82,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       final authService = ref.read(authServiceProvider);
       await authService.signInWithGoogle();
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Google 로그인에 실패했습니다. 다시 시도해주세요.';
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Google 로그인에 실패했습니다. 다시 시도해주세요.';
+        });
+      }
     } finally {
       if (mounted) {
         setState(() => _isGoogleLoading = false);

@@ -199,6 +199,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return const _BudgetContent();
       case AppModule.people:
         return const PeopleScreen();
+      case AppModule.chat:
+        return const _ChatContent();
     }
   }
 
@@ -210,6 +212,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return Iconsax.wallet_3;
       case AppModule.people:
         return Iconsax.people;
+      case AppModule.chat:
+        return Iconsax.message;
     }
   }
 
@@ -222,6 +226,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return AppColors.budgetColor;
       case AppModule.people:
         return const Color(0xFF5B8DEF); // 사람들용 블루 컬러
+      case AppModule.chat:
+        return const Color(0xFF9B59B6); // 대화방용 보라 컬러
     }
   }
 }
@@ -621,3 +627,314 @@ class _BudgetScreenContent extends ConsumerWidget {
     );
   }
 }
+
+/// 대화방 콘텐츠
+class _ChatContent extends ConsumerStatefulWidget {
+  const _ChatContent();
+
+  @override
+  ConsumerState<_ChatContent> createState() => _ChatContentState();
+}
+
+class _ChatContentState extends ConsumerState<_ChatContent> {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final List<_ChatMessage> _messages = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // 데모 메시지 추가
+    _messages.addAll([
+      _ChatMessage(
+        id: '1',
+        senderId: 'system',
+        senderName: '시스템',
+        content: '대화방에 오신 것을 환영합니다! 👋',
+        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
+        isSystem: true,
+      ),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _sendMessage() {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add(_ChatMessage(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        senderId: 'me',
+        senderName: '나',
+        content: text,
+        timestamp: DateTime.now(),
+        isMe: true,
+      ));
+    });
+
+    _messageController.clear();
+
+    // 스크롤을 맨 아래로
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const chatColor = Color(0xFF9B59B6);
+
+    return Column(
+      children: [
+        // 메시지 목록
+        Expanded(
+          child: _messages.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Iconsax.message,
+                        size: 64,
+                        color: chatColor.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: AppTheme.spacingM),
+                      Text(
+                        '아직 메시지가 없습니다',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                            ),
+                      ),
+                      const SizedBox(height: AppTheme.spacingS),
+                      Text(
+                        '첫 메시지를 보내보세요!',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(AppTheme.spacingL),
+                  itemCount: _messages.length,
+                  itemBuilder: (context, index) {
+                    final message = _messages[index];
+                    return _ChatBubble(message: message);
+                  },
+                ),
+        ),
+        // 입력창
+        Container(
+          padding: EdgeInsets.only(
+            left: AppTheme.spacingM,
+            right: AppTheme.spacingM,
+            top: AppTheme.spacingS,
+            bottom: MediaQuery.of(context).padding.bottom + AppTheme.spacingS,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _messageController,
+                  decoration: InputDecoration(
+                    hintText: '메시지를 입력하세요...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: isDark
+                        ? AppColors.backgroundDark
+                        : AppColors.backgroundLight,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingM,
+                      vertical: AppTheme.spacingS,
+                    ),
+                  ),
+                  onSubmitted: (_) => _sendMessage(),
+                ),
+              ),
+              const SizedBox(width: AppTheme.spacingS),
+              IconButton(
+                onPressed: _sendMessage,
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: chatColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Iconsax.send_1,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 채팅 메시지 모델
+class _ChatMessage {
+  final String id;
+  final String senderId;
+  final String senderName;
+  final String content;
+  final DateTime timestamp;
+  final bool isMe;
+  final bool isSystem;
+
+  _ChatMessage({
+    required this.id,
+    required this.senderId,
+    required this.senderName,
+    required this.content,
+    required this.timestamp,
+    this.isMe = false,
+    this.isSystem = false,
+  });
+}
+
+/// 채팅 버블 위젯
+class _ChatBubble extends StatelessWidget {
+  final _ChatMessage message;
+
+  const _ChatBubble({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    const chatColor = Color(0xFF9B59B6);
+
+    if (message.isSystem) {
+      return Container(
+        margin: const EdgeInsets.symmetric(vertical: AppTheme.spacingS),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingM,
+              vertical: AppTheme.spacingXS,
+            ),
+            decoration: BoxDecoration(
+              color: chatColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+            ),
+            child: Text(
+              message.content,
+              style: TextStyle(
+                color: chatColor,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Align(
+      alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: AppTheme.spacingXS),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        child: Column(
+          crossAxisAlignment:
+              message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (!message.isMe)
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: AppTheme.spacingS,
+                  bottom: 2,
+                ),
+                child: Text(
+                  message.senderName,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingM,
+                vertical: AppTheme.spacingS,
+              ),
+              decoration: BoxDecoration(
+                color: message.isMe
+                    ? chatColor
+                    : (isDark ? AppColors.surfaceDark : Colors.grey[200]),
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(16),
+                  topRight: const Radius.circular(16),
+                  bottomLeft: Radius.circular(message.isMe ? 16 : 4),
+                  bottomRight: Radius.circular(message.isMe ? 4 : 16),
+                ),
+              ),
+              child: Text(
+                message.content,
+                style: TextStyle(
+                  color: message.isMe
+                      ? Colors.white
+                      : (isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(
+                top: 2,
+                left: AppTheme.spacingS,
+                right: AppTheme.spacingS,
+              ),
+              child: Text(
+                DateFormat('HH:mm').format(message.timestamp),
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'firebase_options.dart';
+import 'shared/providers/group_provider.dart';
 
 /// Firebase 초기화 성공 여부
 bool firebaseInitialized = false;
@@ -13,12 +15,14 @@ bool firebaseInitialized = false;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 환경변수 로드 (개발 환경에서만 사용, 프로덕션은 --dart-define 사용)
+  // SharedPreferences 초기화
+  final sharedPrefs = await SharedPreferences.getInstance();
+
+  // 환경변수 로드
   try {
     await dotenv.load(fileName: '.env');
     debugPrint('✅ 환경변수 로드 성공!');
   } catch (e) {
-    // .env 파일이 없어도 OK (프로덕션에서는 --dart-define으로 주입)
     debugPrint('ℹ️ .env 파일 없음 (프로덕션 모드)');
   }
 
@@ -52,8 +56,11 @@ void main() async {
   }
 
   runApp(
-    const ProviderScope(
-      child: FamilyHubApp(),
+    ProviderScope(
+      overrides: [
+        sharedPrefsProvider.overrideWithValue(sharedPrefs),
+      ],
+      child: const FamilyHubApp(),
     ),
   );
 }

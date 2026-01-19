@@ -2,16 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/transaction.dart';
 import 'auth_provider.dart';
+import 'group_provider.dart';
 
 /// 거래 목록 스트림
 final transactionsProvider = StreamProvider<List<BudgetTransaction>>((ref) {
-  final member = ref.watch(currentMemberProvider).value;
+  final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (member == null || firestore == null) return Stream.value([]);
+  if (membership == null || firestore == null) return Stream.value([]);
 
   return firestore
       .collection('families')
-      .doc(member.familyId)
+      .doc(membership.groupId)
       .collection('transactions')
       .orderBy('date', descending: true)
       .snapshots()
@@ -104,7 +105,7 @@ class BudgetService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
-  String? get _familyId => _ref.read(currentMemberProvider).value?.familyId;
+  String? get _familyId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
   CollectionReference? get _transactionsRef {

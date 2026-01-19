@@ -2,16 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event.dart';
 import 'auth_provider.dart';
+import 'group_provider.dart';
 
-/// 이벤트 목록 스트림
+/// 현재 그룹의 이벤트 목록
 final eventsProvider = StreamProvider<List<Event>>((ref) {
-  final member = ref.watch(currentMemberProvider).value;
+  final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (member == null || firestore == null) return Stream.value([]);
+  if (membership == null || firestore == null) return Stream.value([]);
 
   return firestore
       .collection('families')
-      .doc(member.familyId)
+      .doc(membership.groupId)
       .collection('events')
       .orderBy('startAt')
       .snapshots()
@@ -66,10 +67,10 @@ class EventService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
-  String? get _familyId => _ref.read(currentMemberProvider).value?.familyId;
+  String? get _familyId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
-  CollectionReference? get _eventsRef {
+  CollectionReference? get _eventsCollection {
     if (_familyId == null || _firestore == null) return null;
     return _firestore!.collection('families').doc(_familyId).collection('events');
   }
@@ -84,8 +85,9 @@ class EventService {
     required List<String> participants,
     String? location,
     String? color,
+    String? calendarGroupId,
   }) async {
-    final eventsRef = _eventsRef;
+    final eventsRef = _eventsCollection;
     if (eventsRef == null || _userId == null) return;
 
     await eventsRef.add({
@@ -98,6 +100,7 @@ class EventService {
       'participants': participants,
       'location': location,
       'color': color,
+      'calendarGroupId': calendarGroupId,
       'createdBy': _userId,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -113,8 +116,9 @@ class EventService {
     List<String>? participants,
     String? location,
     String? color,
+    String? calendarGroupId,
   }) async {
-    final eventsRef = _eventsRef;
+    final eventsRef = _eventsCollection;
     if (eventsRef == null) return;
     
     final updates = <String, dynamic>{};
@@ -126,6 +130,7 @@ class EventService {
     if (participants != null) updates['participants'] = participants;
     if (location != null) updates['location'] = location;
     if (color != null) updates['color'] = color;
+    if (calendarGroupId != null) updates['calendarGroupId'] = calendarGroupId;
 
     if (updates.isNotEmpty) {
       await eventsRef.doc(eventId).update(updates);
@@ -134,7 +139,7 @@ class EventService {
 
   /// 이벤트 삭제
   Future<void> deleteEvent(String eventId) async {
-    final eventsRef = _eventsRef;
+    final eventsRef = _eventsCollection;
     if (eventsRef == null) return;
     await eventsRef.doc(eventId).delete();
   }

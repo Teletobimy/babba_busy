@@ -2,16 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/todo_item.dart';
 import 'auth_provider.dart';
+import 'group_provider.dart';
 
-/// 할일 목록 스트림
+/// 현재 그룹의 Todo 목록
 final todosProvider = StreamProvider<List<TodoItem>>((ref) {
-  final member = ref.watch(currentMemberProvider).value;
+  final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (member == null || firestore == null) return Stream.value([]);
+  if (membership == null || firestore == null) return Stream.value([]);
 
   return firestore
       .collection('families')
-      .doc(member.familyId)
+      .doc(membership.groupId)
       .collection('todos')
       .orderBy('createdAt', descending: true)
       .snapshots()
@@ -58,12 +59,12 @@ class TodoService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
-  String? get _familyId => _ref.read(currentMemberProvider).value?.familyId;
+  String? get _groupId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
-  CollectionReference? get _todosRef {
-    if (_familyId == null || _firestore == null) return null;
-    return _firestore!.collection('families').doc(_familyId).collection('todos');
+  CollectionReference? get _todosCollection {
+    if (_groupId == null || _firestore == null) return null;
+    return _firestore!.collection('families').doc(_groupId).collection('todos');
   }
 
   /// 할일 추가
@@ -75,11 +76,11 @@ class TodoService {
     String? repeatType,
     int priority = 1,
   }) async {
-    final todosRef = _todosRef;
+    final todosRef = _todosCollection;
     if (todosRef == null || _userId == null) return;
 
     await todosRef.add({
-      'familyId': _familyId,
+      'familyId': _groupId,
       'title': title,
       'note': note,
       'assigneeId': assigneeId,
@@ -87,14 +88,14 @@ class TodoService {
       'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
       'repeatType': repeatType,
       'priority': priority,
-      'createdAt': FieldValue.serverTimestamp(),
       'createdBy': _userId,
+      'createdAt': FieldValue.serverTimestamp(),
     });
   }
 
-  /// 할일 완료 토글
-  Future<void> toggleComplete(String todoId, bool isCompleted) async {
-    final todosRef = _todosRef;
+  /// 할일 완료 상태 토글
+  Future<void> toggleTodo(String todoId, bool isCompleted) async {
+    final todosRef = _todosCollection;
     if (todosRef == null) return;
     await todosRef.doc(todoId).update({'isCompleted': isCompleted});
   }
@@ -108,7 +109,7 @@ class TodoService {
     String? repeatType,
     int? priority,
   }) async {
-    final todosRef = _todosRef;
+    final todosRef = _todosCollection;
     if (todosRef == null) return;
     
     final updates = <String, dynamic>{};
@@ -126,7 +127,7 @@ class TodoService {
 
   /// 할일 삭제
   Future<void> deleteTodo(String todoId) async {
-    final todosRef = _todosRef;
+    final todosRef = _todosCollection;
     if (todosRef == null) return;
     await todosRef.doc(todoId).delete();
   }

@@ -12,6 +12,7 @@ import '../todo/widgets/add_todo_sheet.dart';
 import 'widgets/ai_summary_card.dart';
 import 'widgets/upcoming_events_card.dart';
 import 'widgets/compact_todo_card.dart';
+import '../../shared/widgets/group_selector.dart';
 
 /// 선택된 구성원 필터
 final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
@@ -75,37 +76,10 @@ class HomeScreen extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        // 가족 이름
-                        if (currentFamily != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Iconsax.home_hashtag5,
-                                  size: 16,
-                                  color: AppColors.primaryLight,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  currentFamily.name,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.primaryLight,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ).animate().fadeIn(duration: 300.ms, delay: 200.ms),
+                        // 그룹 선택기
+                        const GroupSelector()
+                            .animate()
+                            .fadeIn(duration: 300.ms, delay: 200.ms),
                       ],
                     ),
                   ],
