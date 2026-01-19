@@ -18,6 +18,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
 
@@ -49,6 +50,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    setState(() {
+      _isGoogleLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authService = ref.read(authServiceProvider);
+      await authService.signInWithGoogle();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Google 로그인에 실패했습니다. 다시 시도해주세요.';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isGoogleLoading = false);
       }
     }
   }
@@ -192,11 +213,92 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         : const Text('로그인'),
                   ),
                 ),
-                const SizedBox(height: AppTheme.spacingM),
+                const SizedBox(height: AppTheme.spacingL),
+
+                // 구분선
+                Row(
+                  children: [
+                    Expanded(
+                      child: Divider(
+                        color: isDark 
+                            ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
+                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+                      child: Text(
+                        '또는',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark 
+                              ? AppColors.textSecondaryDark 
+                              : AppColors.textSecondaryLight,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Divider(
+                        color: isDark 
+                            ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
+                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppTheme.spacingL),
+
+                // Google 로그인 버튼
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton(
+                    onPressed: _isGoogleLoading ? null : _handleGoogleLogin,
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark 
+                            ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
+                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: _isGoogleLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                width: 20,
+                                height: 20,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    'G',
+                                    style: TextStyle(
+                                      color: Colors.red.shade500,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: AppTheme.spacingS),
+                              const Text('Google로 계속하기'),
+                            ],
+                          ),
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spacingL),
 
                 // 회원가입 링크
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     Text(
                       '계정이 없으신가요?',

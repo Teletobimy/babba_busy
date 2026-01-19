@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/demo_provider.dart';
+import '../../shared/providers/module_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
@@ -225,11 +226,20 @@ class SettingsScreen extends ConsumerWidget {
               ],
               const SizedBox(height: AppTheme.spacingL),
 
+              // 도구 관리
+              Text(
+                '도구 관리',
+                style: Theme.of(context).textTheme.titleMedium,
+              ).animate().fadeIn(duration: 300.ms, delay: 250.ms),
+              const SizedBox(height: AppTheme.spacingS),
+              _ModuleManagementCard(),
+              const SizedBox(height: AppTheme.spacingL),
+
               // 앱 설정
               Text(
                 '앱 설정',
                 style: Theme.of(context).textTheme.titleMedium,
-              ).animate().fadeIn(duration: 300.ms, delay: 250.ms),
+              ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
               const SizedBox(height: AppTheme.spacingS),
               AppCard(
                 padding: EdgeInsets.zero,
@@ -278,7 +288,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
-              ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.1),
+              ).animate().fadeIn(duration: 300.ms, delay: 350.ms).slideY(begin: 0.1),
               const SizedBox(height: AppTheme.spacingL),
 
               // 기타
@@ -412,5 +422,165 @@ class _SettingsTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 모듈 관리 카드
+class _ModuleManagementCard extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final modules = ref.watch(enabledModulesProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AppCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppTheme.spacingM),
+            child: Row(
+              children: [
+                Icon(
+                  Iconsax.box_1,
+                  size: 20,
+                  color: const Color(0xFF5B8DEF),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '도구 탭에서 사용할 기능을 선택하세요',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ...AppModule.values.map((module) {
+            final info = modules[module];
+            final isEnabled = info?.isEnabled ?? true;
+            
+            return _ModuleTile(
+              module: module,
+              isEnabled: isEnabled,
+              onChanged: (value) {
+                ref.read(enabledModulesProvider.notifier).setModuleEnabled(module, value);
+              },
+            );
+          }),
+        ],
+      ),
+    ).animate().fadeIn(duration: 300.ms, delay: 275.ms).slideY(begin: 0.1);
+  }
+}
+
+class _ModuleTile extends StatelessWidget {
+  final AppModule module;
+  final bool isEnabled;
+  final ValueChanged<bool> onChanged;
+
+  const _ModuleTile({
+    required this.module,
+    required this.isEnabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingM,
+        vertical: AppTheme.spacingS,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: _getModuleColor(module).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              _getModuleIcon(module),
+              size: 18,
+              color: _getModuleColor(module),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  module.label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    color: isEnabled
+                        ? null
+                        : (isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight),
+                  ),
+                ),
+                Text(
+                  _getModuleDescription(module),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: isEnabled,
+            onChanged: onChanged,
+            activeTrackColor: _getModuleColor(module),
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _getModuleIcon(AppModule module) {
+    switch (module) {
+      case AppModule.memory:
+        return Iconsax.map_1;
+      case AppModule.budget:
+        return Iconsax.wallet_3;
+      case AppModule.people:
+        return Iconsax.people;
+    }
+  }
+
+  Color _getModuleColor(AppModule module) {
+    switch (module) {
+      case AppModule.memory:
+        return AppColors.memoryColor;
+      case AppModule.budget:
+        return AppColors.budgetColor;
+      case AppModule.people:
+        return const Color(0xFF5B8DEF);
+    }
+  }
+
+  String _getModuleDescription(AppModule module) {
+    switch (module) {
+      case AppModule.memory:
+        return '추억 장소 기록';
+      case AppModule.budget:
+        return '가계부 관리';
+      case AppModule.people:
+        return '인맥 정보 관리';
+    }
   }
 }

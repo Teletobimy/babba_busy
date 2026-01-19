@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/todo_provider.dart';
@@ -29,14 +30,24 @@ class GeminiService {
   final Ref _ref;
   GenerativeModel? _model;
 
-  // API 키는 환경변수나 Firebase Remote Config에서 가져와야 함
-  static const String _apiKey = 'YOUR_GEMINI_API_KEY';
+  // API 키: 빌드 시 --dart-define 또는 .env 파일에서 로드
+  static String get _apiKey {
+    // 1. 빌드 시 주입된 값 우선 (배포용)
+    const buildTimeKey = String.fromEnvironment('GEMINI_API_KEY');
+    if (buildTimeKey.isNotEmpty) return buildTimeKey;
+    
+    // 2. .env 파일에서 로드 (개발용)
+    return dotenv.env['GEMINI_API_KEY'] ?? '';
+  }
 
   GeminiService(this._ref);
 
+  /// API 키가 설정되어 있는지 확인
+  bool get hasApiKey => _apiKey.isNotEmpty;
+
   GenerativeModel get model {
     _model ??= GenerativeModel(
-      model: 'gemini-pro',
+      model: 'gemini-1.5-flash',
       apiKey: _apiKey,
     );
     return _model!;
@@ -49,7 +60,7 @@ class GeminiService {
     required int upcomingEventsCount,
   }) async {
     // API 키가 없으면 기본 메시지 반환
-    if (_apiKey == 'YOUR_GEMINI_API_KEY') {
+    if (!hasApiKey) {
       return _generateLocalSummary(memberName, todos, upcomingEventsCount);
     }
 
@@ -91,7 +102,7 @@ class GeminiService {
     required int completedCount,
     required int totalCount,
   }) async {
-    if (_apiKey == 'YOUR_GEMINI_API_KEY') {
+    if (!hasApiKey) {
       final rate = totalCount > 0 ? (completedCount / totalCount * 100).round() : 0;
       return '$memberName님, 이번 주 할일 완료율은 $rate%예요! ${rate >= 70 ? "잘하고 계세요! 🎉" : "조금만 더 힘내세요! 💪"}';
     }
@@ -138,7 +149,7 @@ $memberName님의 이번 주 활동을 요약해주세요.
     required String familyName,
     required List<TodoItem> recentTodos,
   }) async {
-    if (_apiKey == 'YOUR_GEMINI_API_KEY') {
+    if (!hasApiKey) {
       return ['장보기', '청소하기', '운동하기'];
     }
 

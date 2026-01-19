@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/family_member.dart';
@@ -104,6 +105,27 @@ class AuthService {
       email: email,
       password: password,
     );
+  }
+
+  /// Google 로그인
+  Future<UserCredential?> signInWithGoogle() async {
+    if (_auth == null) return null;
+
+    try {
+      final GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      googleProvider.addScope('email');
+      googleProvider.addScope('profile');
+
+      if (kIsWeb) {
+        // 웹: 팝업으로 로그인
+        return await _auth!.signInWithPopup(googleProvider);
+      } else {
+        // 모바일: 리다이렉트 방식 (또는 google_sign_in 패키지 사용)
+        return await _auth!.signInWithProvider(googleProvider);
+      }
+    } catch (e) {
+      rethrow;
+    }
   }
 
   /// 로그아웃

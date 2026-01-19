@@ -1,0 +1,37 @@
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "***REMOVED_PROJECT_ID***",
+          "appId": "***REMOVED_ANDROID_APP_ID***",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "***REMOVED_PROJECT_ID***",
+          "configurations": {
+            "android": "***REMOVED_ANDROID_APP_ID***",
+            "ios": "***REMOVED_IOS_APP_ID***",
+            "web": "***REMOVED_WEB_APP_ID***"
+          }
+        }
+      }
+    }
+  }
+}

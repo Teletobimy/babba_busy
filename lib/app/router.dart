@@ -8,13 +8,15 @@ import '../features/auth/family_setup_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/todo/todo_screen.dart';
 import '../features/calendar/calendar_screen.dart';
-import '../features/memory/memory_screen.dart';
-import '../features/budget/budget_screen.dart';
+import '../features/tools/tools_hub_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../main.dart' show firebaseInitialized;
 import 'main_shell.dart';
 
-/// 데모 모드 Provider (Firebase 없이 UI 미리보기용)
-final demoModeProvider = StateProvider<bool>((ref) => true);
+/// 데모 모드 Provider (Firebase 연결 여부에 따라 자동 설정)
+/// - Firebase 초기화 성공: 데모 모드 OFF (실제 데이터 사용)
+/// - Firebase 초기화 실패: 데모 모드 ON (샘플 데이터 사용)
+final demoModeProvider = StateProvider<bool>((ref) => !firebaseInitialized);
 
 /// 라우터 Provider
 final routerProvider = Provider<GoRouter>((ref) {
@@ -91,17 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/memory',
-            name: 'memory',
+            path: '/tools',
+            name: 'tools',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: MemoryScreen(),
-            ),
-          ),
-          GoRoute(
-            path: '/budget',
-            name: 'budget',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: BudgetScreen(),
+              child: ToolsHubScreen(),
             ),
           ),
           GoRoute(

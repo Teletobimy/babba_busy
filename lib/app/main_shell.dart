@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../core/theme/app_colors.dart';
 
+/// 도구 탭 컬러
+const Color toolsColor = Color(0xFF5B8DEF);
+
 /// 메인 쉘 (하단 네비게이션 바 포함)
 class MainShell extends StatelessWidget {
   final Widget child;
@@ -25,9 +28,8 @@ class _BottomNavBar extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     if (location.startsWith('/home')) return 0;
     if (location.startsWith('/calendar')) return 1;
-    if (location.startsWith('/memory')) return 2;
-    if (location.startsWith('/budget')) return 3;
-    if (location.startsWith('/settings')) return 4;
+    if (location.startsWith('/tools')) return 2;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -40,12 +42,9 @@ class _BottomNavBar extends StatelessWidget {
         context.go('/calendar');
         break;
       case 2:
-        context.go('/memory');
+        context.go('/tools');
         break;
       case 3:
-        context.go('/budget');
-        break;
-      case 4:
         context.go('/settings');
         break;
     }
@@ -90,28 +89,20 @@ class _BottomNavBar extends StatelessWidget {
                 onTap: () => _onItemTapped(context, 1),
               ),
               _NavItem(
-                icon: Iconsax.map_1,
-                activeIcon: Iconsax.map5,
-                label: '추억',
+                icon: Iconsax.box_1,
+                activeIcon: Iconsax.box5,
+                label: '도구',
                 isSelected: selectedIndex == 2,
-                color: AppColors.memoryColor,
+                color: toolsColor,
                 onTap: () => _onItemTapped(context, 2),
-              ),
-              _NavItem(
-                icon: Iconsax.wallet_3,
-                activeIcon: Iconsax.wallet_15,
-                label: '가계부',
-                isSelected: selectedIndex == 3,
-                color: AppColors.budgetColor,
-                onTap: () => _onItemTapped(context, 3),
               ),
               _NavItem(
                 icon: Iconsax.setting_2,
                 activeIcon: Iconsax.setting5,
                 label: '설정',
-                isSelected: selectedIndex == 4,
+                isSelected: selectedIndex == 3,
                 color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                onTap: () => _onItemTapped(context, 4),
+                onTap: () => _onItemTapped(context, 3),
               ),
             ],
           ),

@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Environment variables (API Keys 등 민감정보)
+.env
+.env.local
+.env.*.local
