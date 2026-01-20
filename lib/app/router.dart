@@ -13,6 +13,7 @@ import '../features/tools/tools_hub_screen.dart';
 import '../features/tools/business/business_review_screen.dart';
 import '../features/tools/psychology/psychology_hub_screen.dart';
 import '../features/tools/psychology/psychology_test_screen.dart';
+import '../features/tools/psychology/psychology_history_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../main.dart' show firebaseInitialized;
 import 'main_shell.dart';
@@ -162,6 +163,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           final testType = state.pathParameters['testType'] ?? 'big5';
           return PsychologyTestScreen(testType: testType);
         },
+      ),
+      GoRoute(
+        path: '/tools/psychology/history',
+        name: 'psychology-history',
+        builder: (context, state) => const PsychologyHistoryScreen(),
       ),
     ],
   );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
 import '../../../shared/providers/auth_provider.dart';
@@ -23,6 +24,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   Map<String, String> _analysisProgress = {};
   BusinessAnalysisResult? _result;
   String? _error;
+  String? _inputError; // P1: 입력 검증 에러
 
   final List<String> _industries = [
     '테크/IT',
@@ -51,12 +53,17 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   }
 
   Future<void> _startAnalysis() async {
-    if (_ideaController.text.trim().length < 10) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('아이디어를 10자 이상 입력해주세요')),
-      );
+    // P1: 입력 검증 시각적 피드백
+    final text = _ideaController.text.trim();
+    if (text.isEmpty) {
+      setState(() => _inputError = '아이디어를 입력해주세요');
       return;
     }
+    if (text.length < 10) {
+      setState(() => _inputError = '10자 이상 입력해주세요 (현재 ${text.length}자)');
+      return;
+    }
+    setState(() => _inputError = null);
 
     setState(() {
       _isAnalyzing = true;
@@ -115,16 +122,63 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     });
   }
 
+  // P1: 분석 중 이탈 방지 다이얼로그
+  Future<bool> _showExitConfirmDialog() async {
+    if (!_isAnalyzing) return true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('분석 중단'),
+        content: const Text('분석을 중단하시겠습니까?\n진행 상황은 저장되지 않습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('계속하기'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('중단', style: TextStyle(color: AppColors.coral[500])),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.grayScale[50],
-      appBar: AppBar(
-        title: const Text('사업 검토'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+    // P1: 분석 중 이탈 방지
+    return PopScope(
+      canPop: !_isAnalyzing,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (!didPop && _isAnalyzing) {
+          final shouldPop = await _showExitConfirmDialog();
+          if (shouldPop && context.mounted) {
+            context.pop();
+          }
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          title: const Text('사업 검토'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: _isAnalyzing
+              ? IconButton(
+                  icon: const Icon(Iconsax.arrow_left),
+                  onPressed: () async {
+                    final shouldPop = await _showExitConfirmDialog();
+                    if (shouldPop && context.mounted) {
+                      context.pop();
+                    }
+                  },
+                )
+              : null,
+        ),
+        body: _result != null ? _buildResultView() : _buildInputView(),
       ),
-      body: _result != null ? _buildResultView() : _buildInputView(),
     );
   }
 
@@ -155,6 +209,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
+              border: _inputError != null
+                  ? Border.all(color: AppColors.coral[400]!, width: 2)
+                  : null,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.05),
@@ -167,11 +224,18 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
               controller: _ideaController,
               maxLines: 6,
               maxLength: 2000,
+              onChanged: (value) {
+                // P1: 입력 중 에러 해제
+                if (_inputError != null && value.trim().length >= 10) {
+                  setState(() => _inputError = null);
+                }
+              },
               decoration: InputDecoration(
                 hintText: '예: 반려동물 산책 매칭 서비스를 만들고 싶어요.\n'
                     '견주들이 시간이 없을 때 근처 산책 도우미를 찾을 수 있고,\n'
                     '산책 도우미는 부수입을 얻을 수 있는 플랫폼입니다.',
                 hintStyle: TextStyle(color: AppColors.grayScale[400]),
+                errorText: _inputError, // P1: 에러 메시지 표시
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide.none,
@@ -454,15 +518,16 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
+                // P1: 미구현 버튼 비활성화
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    // TODO: AI 대화 화면으로 이동
-                  },
+                  onPressed: null, // 준비 중
                   icon: const Icon(Iconsax.message),
-                  label: const Text('AI와 상담'),
+                  label: const Text('준비 중'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.coral[500],
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: AppColors.grayScale[200],
+                    disabledForegroundColor: AppColors.grayScale[500],
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                 ),

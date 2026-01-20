@@ -17,6 +17,13 @@ class PsychologyHubScreen extends ConsumerWidget {
         title: const Text('심리검사'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/tools/psychology/history'),
+            icon: const Icon(Iconsax.document_text),
+            tooltip: '검사 이력',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
@@ -76,7 +83,7 @@ class PsychologyHubScreen extends ConsumerWidget {
               icon: '💕',
               duration: '약 8분',
               questionCount: 20,
-              color: Colors.pink,
+              color: AppColors.getTestColor('attachment'),
             ).animate().fadeIn(delay: 200.ms).slideX(begin: -0.1),
             const SizedBox(height: 12),
             _buildTestCard(
@@ -87,7 +94,7 @@ class PsychologyHubScreen extends ConsumerWidget {
               icon: '💝',
               duration: '약 6분',
               questionCount: 15,
-              color: Colors.red,
+              color: AppColors.getTestColor('love_language'),
             ).animate().fadeIn(delay: 250.ms).slideX(begin: -0.1),
             const SizedBox(height: 24),
 
@@ -102,7 +109,7 @@ class PsychologyHubScreen extends ConsumerWidget {
               icon: '😰',
               duration: '약 4분',
               questionCount: 10,
-              color: Colors.orange,
+              color: AppColors.getTestColor('stress'),
             ).animate().fadeIn(delay: 300.ms).slideX(begin: -0.1),
             const SizedBox(height: 12),
             _buildTestCard(
@@ -113,7 +120,7 @@ class PsychologyHubScreen extends ConsumerWidget {
               icon: '😟',
               duration: '약 3분',
               questionCount: 7,
-              color: Colors.amber,
+              color: AppColors.getTestColor('anxiety'),
               warning: true,
             ).animate().fadeIn(delay: 350.ms).slideX(begin: -0.1),
             const SizedBox(height: 12),
@@ -125,7 +132,7 @@ class PsychologyHubScreen extends ConsumerWidget {
               icon: '😔',
               duration: '약 4분',
               questionCount: 9,
-              color: Colors.blueGrey,
+              color: AppColors.getTestColor('depression'),
               warning: true,
             ).animate().fadeIn(delay: 400.ms).slideX(begin: -0.1),
             const SizedBox(height: 32),

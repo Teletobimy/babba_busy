@@ -137,6 +137,37 @@ class AppColors {
     colors: [Color(0xFFD4917A), Color(0xFFD4B06F)],
   );
 
+  // ============ 도구 모듈 색상 ============
+  static const Color peopleColor = Color(0xFF5B8DEF);  // 사람들
+  static const Color chatColor = Color(0xFF9B59B6);    // 대화방
+
+  // ============ 심리검사 테마 색상 ============
+  static const Map<String, MaterialColor> testColors = {
+    'big5': coral,
+    'mbti': lavender,
+    'attachment': MaterialColor(0xFFF8B4B4, {  // Rose
+      50: Color(0xFFFEF2F2), 100: Color(0xFFFCE7E7), 200: Color(0xFFFBD5D5),
+      300: Color(0xFFF9C3C3), 400: Color(0xFFF8B4B4), 500: Color(0xFFF8B4B4),
+      600: Color(0xFFE5A3A3), 700: Color(0xFFD29292), 800: Color(0xFFBF8181), 900: Color(0xFF996666),
+    }),
+    'love_language': MaterialColor(0xFFFFB6C1, {  // Light Pink
+      50: Color(0xFFFFF0F3), 100: Color(0xFFFFE4E9), 200: Color(0xFFFFD5DD),
+      300: Color(0xFFFFC6D1), 400: Color(0xFFFFB6C1), 500: Color(0xFFFFB6C1),
+      600: Color(0xFFE5A3AD), 700: Color(0xFFCC9099), 800: Color(0xFFB27D85), 900: Color(0xFF8C6269),
+    }),
+    'stress': MaterialColor(0xFFFFB74D, {  // Orange
+      50: Color(0xFFFFF8E1), 100: Color(0xFFFFECB3), 200: Color(0xFFFFE082),
+      300: Color(0xFFFFD54F), 400: Color(0xFFFFCA28), 500: Color(0xFFFFB74D),
+      600: Color(0xFFFFA726), 700: Color(0xFFFF9800), 800: Color(0xFFFB8C00), 900: Color(0xFFF57C00),
+    }),
+    'anxiety': MaterialColor(0xFFF4D06F, {  // Amber/Honey
+      50: Color(0xFFFFFBE6), 100: Color(0xFFFFF5CC), 200: Color(0xFFFEEDB3),
+      300: Color(0xFFFEE599), 400: Color(0xFFF9DC7F), 500: Color(0xFFF4D06F),
+      600: Color(0xFFE0BC5E), 700: Color(0xFFCCA84D), 800: Color(0xFFB8943C), 900: Color(0xFF8A6F2D),
+    }),
+    'depression': grayScale,
+  };
+
   // ============ 유틸리티 메서드 ============
   static Color getMemberColor(int index) {
     return memberColors[index % memberColors.length];
@@ -144,6 +175,10 @@ class AppColors {
 
   static Color getCategoryColor(String category) {
     return categoryColors[category] ?? categoryColors['other']!;
+  }
+
+  static MaterialColor getTestColor(String testType) {
+    return testColors[testType] ?? coral;
   }
 }
 

@@ -29,6 +29,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   bool _isLoading = true;
   bool _isSubmitting = false;
   String? _error;
+  int? _selectedAnswerIndex; // P1: 선택된 답변 시각적 표시용
 
   // 결과
   bool _isComplete = false;
@@ -91,7 +92,10 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   Future<void> _submitAnswer(int answerIndex) async {
     if (_isSubmitting || _currentQuestion == null || _sessionId == null) return;
 
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+      _selectedAnswerIndex = answerIndex; // P1: 선택된 답변 표시
+    });
 
     try {
       final user = ref.read(currentUserProvider);
@@ -113,6 +117,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           _currentIndex++;
           _currentQuestion = result.nextQuestion;
           _isSubmitting = false;
+          _selectedAnswerIndex = null; // P1: 다음 질문으로 넘어갈 때 선택 초기화
         });
       }
     } catch (e) {
@@ -153,30 +158,93 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // P0: 로딩 상태에서 AppBar 추가
     if (_isLoading) {
       return Scaffold(
         backgroundColor: AppColors.grayScale[50],
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_error != null) {
-      return Scaffold(
-        backgroundColor: AppColors.grayScale[50],
-        appBar: AppBar(backgroundColor: Colors.transparent),
+        appBar: AppBar(
+          title: Text(_getTestName(widget.testType)),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
+              ),
               const SizedBox(height: 16),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => context.pop(),
-                child: const Text('돌아가기'),
+              Text(
+                '검사를 준비하고 있습니다...',
+                style: TextStyle(color: AppColors.grayScale[600]),
               ),
             ],
+          ),
+        ),
+      );
+    }
+
+    // P0: 에러 상태에서 재시도 버튼 추가
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          title: const Text('오류 발생'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: AppColors.coral[400]),
+                const SizedBox(height: 16),
+                Text(
+                  '검사를 불러오지 못했습니다',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.grayScale[800],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.grayScale[600]),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => context.pop(),
+                      icon: const Icon(Iconsax.arrow_left),
+                      label: const Text('돌아가기'),
+                    ),
+                    const SizedBox(width: 12),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _error = null;
+                          _isLoading = true;
+                        });
+                        _startTest();
+                      },
+                      icon: const Icon(Iconsax.refresh),
+                      label: const Text('다시 시도'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.coral[500],
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -192,7 +260,15 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   Widget _buildTestScreen() {
     final progress = (_currentIndex + 1) / _totalQuestions;
 
-    return Scaffold(
+    // P1: 시스템 뒤로가기 버튼 이탈 방지
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _showExitDialog();
+        }
+      },
+      child: Scaffold(
       backgroundColor: AppColors.grayScale[50],
       appBar: AppBar(
         title: Text(_testName ?? '심리검사'),
@@ -294,22 +370,32 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           ),
         ],
       ),
+    ),  // PopScope 닫기
     );
   }
 
   Widget _buildOptionButton(int index, String option) {
+    // P1: 선택된 상태 시각화
+    final isSelected = _selectedAnswerIndex == index;
+    final isSubmittingThis = _isSubmitting && isSelected;
+
     return Material(
-      color: Colors.white,
+      color: isSelected ? AppColors.coral[50] : Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: _isSubmitting ? null : () => _submitAnswer(index),
         borderRadius: BorderRadius.circular(12),
+        splashColor: AppColors.coral[100],
+        highlightColor: AppColors.coral[50],
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.grayScale[200]!),
+            border: Border.all(
+              color: isSelected ? AppColors.coral[400]! : AppColors.grayScale[200]!,
+              width: isSelected ? 2 : 1,
+            ),
           ),
           child: Row(
             children: [
@@ -317,17 +403,19 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: AppColors.grayScale[100],
+                  color: isSelected ? AppColors.coral[400] : AppColors.grayScale[100],
                   shape: BoxShape.circle,
                 ),
                 child: Center(
-                  child: Text(
-                    '${index + 1}',
-                    style: TextStyle(
-                      color: AppColors.grayScale[600],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white, size: 18)
+                      : Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: AppColors.grayScale[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -335,12 +423,13 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 child: Text(
                   option,
                   style: TextStyle(
-                    color: AppColors.grayScale[700],
+                    color: isSelected ? AppColors.coral[700] : AppColors.grayScale[700],
                     fontSize: 15,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ),
-              if (_isSubmitting)
+              if (isSubmittingThis)
                 SizedBox(
                   width: 20,
                   height: 20,
@@ -539,15 +628,16 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
+                  // P1: 미구현 버튼 비활성화
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      // TODO: 공유 기능
-                    },
+                    onPressed: null, // 준비 중
                     icon: const Icon(Iconsax.share),
-                    label: const Text('결과 공유'),
+                    label: const Text('준비 중'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.coral[500],
                       foregroundColor: Colors.white,
+                      disabledBackgroundColor: AppColors.grayScale[200],
+                      disabledForegroundColor: AppColors.grayScale[500],
                       padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
