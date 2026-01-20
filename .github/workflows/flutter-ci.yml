@@ -99,7 +99,7 @@ jobs:
           sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
 
       - name: Build Web (PWA)
-        run: flutter build web --release --web-renderer canvaskit
+        run: flutter build web --release --wasm
 
       - name: Create version.json
         run: |
