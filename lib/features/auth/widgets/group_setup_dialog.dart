@@ -4,7 +4,6 @@ import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_provider.dart';
-import '../../../shared/providers/group_provider.dart';
 
 class GroupSetupDialog extends ConsumerStatefulWidget {
   final bool isJoinOnly;

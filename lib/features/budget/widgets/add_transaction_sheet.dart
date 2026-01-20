@@ -264,7 +264,8 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     Switch(
                       value: _isRecurring,
                       onChanged: (value) => setState(() => _isRecurring = value),
-                      activeColor: AppColors.budgetColor,
+                      activeTrackColor: AppColors.budgetColor.withValues(alpha: 0.5),
+                      activeThumbColor: AppColors.budgetColor,
                     ),
                   ],
                 ),

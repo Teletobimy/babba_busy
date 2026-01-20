@@ -27,7 +27,6 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Smart Provider 사용 - 데모/실제 데이터 자동 선택
     final currentMember = ref.watch(smartCurrentMemberProvider);
-    final currentFamily = ref.watch(smartCurrentFamilyProvider);
     final members = ref.watch(smartMembersProvider);
     
     final selectedMemberId = ref.watch(selectedMemberFilterProvider);

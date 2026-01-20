@@ -67,9 +67,11 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
                   ],
                 ),
               );
-              if (confirmed == true && mounted) {
+              if (confirmed == true) {
                 ref.read(todoServiceProvider).deleteTodo(todo.id);
-                Navigator.of(context).pop();
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
               }
             },
           ),

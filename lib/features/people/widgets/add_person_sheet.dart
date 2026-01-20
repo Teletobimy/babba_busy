@@ -111,7 +111,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
                   // 관계
                   DropdownButtonFormField<String>(
-                    value: _relationship,
+                    initialValue: _relationship,
                     decoration: InputDecoration(
                       labelText: '관계',
                       prefixIcon: const Icon(Iconsax.people),
@@ -169,7 +169,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
                   // MBTI
                   DropdownButtonFormField<String>(
-                    value: _mbti,
+                    initialValue: _mbti,
                     decoration: InputDecoration(
                       labelText: 'MBTI',
                       prefixIcon: const Icon(Iconsax.personalcard),

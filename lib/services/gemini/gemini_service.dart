@@ -28,7 +28,6 @@ final aiSummaryProvider = FutureProvider<String>((ref) async {
 
 /// Gemini AI 서비스
 class GeminiService {
-  final Ref _ref;
   GenerativeModel? _model;
 
   // API 키: 빌드 시 --dart-define 또는 .env 파일에서 로드
@@ -36,12 +35,12 @@ class GeminiService {
     // 1. 빌드 시 주입된 값 우선 (배포용)
     const buildTimeKey = String.fromEnvironment('GEMINI_API_KEY');
     if (buildTimeKey.isNotEmpty) return buildTimeKey;
-    
+
     // 2. .env 파일에서 로드 (개발용)
     return dotenv.env['GEMINI_API_KEY'] ?? '';
   }
 
-  GeminiService(this._ref);
+  GeminiService(Ref _);
 
   /// API 키가 설정되어 있는지 확인
   bool get hasApiKey => _apiKey.isNotEmpty;

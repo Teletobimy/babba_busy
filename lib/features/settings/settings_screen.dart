@@ -5,7 +5,6 @@ import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
-import '../../shared/providers/demo_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
