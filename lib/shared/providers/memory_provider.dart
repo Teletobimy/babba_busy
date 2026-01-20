@@ -29,15 +29,15 @@ final memoriesByCategoryProvider =
 });
 
 /// 특정 추억의 댓글 목록
-final memoryCommentsProvider = 
+final memoryCommentsProvider =
     StreamProvider.family<List<MemoryComment>, String>((ref, memoryId) {
-  final member = ref.watch(currentMemberProvider).value;
+  final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (member == null || firestore == null) return Stream.value([]);
+  if (membership == null || firestore == null) return Stream.value([]);
 
   return firestore
       .collection('families')
-      .doc(member.familyId)
+      .doc(membership.groupId)
       .collection('memories')
       .doc(memoryId)
       .collection('comments')

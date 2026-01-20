@@ -4,7 +4,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/todo_provider.dart';
 import '../../shared/providers/event_provider.dart';
-import '../../shared/providers/auth_provider.dart';
+import '../../shared/providers/smart_provider.dart';
 
 /// Gemini AI 서비스 Provider
 final geminiServiceProvider = Provider<GeminiService>((ref) {
@@ -16,7 +16,8 @@ final aiSummaryProvider = FutureProvider<String>((ref) async {
   final geminiService = ref.read(geminiServiceProvider);
   final todos = ref.watch(todosProvider).value ?? [];
   final events = ref.watch(eventsProvider).value ?? [];
-  final memberName = ref.watch(currentMemberProvider).value?.name ?? '사용자';
+  final currentMember = ref.watch(smartCurrentMemberProvider);
+  final memberName = currentMember?.name ?? '사용자';
 
   return geminiService.generateDailySummary(
     memberName: memberName,

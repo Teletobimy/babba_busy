@@ -4,7 +4,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/event_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
@@ -122,7 +122,7 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final members = ref.watch(familyMembersProvider).value ?? [];
+    final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(

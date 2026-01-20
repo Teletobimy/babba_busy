@@ -73,6 +73,7 @@ final currentMemberProvider = StreamProvider<FamilyMember?>((ref) {
       name: membership.name,
       email: user.email ?? '',
       color: membership.color,
+      avatarUrl: membership.avatarUrl ?? user.photoURL, // 프로필 사진
       role: membership.role,
       createdAt: membership.joinedAt,
     );
@@ -114,6 +115,7 @@ final familyMembersProvider = StreamProvider<List<FamilyMember>>((ref) {
               name: membership.name,
               email: '', // membership에는 email 없음
               color: membership.color,
+              avatarUrl: membership.avatarUrl, // 프로필 사진
               role: membership.role,
               createdAt: membership.joinedAt,
             );
@@ -217,6 +219,7 @@ class AuthService {
       'name': memberName,
       'color': color,
       'role': 'admin',
+      'avatarUrl': user.photoURL, // Google 프로필 사진
       'joinedAt': FieldValue.serverTimestamp(),
     });
 
@@ -272,6 +275,7 @@ class AuthService {
       'name': memberName,
       'color': color,
       'role': 'member',
+      'avatarUrl': user.photoURL, // Google 프로필 사진
       'joinedAt': FieldValue.serverTimestamp(),
     });
   }

@@ -5,10 +5,13 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
+import '../../app/router.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/memory_provider.dart';
+import '../../shared/providers/chat_provider.dart';
 import '../../shared/models/memory.dart';
+import '../../shared/models/chat_message.dart';
 import '../memory/memory_screen.dart';
 import '../memory/widgets/add_memory_sheet.dart';
 import '../budget/widgets/add_transaction_sheet.dart';
@@ -639,23 +642,6 @@ class _ChatContent extends ConsumerStatefulWidget {
 class _ChatContentState extends ConsumerState<_ChatContent> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<_ChatMessage> _messages = [];
-
-  @override
-  void initState() {
-    super.initState();
-    // 데모 메시지 추가
-    _messages.addAll([
-      _ChatMessage(
-        id: '1',
-        senderId: 'system',
-        senderName: '시스템',
-        content: '대화방에 오신 것을 환영합니다! 👋',
-        timestamp: DateTime.now().subtract(const Duration(hours: 1)),
-        isSystem: true,
-      ),
-    ]);
-  }
 
   @override
   void dispose() {
@@ -668,16 +654,20 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    setState(() {
-      _messages.add(_ChatMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        senderId: 'me',
-        senderName: '나',
-        content: text,
-        timestamp: DateTime.now(),
-        isMe: true,
-      ));
-    });
+    // Smart Provider를 통해 데모/실제 모드에 따라 처리
+    final demoMode = ref.read(demoModeProvider);
+    if (demoMode) {
+      // 데모 모드에서는 로컬에서만 처리 (실제 저장 안함)
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('데모 모드에서는 메시지가 저장되지 않습니다'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      // 실제 모드에서는 Firebase에 저장
+      ref.read(chatServiceProvider).sendMessage(content: text);
+    }
 
     _messageController.clear();
 
@@ -698,11 +688,45 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const chatColor = Color(0xFF9B59B6);
 
+    // Provider에서 메시지 목록 가져오기
+    final messages = ref.watch(smartChatMessagesProvider);
+    final currentUserId = ref.watch(smartCurrentUserIdProvider);
+    final currentFamily = ref.watch(smartCurrentFamilyProvider);
+
     return Column(
       children: [
+        // 그룹 정보 헤더
+        if (currentFamily != null)
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppTheme.spacingM,
+              vertical: AppTheme.spacingS,
+            ),
+            decoration: BoxDecoration(
+              color: chatColor.withValues(alpha: 0.1),
+              border: Border(
+                bottom: BorderSide(
+                  color: chatColor.withValues(alpha: 0.2),
+                ),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Iconsax.people, size: 16, color: chatColor),
+                const SizedBox(width: AppTheme.spacingS),
+                Text(
+                  currentFamily.name,
+                  style: TextStyle(
+                    color: chatColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
         // 메시지 목록
         Expanded(
-          child: _messages.isEmpty
+          child: messages.isEmpty
               ? Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -732,10 +756,14 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
               : ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(AppTheme.spacingL),
-                  itemCount: _messages.length,
+                  itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final message = _messages[index];
-                    return _ChatBubble(message: message);
+                    final message = messages[index];
+                    final isMe = message.senderId == currentUserId;
+                    return _ChatBubble(
+                      message: message,
+                      isMe: isMe,
+                    );
                   },
                 ),
         ),
@@ -804,39 +832,20 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
   }
 }
 
-/// 채팅 메시지 모델
-class _ChatMessage {
-  final String id;
-  final String senderId;
-  final String senderName;
-  final String content;
-  final DateTime timestamp;
-  final bool isMe;
-  final bool isSystem;
-
-  _ChatMessage({
-    required this.id,
-    required this.senderId,
-    required this.senderName,
-    required this.content,
-    required this.timestamp,
-    this.isMe = false,
-    this.isSystem = false,
-  });
-}
-
-/// 채팅 버블 위젯
+/// 채팅 버블 위젯 - ChatMessage 모델 사용
 class _ChatBubble extends StatelessWidget {
-  final _ChatMessage message;
+  final ChatMessage message;
+  final bool isMe;
 
-  const _ChatBubble({required this.message});
+  const _ChatBubble({required this.message, required this.isMe});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     const chatColor = Color(0xFF9B59B6);
 
-    if (message.isSystem) {
+    // 시스템 메시지
+    if (message.type == MessageType.system) {
       return Container(
         margin: const EdgeInsets.symmetric(vertical: AppTheme.spacingS),
         child: Center(
@@ -862,7 +871,7 @@ class _ChatBubble extends StatelessWidget {
     }
 
     return Align(
-      alignment: message.isMe ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: AppTheme.spacingXS),
         constraints: BoxConstraints(
@@ -870,9 +879,9 @@ class _ChatBubble extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment:
-              message.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (!message.isMe)
+            if (!isMe)
               Padding(
                 padding: const EdgeInsets.only(
                   left: AppTheme.spacingS,
@@ -894,20 +903,20 @@ class _ChatBubble extends StatelessWidget {
                 vertical: AppTheme.spacingS,
               ),
               decoration: BoxDecoration(
-                color: message.isMe
+                color: isMe
                     ? chatColor
                     : (isDark ? AppColors.surfaceDark : Colors.grey[200]),
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(16),
                   topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(message.isMe ? 16 : 4),
-                  bottomRight: Radius.circular(message.isMe ? 4 : 16),
+                  bottomLeft: Radius.circular(isMe ? 16 : 4),
+                  bottomRight: Radius.circular(isMe ? 4 : 16),
                 ),
               ),
               child: Text(
                 message.content,
                 style: TextStyle(
-                  color: message.isMe
+                  color: isMe
                       ? Colors.white
                       : (isDark
                           ? AppColors.textPrimaryDark
@@ -922,7 +931,7 @@ class _ChatBubble extends StatelessWidget {
                 right: AppTheme.spacingS,
               ),
               child: Text(
-                DateFormat('HH:mm').format(message.timestamp),
+                message.formattedTime,
                 style: TextStyle(
                   fontSize: 10,
                   color: isDark

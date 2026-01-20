@@ -1,11 +1,11 @@
 {
-    "name": "family_hub",
-    "short_name": "family_hub",
+    "name": "BABBA - 바쁜 일상 관리",
+    "short_name": "BABBA",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFF5F0",
+    "theme_color": "#FF8A65",
+    "description": "가족/그룹 공유 앱 - 할일, 일정, 추억 지도, 가계부",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

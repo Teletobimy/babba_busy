@@ -7,7 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/memory.dart';
 import '../../../shared/providers/memory_provider.dart';
-import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
 /// 추억 상세 바텀 시트
@@ -53,7 +53,7 @@ class _MemoryDetailSheetState extends ConsumerState<MemoryDetailSheet> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final comments = ref.watch(memoryCommentsProvider(widget.memory.id)).value ?? [];
-    final members = ref.watch(familyMembersProvider).value ?? [];
+    final members = ref.watch(smartMembersProvider);
 
     return Container(
       constraints: BoxConstraints(

@@ -9,6 +9,7 @@ class Membership {
   final String name; // 그룹별 닉네임
   final String color; // 그룹별 색상
   final String role; // 'admin' or 'member'
+  final String? avatarUrl; // 사용자 프로필 사진 URL (Google 등)
   final DateTime joinedAt;
 
   Membership({
@@ -19,6 +20,7 @@ class Membership {
     required this.name,
     required this.color,
     required this.role,
+    this.avatarUrl,
     required this.joinedAt,
   });
 
@@ -32,6 +34,7 @@ class Membership {
       name: data['name'] ?? '',
       color: data['color'] ?? '#FFCBA4',
       role: data['role'] ?? 'member',
+      avatarUrl: data['avatarUrl'],
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -44,6 +47,7 @@ class Membership {
       'name': name,
       'color': color,
       'role': role,
+      'avatarUrl': avatarUrl,
       'joinedAt': Timestamp.fromDate(joinedAt),
     };
   }
@@ -56,6 +60,7 @@ class Membership {
     String? name,
     String? color,
     String? role,
+    String? avatarUrl,
     DateTime? joinedAt,
   }) {
     return Membership(
@@ -66,6 +71,7 @@ class Membership {
       name: name ?? this.name,
       color: color ?? this.color,
       role: role ?? this.role,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
       joinedAt: joinedAt ?? this.joinedAt,
     );
   }

@@ -425,7 +425,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: AppTheme.spacingXL),
               ElevatedButton(
                 onPressed: () {
-                  ref.invalidate(currentMemberProvider);
+                  // 멤버십 데이터 새로고침
+                  ref.invalidate(userMembershipsProvider);
                 },
                 child: const Text('시작하기'),
               ),

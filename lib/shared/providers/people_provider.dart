@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/person.dart';
 import '../../app/router.dart';
+import 'auth_provider.dart';
+import 'group_provider.dart';
 
 /// 데모 사람 목록
 final demoPeopleProvider = Provider<List<Person>>((ref) {
@@ -177,17 +180,109 @@ final demoPeopleProvider = Provider<List<Person>>((ref) {
 
 /// 실제 Firebase에서 가져오는 사람 목록 Provider
 final peopleProvider = StreamProvider<List<Person>>((ref) {
-  // TODO: Firebase 연동
-  // final familyId = ref.watch(currentFamilyProvider).value?.id;
-  // if (familyId == null) return Stream.value([]);
-  // return FirebaseFirestore.instance
-  //     .collection('families')
-  //     .doc(familyId)
-  //     .collection('people')
-  //     .snapshots()
-  //     .map((snapshot) => snapshot.docs.map((doc) => Person.fromFirestore(doc)).toList());
-  return Stream.value([]);
+  final membership = ref.watch(currentMembershipProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (membership == null || firestore == null) return Stream.value([]);
+
+  return firestore
+      .collection('families')
+      .doc(membership.groupId)
+      .collection('people')
+      .orderBy('name')
+      .snapshots()
+      .map((snapshot) =>
+          snapshot.docs.map((doc) => Person.fromFirestore(doc)).toList());
 });
+
+/// People 서비스
+final peopleServiceProvider = Provider<PeopleService>((ref) => PeopleService(ref));
+
+class PeopleService {
+  final Ref _ref;
+  PeopleService(this._ref);
+
+  FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
+
+  /// 사람 추가
+  Future<void> addPerson(Person person) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final user = _ref.read(currentUserProvider);
+    final firestore = _firestore;
+    if (membership == null || user == null || firestore == null) return;
+
+    final newPerson = person.copyWith(
+      familyId: membership.groupId,
+      createdBy: user.uid,
+      createdAt: DateTime.now(),
+    );
+
+    await firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('people')
+        .add(newPerson.toFirestore());
+  }
+
+  /// 사람 정보 수정
+  Future<void> updatePerson(Person person) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final firestore = _firestore;
+    if (membership == null || firestore == null) return;
+
+    await firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('people')
+        .doc(person.id)
+        .update(person.toFirestore());
+  }
+
+  /// 사람 삭제
+  Future<void> deletePerson(String personId) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final firestore = _firestore;
+    if (membership == null || firestore == null) return;
+
+    await firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('people')
+        .doc(personId)
+        .delete();
+  }
+
+  /// 태그 추가
+  Future<void> addTag(String personId, String tag) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final firestore = _firestore;
+    if (membership == null || firestore == null) return;
+
+    await firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('people')
+        .doc(personId)
+        .update({
+      'tags': FieldValue.arrayUnion([tag]),
+    });
+  }
+
+  /// 태그 제거
+  Future<void> removeTag(String personId, String tag) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final firestore = _firestore;
+    if (membership == null || firestore == null) return;
+
+    await firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('people')
+        .doc(personId)
+        .update({
+      'tags': FieldValue.arrayRemove([tag]),
+    });
+  }
+}
 
 /// 스마트 사람 목록 Provider (데모/실제 자동 선택)
 final smartPeopleProvider = Provider<List<Person>>((ref) {

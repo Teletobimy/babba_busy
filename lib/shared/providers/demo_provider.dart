@@ -6,6 +6,7 @@ import '../models/event.dart';
 import '../models/memory.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
+import '../models/chat_message.dart';
 
 /// 데모 가족 구성원 (4명)
 final demoMembersProvider = Provider<List<FamilyMember>>((ref) {
@@ -1135,6 +1136,114 @@ final demoTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
       isRecurring: true,
       recurringType: 'monthly',
       createdAt: now.subtract(const Duration(days: 30)),
+    ),
+  ];
+});
+
+/// 데모 채팅 메시지 (10개+)
+final demoChatMessagesProvider = Provider<List<ChatMessage>>((ref) {
+  final now = DateTime.now();
+
+  return [
+    ChatMessage(
+      id: 'chat1',
+      familyId: 'family1',
+      senderId: 'member1',
+      senderName: '엄마',
+      content: '오늘 저녁 뭐 먹을까요?',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 3)),
+      readBy: ['member1', 'member2', 'member3', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat2',
+      familyId: 'family1',
+      senderId: 'member3',
+      senderName: '큰딸',
+      content: '파스타 어때요?',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 2, minutes: 50)),
+      readBy: ['member1', 'member2', 'member3', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat3',
+      familyId: 'family1',
+      senderId: 'member4',
+      senderName: '아들',
+      content: '저도 파스타 좋아요!',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 2, minutes: 45)),
+      readBy: ['member1', 'member2', 'member3', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat4',
+      familyId: 'family1',
+      senderId: 'member2',
+      senderName: '아빠',
+      content: '나도 찬성! 오늘 퇴근 좀 늦을 것 같아요. 7시쯤 갈게요.',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 2, minutes: 30)),
+      readBy: ['member1', 'member2', 'member3', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat5',
+      familyId: 'family1',
+      senderId: 'member1',
+      senderName: '엄마',
+      content: '알겠어요~ 그럼 파스타로 할게요. 마트 갔다 올게!',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 2, minutes: 20)),
+      readBy: ['member1', 'member2', 'member3', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat6',
+      familyId: 'family1',
+      senderId: 'member3',
+      senderName: '큰딸',
+      content: '엄마 저 피아노 학원 끝나고 갈게요!',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 1, minutes: 30)),
+      readBy: ['member1', 'member3'],
+    ),
+    ChatMessage(
+      id: 'chat7',
+      familyId: 'family1',
+      senderId: 'member1',
+      senderName: '엄마',
+      content: '응 알겠어~ 조심히 와!',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(hours: 1, minutes: 25)),
+      readBy: ['member1', 'member3'],
+    ),
+    ChatMessage(
+      id: 'chat8',
+      familyId: 'family1',
+      senderId: 'member4',
+      senderName: '아들',
+      content: '숙제 다 했어요!',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(minutes: 45)),
+      readBy: ['member1', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat9',
+      familyId: 'family1',
+      senderId: 'member1',
+      senderName: '엄마',
+      content: '잘했어~ 조금 있다 밥 먹자',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(minutes: 40)),
+      readBy: ['member1', 'member4'],
+    ),
+    ChatMessage(
+      id: 'chat10',
+      familyId: 'family1',
+      senderId: 'member2',
+      senderName: '아빠',
+      content: '지금 출발해요! 곧 도착할게요',
+      type: MessageType.text,
+      createdAt: now.subtract(const Duration(minutes: 15)),
+      readBy: ['member1', 'member2'],
     ),
   ];
 });

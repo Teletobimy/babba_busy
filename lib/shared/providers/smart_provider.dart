@@ -6,6 +6,7 @@ import '../models/event.dart';
 import '../models/memory.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
+import '../models/chat_message.dart';
 import '../../app/router.dart';
 import 'auth_provider.dart';
 import 'demo_provider.dart';
@@ -14,6 +15,8 @@ import 'event_provider.dart';
 import 'memory_provider.dart';
 import 'budget_provider.dart';
 import 'group_provider.dart';
+import 'chat_provider.dart';
+import 'calendar_group_provider.dart';
 
 /// ========================================
 /// 스마트 Provider - 데모/실제 데이터 자동 선택
@@ -62,7 +65,7 @@ final smartCurrentFamilyProvider = Provider<FamilyGroup?>((ref) {
 final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
   final demoMode = ref.watch(demoModeProvider);
   if (demoMode) return ref.watch(demoMembersProvider);
-  
+
   final memberships = ref.watch(groupMembershipsProvider).value ?? [];
   // 사용자 정보 가져오기 (이상적으로는 별도 Provider로 조인해야 함)
   // 여기서는 Membership 정보만으로 FamilyMember 구성
@@ -72,6 +75,7 @@ final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
     name: m.name.isEmpty ? '구성원' : m.name,
     email: '', // email 정보는 Membership에 없음
     color: m.color,
+    avatarUrl: m.avatarUrl, // Google 프로필 사진 등
     role: m.role,
     createdAt: m.joinedAt,
   )).toList();
@@ -128,8 +132,7 @@ final smartEventsProvider = Provider<List<Event>>((ref) {
 final smartCalendarGroupsProvider = Provider<List<CalendarGroup>>((ref) {
   final demoMode = ref.watch(demoModeProvider);
   if (demoMode) return ref.watch(demoCalendarGroupsProvider);
-  // TODO: 실제 Firebase에서 캘린더 그룹 가져오기
-  return [];
+  return ref.watch(calendarGroupsProvider).value ?? [];
 });
 
 /// 선택된 캘린더 그룹 ID 목록
@@ -255,4 +258,37 @@ final smartMonthSummaryProvider = Provider<MonthSummary>((ref) {
 final smartRecurringTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
   final transactions = ref.watch(smartTransactionsProvider);
   return transactions.where((t) => t.isRecurring).toList();
+});
+
+/// ========================================
+/// 채팅 관련 스마트 Provider
+/// ========================================
+
+/// 채팅 메시지 목록 (데모/실제)
+final smartChatMessagesProvider = Provider<List<ChatMessage>>((ref) {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return ref.watch(demoChatMessagesProvider);
+  return ref.watch(chatMessagesProvider).value ?? [];
+});
+
+/// 현재 사용자 ID (데모/실제)
+final smartCurrentUserIdProvider = Provider<String>((ref) {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return 'member1'; // 데모 모드에서는 '엄마'로 고정
+  return ref.watch(currentUserProvider)?.uid ?? '';
+});
+
+/// 읽지 않은 메시지 수 (스마트)
+final smartUnreadMessagesCountProvider = Provider<int>((ref) {
+  final messages = ref.watch(smartChatMessagesProvider);
+  final userId = ref.watch(smartCurrentUserIdProvider);
+  if (userId.isEmpty) return 0;
+  return messages.where((msg) => !msg.isReadBy(userId)).length;
+});
+
+/// 마지막 채팅 메시지 (스마트)
+final smartLastChatMessageProvider = Provider<ChatMessage?>((ref) {
+  final messages = ref.watch(smartChatMessagesProvider);
+  if (messages.isEmpty) return null;
+  return messages.last;
 });
