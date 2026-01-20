@@ -670,6 +670,10 @@ class _ModuleTile extends StatelessWidget {
         return Iconsax.people;
       case AppModule.chat:
         return Iconsax.message;
+      case AppModule.business:
+        return Iconsax.briefcase;
+      case AppModule.psychology:
+        return Iconsax.heart;
     }
   }
 
@@ -682,9 +686,13 @@ class _ModuleTile extends StatelessWidget {
       case AppModule.budget:
         return AppColors.budgetColor;
       case AppModule.people:
-        return const Color(0xFF5B8DEF);
+        return AppColors.peopleColor;
       case AppModule.chat:
-        return const Color(0xFF9B59B6);
+        return AppColors.chatColor;
+      case AppModule.business:
+        return AppColors.coral[500]!;
+      case AppModule.psychology:
+        return AppColors.lavender[500]!;
     }
   }
 
@@ -700,6 +708,10 @@ class _ModuleTile extends StatelessWidget {
         return '인맥 정보 관리';
       case AppModule.chat:
         return '그룹 대화방';
+      case AppModule.business:
+        return 'AI 멀티에이전트 사업 검토';
+      case AppModule.psychology:
+        return '7종 심리검사';
     }
   }
 }

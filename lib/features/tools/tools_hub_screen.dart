@@ -130,9 +130,6 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
                     style: Theme.of(context).textTheme.headlineSmall,
                   ).animate().fadeIn(duration: 300.ms),
                   const SizedBox(height: AppTheme.spacingM),
-                  // AI 도구 섹션
-                  _buildAIToolsSection(context),
-                  const SizedBox(height: AppTheme.spacingM),
                   // 탭바
                   Container(
                     decoration: BoxDecoration(
@@ -211,6 +208,10 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return const PeopleScreen();
       case AppModule.chat:
         return const _ChatContent();
+      case AppModule.business:
+        return const _BusinessContent();
+      case AppModule.psychology:
+        return const _PsychologyContent();
     }
   }
 
@@ -226,6 +227,10 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return Iconsax.people;
       case AppModule.chat:
         return Iconsax.message;
+      case AppModule.business:
+        return Iconsax.briefcase;
+      case AppModule.psychology:
+        return Iconsax.heart;
     }
   }
 
@@ -239,119 +244,16 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
       case AppModule.budget:
         return AppColors.budgetColor;
       case AppModule.people:
-        return const Color(0xFF5B8DEF); // 사람들용 블루 컬러
+        return AppColors.peopleColor;
       case AppModule.chat:
-        return const Color(0xFF9B59B6); // 대화방용 보라 컬러
+        return AppColors.chatColor;
+      case AppModule.business:
+        return AppColors.coral[500]!;
+      case AppModule.psychology:
+        return AppColors.lavender[500]!;
     }
   }
 
-  Widget _buildAIToolsSection(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _AIToolCard(
-            icon: Iconsax.briefcase,
-            title: '사업 검토',
-            subtitle: 'AI 멀티 에이전트',
-            color: AppColors.coral[500]!,
-            onTap: () => context.push('/tools/business'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _AIToolCard(
-            icon: Iconsax.heart,
-            title: '심리검사',
-            subtitle: '7종 검사',
-            color: AppColors.lavender[500]!,
-            onTap: () => context.push('/tools/psychology'),
-          ),
-        ),
-      ],
-    ).animate().fadeIn(duration: 300.ms, delay: 50.ms).slideY(begin: 0.1);
-  }
-}
-
-/// AI 도구 카드 위젯
-class _AIToolCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _AIToolCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Material(
-      color: isDark ? AppColors.surfaceDark : Colors.white,
-      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        child: Container(
-          padding: const EdgeInsets.all(AppTheme.spacingM),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            border: Border.all(
-              color: color.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Iconsax.arrow_right_3,
-                size: 16,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// 추억 콘텐츠 (MemoryScreen 내부 내용만)
@@ -1056,6 +958,142 @@ class _ChatBubble extends StatelessWidget {
                   color: isDark
                       ? AppColors.textSecondaryDark
                       : AppColors.textSecondaryLight,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 사업검토 콘텐츠
+class _BusinessContent extends StatelessWidget {
+  const _BusinessContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.coral[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                Iconsax.briefcase,
+                size: 40,
+                color: AppColors.coral[600],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            Text(
+              'AI 사업 검토',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              '7개의 AI 전문가 에이전트가\n당신의 사업 아이디어를 분석합니다',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.spacingXL),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/tools/business'),
+              icon: const Icon(Iconsax.play),
+              label: const Text('시작하기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.coral[500],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingXL,
+                  vertical: AppTheme.spacingM,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 심리검사 콘텐츠
+class _PsychologyContent extends StatelessWidget {
+  const _PsychologyContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.lavender[100],
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Icon(
+                Iconsax.heart,
+                size: 40,
+                color: AppColors.lavender[600],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            Text(
+              '심리검사',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              '7종의 과학적인 심리검사로\n나를 더 잘 이해해보세요',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.spacingXL),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/tools/psychology'),
+              icon: const Icon(Iconsax.play),
+              label: const Text('시작하기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.lavender[500],
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingXL,
+                  vertical: AppTheme.spacingM,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 ),
               ),
             ),
