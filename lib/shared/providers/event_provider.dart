@@ -245,7 +245,6 @@ class EventService {
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
   String? get _familyId => _ref.read(currentMembershipProvider)?.groupId;
-  String? get _userId => _ref.read(currentUserProvider)?.uid;
 
   CollectionReference? get _eventsCollection {
     if (_familyId == null || _firestore == null) return null;

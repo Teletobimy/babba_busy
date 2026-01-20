@@ -37,7 +37,6 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   // Event 통합 필드
   final List<String> _selectedParticipants = [];
   bool _showLocationField = false;
-  bool _isAllDay = false;
   RecurrenceType _recurrenceType = RecurrenceType.none;
   final List<int> _recurrenceDays = [];
   DateTime? _recurrenceEndDate;
@@ -51,8 +50,20 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     if (widget.initialDate != null) {
       _dueDate = widget.initialDate;
     }
-    // 수정 모드인 경우 기존 값 로드
-    if (widget.todoId != null) {
+
+    // 수정 모드가 아닌 경우에만 현재 사용자 기본 선택
+    if (widget.todoId == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final currentMember = ref.read(smartCurrentMemberProvider);
+        if (currentMember != null && mounted) {
+          setState(() {
+            _selectedParticipants.add(currentMember.id);
+            _selectedAssigneeId = currentMember.id;
+          });
+        }
+      });
+    } else {
+      // 수정 모드인 경우 기존 값 로드
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _loadTodoData();
       });
@@ -87,7 +98,6 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       _selectedParticipants.addAll(todo.participants);
       _locationController.text = todo.location ?? '';
       _showLocationField = todo.location != null && todo.location!.isNotEmpty;
-      _isAllDay = todo.isAllDay;
       _recurrenceType = todo.recurrenceType;
       _recurrenceDays.clear();
       if (todo.recurrenceDays != null) {
@@ -160,7 +170,6 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           eventType: _eventType,
           participants: _selectedParticipants,
           location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
-          isAllDay: _isAllDay,
           recurrenceType: _recurrenceType,
           recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
           recurrenceEndDate: _recurrenceEndDate,
@@ -180,7 +189,6 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           eventType: _eventType,
           participants: _selectedParticipants,
           location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
-          isAllDay: _isAllDay,
           recurrenceType: _recurrenceType,
           recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
           recurrenceEndDate: _recurrenceEndDate,
@@ -415,29 +423,6 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
               const SizedBox(height: AppTheme.spacingM),
             ],
 
-            // 종일 토글 (날짜가 선택된 경우에만 표시)
-            if (_dueDate != null) ...[
-              Row(
-                children: [
-                  Checkbox(
-                    value: _isAllDay,
-                    onChanged: (value) {
-                      setState(() {
-                        _isAllDay = value ?? false;
-                        if (_isAllDay) {
-                          _hasTime = false;
-                          _startTime = null;
-                          _endTime = null;
-                        }
-                      });
-                    },
-                  ),
-                  Text('종일', style: Theme.of(context).textTheme.bodyMedium),
-                ],
-              ),
-              const SizedBox(height: AppTheme.spacingM),
-            ],
-
             // 옵션 버튼들
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -475,14 +460,13 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                               _hasTime = false;
                               _startTime = null;
                               _endTime = null;
-                              _isAllDay = false;
                             })
                         : null,
                   ),
                   const SizedBox(width: 8),
 
-                  // 시간 선택 (날짜가 선택되고 종일이 아닌 경우에만 표시)
-                  if (_dueDate != null && !_isAllDay) ...[
+                  // 시간 선택 (날짜가 선택된 경우에만 표시)
+                  if (_dueDate != null) ...[
                     _OptionChip(
                       icon: Iconsax.clock,
                       label: _hasTime && _startTime != null
@@ -569,9 +553,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                                 } else {
                                   _selectedParticipants.add(member.id);
                                   // 첫 번째 참여자를 assigneeId로 설정
-                                  if (_selectedAssigneeId == null) {
-                                    _selectedAssigneeId = member.id;
-                                  }
+                                  _selectedAssigneeId ??= member.id;
                                 }
                               });
                             },

@@ -337,7 +337,6 @@ class TodoService {
     List<int>? recurrenceDays,
     DateTime? recurrenceEndDate,
     bool excludeHolidays = false,
-    bool isAllDay = false,
   }) async {
     final todosRef = _todosCollection;
     if (todosRef == null || _userId == null) return;
@@ -372,7 +371,6 @@ class TodoService {
           ? Timestamp.fromDate(recurrenceEndDate)
           : null,
       'excludeHolidays': excludeHolidays,
-      'isAllDay': isAllDay,
     });
   }
 
@@ -407,7 +405,6 @@ class TodoService {
     List<int>? recurrenceDays,
     DateTime? recurrenceEndDate,
     bool? excludeHolidays,
-    bool? isAllDay,
   }) async {
     final todosRef = _todosCollection;
     if (todosRef == null) return;
@@ -439,7 +436,6 @@ class TodoService {
       updates['recurrenceEndDate'] = Timestamp.fromDate(recurrenceEndDate);
     }
     if (excludeHolidays != null) updates['excludeHolidays'] = excludeHolidays;
-    if (isAllDay != null) updates['isAllDay'] = isAllDay;
 
     if (updates.isNotEmpty) {
       await todosRef.doc(todoId).update(updates);

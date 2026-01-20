@@ -227,7 +227,7 @@ class TodoItem {
           : null,
       'excludeHolidays': excludeHolidays,
       'parentTodoId': parentTodoId,
-      'isAllDay': isAllDay,
+      // isAllDay는 더 이상 저장하지 않음 (hasTime으로 대체)
     };
   }
 

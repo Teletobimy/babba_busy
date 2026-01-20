@@ -152,6 +152,34 @@ final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>
   }).toList()..sort((a, b) => a.startTime!.compareTo(b.startTime!));
 });
 
+/// 특정 날짜의 시간 미정 할일 (Day View용)
+final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
+  final demoMode = ref.watch(demoModeProvider);
+  final targetDate = DateTime(date.year, date.month, date.day);
+
+  if (demoMode) {
+    final todos = ref.watch(demoTodosProvider);
+    return todos.where((todo) {
+      // 시간 미정: hasTime=false && startTime=null
+      if (todo.hasTime || todo.startTime != null) return false;
+      if (todo.dueDate == null) return false;
+
+      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+      return todoDate.isAtSameMomentAs(targetDate);
+    }).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }
+
+  // 실제 모드
+  final todos = ref.watch(todosProvider).value ?? [];
+  return todos.where((todo) {
+    if (todo.hasTime || todo.startTime != null) return false;
+    if (todo.dueDate == null) return false;
+
+    final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+    return todoDate.isAtSameMomentAs(targetDate);
+  }).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+});
+
 /// 특정 구성원의 할일
 final smartMemberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, memberId) {
   final todos = ref.watch(smartTodosProvider);

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/event.dart';
+import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
 
 /// 주간 뷰 위젯
@@ -37,6 +39,11 @@ class WeekView extends ConsumerWidget {
           isDark: isDark,
         ),
         const SizedBox(height: AppTheme.spacingS),
+        // 시간 미정 섹션
+        _UndecidedWeekSection(
+          days: days,
+          isDark: isDark,
+        ),
         // 시간대별 이벤트
         Expanded(
           child: _TimeGrid(
@@ -328,5 +335,154 @@ class _EventBlock extends StatelessWidget {
     } catch (e) {
       return AppColors.calendarColor;
     }
+  }
+}
+
+/// 주간 뷰 상단 - 시간 미정 todos 섹션
+class _UndecidedWeekSection extends ConsumerWidget {
+  final List<DateTime> days;
+  final bool isDark;
+
+  const _UndecidedWeekSection({
+    required this.days,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 각 요일별 미정 todos 수집
+    final undecidedMap = <DateTime, List<TodoItem>>{};
+    bool hasAny = false;
+
+    for (final day in days) {
+      final undecided = ref.watch(smartUndecidedTodosForDateProvider(day));
+      undecidedMap[day] = undecided;
+      if (undecided.isNotEmpty) hasAny = true;
+    }
+
+    // 미정 todos가 없으면 표시 안 함
+    if (!hasAny) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingXS,
+        vertical: AppTheme.spacingXS,
+      ),
+      decoration: BoxDecoration(
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight)
+            .withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        border: Border(
+          bottom: BorderSide(
+            color: (isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight)
+                .withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          // 라벨 영역 (시간 라벨과 동일한 너비 45px)
+          SizedBox(
+            width: 45,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Iconsax.clock,
+                  size: 10,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  '미정',
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 각 요일별 미정 todos
+          ...days.map((day) {
+            final todos = undecidedMap[day] ?? [];
+            return Expanded(
+              child: _UndecidedDayCell(
+                todos: todos,
+                isDark: isDark,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+/// 요일별 미정 todos 셀
+class _UndecidedDayCell extends StatelessWidget {
+  final List<TodoItem> todos;
+  final bool isDark;
+
+  const _UndecidedDayCell({
+    required this.todos,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (todos.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: todos.take(2).map((todo) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.coral[100]?.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color: AppColors.coral[300]!.withValues(alpha: 0.6),
+                width: 0.5,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Iconsax.tick_square,
+                  size: 8,
+                  color: AppColors.coral[600],
+                ),
+                const SizedBox(width: 2),
+                Flexible(
+                  child: Text(
+                    todo.title,
+                    style: TextStyle(
+                      fontSize: 8,
+                      color: AppColors.coral[700],
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
+    );
   }
 }

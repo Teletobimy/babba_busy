@@ -27,6 +27,7 @@ class DayView extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final events = ref.watch(smartEventsForDateProvider(selectedDay));
     final timedTodos = ref.watch(smartTimedTodosForDateProvider(selectedDay));
+    final undecidedTodos = ref.watch(smartUndecidedTodosForDateProvider(selectedDay));
     final allDayEvents = events.where((e) => e.isAllDay).toList();
     final timedEvents = events.where((e) => !e.isAllDay).toList();
     final now = DateTime.now();
@@ -45,6 +46,15 @@ class DayView extends ConsumerWidget {
           isDark: isDark,
         ),
         const SizedBox(height: AppTheme.spacingS),
+
+        // 시간 미정 할일
+        if (undecidedTodos.isNotEmpty) ...[
+          _UndecidedTodosSection(
+            todos: undecidedTodos,
+            isDark: isDark,
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+        ],
 
         // 종일 이벤트
         if (allDayEvents.isNotEmpty) ...[
@@ -663,6 +673,138 @@ class _DayTodoBlock extends ConsumerWidget {
     await ref.read(todoServiceProvider).toggleTodo(
       todo.id,
       !todo.isCompleted,
+    );
+  }
+}
+
+/// 시간 미정 할일 섹션
+class _UndecidedTodosSection extends ConsumerWidget {
+  final List<TodoItem> todos;
+  final bool isDark;
+
+  const _UndecidedTodosSection({
+    required this.todos,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingS),
+      padding: const EdgeInsets.all(AppTheme.spacingS),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        border: Border.all(
+          color: (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)
+              .withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 헤더
+          Row(
+            children: [
+              Icon(
+                Iconsax.clock,
+                size: 14,
+                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '시간 미정',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                '${todos.length}개',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+
+          // Todo 목록
+          ...todos.map((todo) => _UndecidedTodoItem(
+            todo: todo,
+            isDark: isDark,
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+/// 시간 미정 할일 아이템
+class _UndecidedTodoItem extends ConsumerWidget {
+  final TodoItem todo;
+  final bool isDark;
+
+  const _UndecidedTodoItem({
+    required this.todo,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.coral[100]?.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        border: Border.all(
+          color: AppColors.coral[300]!.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          // 체크박스
+          GestureDetector(
+            onTap: () async {
+              await ref.read(todoServiceProvider).toggleTodo(
+                todo.id,
+                !todo.isCompleted,
+              );
+            },
+            child: Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(color: AppColors.coral[500]!, width: 2),
+              ),
+              child: todo.isCompleted
+                  ? const Icon(Icons.check, size: 12, color: Colors.white)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 10),
+
+          // 제목
+          Expanded(
+            child: Text(
+              todo.title,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
