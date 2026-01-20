@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/event_provider.dart';
+import '../../../shared/models/event.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
 /// 이벤트 추가 바텀 시트
@@ -29,6 +30,12 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
   bool _isAllDay = false;
   final List<String> _selectedParticipants = [];
   bool _isLoading = false;
+
+  // 반복 설정
+  RecurrenceType _recurrenceType = RecurrenceType.none;
+  final List<int> _recurrenceDays = [];
+  DateTime? _recurrenceEndDate;
+  bool _excludeHolidays = false;
 
   @override
   void initState() {
@@ -72,6 +79,12 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
         location: _locationController.text.trim().isEmpty
             ? null
             : _locationController.text.trim(),
+        recurrenceType: _recurrenceType,
+        recurrenceDays: _recurrenceType == RecurrenceType.weekly && _recurrenceDays.isNotEmpty
+            ? _recurrenceDays
+            : null,
+        recurrenceEndDate: _recurrenceEndDate,
+        excludeHolidays: _excludeHolidays,
       );
       if (mounted) {
         Navigator.of(context).pop();
@@ -117,6 +130,239 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
           _endTime = picked;
         }
       });
+    }
+  }
+
+  Future<void> _selectRecurrenceEndDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _recurrenceEndDate ?? _startDate.add(const Duration(days: 30)),
+      firstDate: _startDate,
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+    );
+    if (picked != null) {
+      setState(() {
+        _recurrenceEndDate = picked;
+      });
+    }
+  }
+
+  void _showRecurrenceOptions() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            left: AppTheme.spacingL,
+            right: AppTheme.spacingL,
+            top: AppTheme.spacingM,
+            bottom: MediaQuery.of(context).viewInsets.bottom + AppTheme.spacingL,
+          ),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(AppTheme.radiusLarge),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 핸들바
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: (isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight)
+                        .withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+
+              Text(
+                '반복 설정',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+
+              // 반복 유형 선택
+              ...RecurrenceType.values.map((type) {
+                final isSelected = _recurrenceType == type;
+                return ListTile(
+                  leading: Icon(
+                    _getRecurrenceIcon(type),
+                    color: isSelected ? AppColors.calendarColor : null,
+                  ),
+                  title: Text(
+                    type.displayName,
+                    style: TextStyle(
+                      color: isSelected ? AppColors.calendarColor : null,
+                      fontWeight: isSelected ? FontWeight.w600 : null,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Iconsax.tick_circle5, color: AppColors.calendarColor)
+                      : null,
+                  onTap: () {
+                    setState(() {
+                      _recurrenceType = type;
+                      if (type == RecurrenceType.none) {
+                        _recurrenceDays.clear();
+                        _recurrenceEndDate = null;
+                        _excludeHolidays = false;
+                      }
+                    });
+                    setModalState(() {});
+                  },
+                );
+              }),
+
+              // 주간 반복일 경우 요일 선택
+              if (_recurrenceType == RecurrenceType.weekly) ...[
+                const Divider(),
+                const SizedBox(height: AppTheme.spacingS),
+                Text(
+                  '반복 요일',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppTheme.spacingS),
+                Wrap(
+                  spacing: 8,
+                  children: Weekdays.all.map((day) {
+                    final isSelected = _recurrenceDays.contains(day);
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (isSelected) {
+                            _recurrenceDays.remove(day);
+                          } else {
+                            _recurrenceDays.add(day);
+                          }
+                        });
+                        setModalState(() {});
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.calendarColor
+                              : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.calendarColor
+                                : (isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight)
+                                    .withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            Weekdays.getName(day),
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : (day == Weekdays.saturday || day == Weekdays.sunday)
+                                      ? AppColors.errorLight
+                                      : null,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+
+              // 반복 설정이 있을 경우 추가 옵션
+              if (_recurrenceType != RecurrenceType.none) ...[
+                const Divider(),
+                // 공휴일 제외
+                ListTile(
+                  leading: const Icon(Iconsax.flag),
+                  title: const Text('공휴일 제외'),
+                  subtitle: const Text('공휴일에는 반복하지 않음'),
+                  trailing: Switch(
+                    value: _excludeHolidays,
+                    onChanged: (value) {
+                      setState(() => _excludeHolidays = value);
+                      setModalState(() {});
+                    },
+                    activeTrackColor: AppColors.calendarColor.withValues(alpha: 0.5),
+                    activeThumbColor: AppColors.calendarColor,
+                  ),
+                ),
+                // 반복 종료일
+                ListTile(
+                  leading: const Icon(Iconsax.calendar_remove),
+                  title: const Text('반복 종료일'),
+                  subtitle: Text(
+                    _recurrenceEndDate != null
+                        ? DateFormat('yyyy년 M월 d일').format(_recurrenceEndDate!)
+                        : '설정 안 함 (계속 반복)',
+                  ),
+                  trailing: _recurrenceEndDate != null
+                      ? IconButton(
+                          icon: const Icon(Iconsax.close_circle),
+                          onPressed: () {
+                            setState(() => _recurrenceEndDate = null);
+                            setModalState(() {});
+                          },
+                        )
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _selectRecurrenceEndDate();
+                  },
+                ),
+              ],
+
+              const SizedBox(height: AppTheme.spacingM),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.calendarColor,
+                  ),
+                  child: const Text('확인'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _getRecurrenceIcon(RecurrenceType type) {
+    switch (type) {
+      case RecurrenceType.none:
+        return Iconsax.close_circle;
+      case RecurrenceType.daily:
+        return Iconsax.calendar_tick;
+      case RecurrenceType.weekly:
+        return Iconsax.calendar;
+      case RecurrenceType.monthly:
+        return Iconsax.calendar_1;
+      case RecurrenceType.yearly:
+        return Iconsax.cake;
     }
   }
 
@@ -198,7 +444,8 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
                   Switch(
                     value: _isAllDay,
                     onChanged: (value) => setState(() => _isAllDay = value),
-                    activeColor: AppColors.calendarColor,
+                    activeTrackColor: AppColors.calendarColor.withValues(alpha: 0.5),
+                    activeThumbColor: AppColors.calendarColor,
                   ),
                 ],
               ),
@@ -250,6 +497,79 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
                   ),
                 ],
               ],
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // 반복 설정
+            GestureDetector(
+              onTap: _showRecurrenceOptions,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingM,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  border: _recurrenceType != RecurrenceType.none
+                      ? Border.all(color: AppColors.calendarColor, width: 1.5)
+                      : Border.all(
+                          color: (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                        ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Iconsax.repeat,
+                      size: 20,
+                      color: _recurrenceType != RecurrenceType.none
+                          ? AppColors.calendarColor
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _recurrenceType == RecurrenceType.none
+                                ? '반복 안 함'
+                                : _getRecurrenceDescription(),
+                            style: TextStyle(
+                              color: _recurrenceType != RecurrenceType.none
+                                  ? AppColors.calendarColor
+                                  : null,
+                              fontWeight: _recurrenceType != RecurrenceType.none
+                                  ? FontWeight.w600
+                                  : null,
+                            ),
+                          ),
+                          if (_recurrenceType != RecurrenceType.none && _excludeHolidays)
+                            Text(
+                              '공휴일 제외',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Iconsax.arrow_right_3,
+                      size: 18,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: AppTheme.spacingM),
 
@@ -330,6 +650,22 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
         ),
       ),
     );
+  }
+
+  String _getRecurrenceDescription() {
+    String desc = _recurrenceType.displayName;
+
+    if (_recurrenceType == RecurrenceType.weekly && _recurrenceDays.isNotEmpty) {
+      final sortedDays = List<int>.from(_recurrenceDays)..sort();
+      final dayNames = sortedDays.map((d) => Weekdays.getName(d)).join(', ');
+      desc = '$desc ($dayNames)';
+    }
+
+    if (_recurrenceEndDate != null) {
+      desc = '$desc ~ ${DateFormat('M/d').format(_recurrenceEndDate!)}까지';
+    }
+
+    return desc;
   }
 }
 

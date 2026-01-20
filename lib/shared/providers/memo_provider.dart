@@ -106,8 +106,8 @@ class MemoService {
 
   /// 메모 추가
   Future<String?> addMemo({
-    String title = '',
-    required String content,
+    required String title,
+    String content = '',
     String? categoryId,
     String? categoryName,
     List<String> tags = const [],

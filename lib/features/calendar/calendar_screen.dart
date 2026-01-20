@@ -7,7 +7,9 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
+import '../../shared/providers/holiday_provider.dart';
 import '../../shared/models/event.dart';
+import '../../shared/models/holiday.dart';
 import 'widgets/add_event_sheet.dart';
 import 'widgets/event_card.dart';
 import 'widgets/week_view.dart';
@@ -117,6 +119,9 @@ class CalendarScreen extends ConsumerWidget {
     List members,
     bool isDark,
   ) {
+    // 현재 보이는 연도의 공휴일 가져오기
+    final holidays = ref.watch(allHolidaysForYearProvider(selectedDate.year));
+
     switch (viewMode) {
       case CalendarViewMode.month:
         return _MonthView(
@@ -125,6 +130,7 @@ class CalendarScreen extends ConsumerWidget {
           events: events,
           selectedEvents: selectedEvents,
           members: members,
+          holidays: holidays,
           isDark: isDark,
           onDaySelected: (day) {
             ref.read(selectedDateProvider.notifier).state = day;
@@ -173,7 +179,8 @@ class CalendarScreen extends ConsumerWidget {
 
   void _showEventsPopup(BuildContext context, WidgetRef ref, DateTime date, List members) {
     final events = ref.read(smartEventsForDateProvider(date));
-    
+    final holiday = ref.read(holidayForDateProvider(date));
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -182,6 +189,7 @@ class CalendarScreen extends ConsumerWidget {
         date: date,
         events: events,
         members: members,
+        holiday: holiday,
         onAddEvent: () {
           Navigator.pop(context);
           _showAddEventSheet(context, date);
@@ -196,12 +204,14 @@ class _EventsPopup extends StatelessWidget {
   final DateTime date;
   final List<Event> events;
   final List members;
+  final Holiday? holiday;
   final VoidCallback onAddEvent;
 
   const _EventsPopup({
     required this.date,
     required this.events,
     required this.members,
+    this.holiday,
     required this.onAddEvent,
   });
 
@@ -284,23 +294,48 @@ class _EventsPopup extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (isToday)
-                          Container(
-                            margin: const EdgeInsets.only(top: 4),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.calendarColor,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Text(
-                              '오늘',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                        Row(
+                          children: [
+                            if (isToday)
+                              Container(
+                                margin: const EdgeInsets.only(top: 4, right: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.calendarColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  '오늘',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
+                            if (holiday != null)
+                              Container(
+                                margin: const EdgeInsets.only(top: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.errorLight.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.errorLight.withValues(alpha: 0.5),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  holiday!.name,
+                                  style: TextStyle(
+                                    color: AppColors.errorLight,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ],
@@ -501,6 +536,7 @@ class _MonthView extends StatelessWidget {
   final List<Event> events;
   final List<Event> selectedEvents;
   final List<dynamic> members;
+  final List<Holiday> holidays;
   final bool isDark;
   final Function(DateTime) onDaySelected;
   final Function(CalendarFormat) onFormatChanged;
@@ -512,11 +548,22 @@ class _MonthView extends StatelessWidget {
     required this.events,
     required this.selectedEvents,
     required this.members,
+    required this.holidays,
     required this.isDark,
     required this.onDaySelected,
     required this.onFormatChanged,
     required this.onAddEvent,
   });
+
+  /// 특정 날짜의 공휴일 찾기
+  Holiday? _getHolidayForDay(DateTime day) {
+    for (final holiday in holidays) {
+      if (holiday.isSameDate(day)) {
+        return holiday;
+      }
+    }
+    return null;
+  }
 
   // 해당 날짜의 참여자들 가져오기
   List<dynamic> _getParticipantsForDay(DateTime day) {
@@ -651,6 +698,8 @@ class _MonthView extends StatelessWidget {
     }).toList();
     final participants = _getParticipantsForDay(day);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+    final holiday = _getHolidayForDay(day);
+    final isHoliday = holiday != null;
 
     return Container(
       margin: const EdgeInsets.all(2),
@@ -677,12 +726,27 @@ class _MonthView extends StatelessWidget {
               fontWeight: isSelected || isToday ? FontWeight.w600 : FontWeight.w500,
               color: isSelected
                   ? Colors.white
-                  : isWeekend
-                      ? AppColors.errorLight.withValues(alpha: 0.8)
+                  : (isHoliday || isWeekend)
+                      ? AppColors.errorLight
                       : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
             ),
           ),
-          const SizedBox(height: 2),
+          // 공휴일 이름 표시
+          if (isHoliday && !isSelected)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                _shortenHolidayName(holiday.name),
+                style: TextStyle(
+                  fontSize: 8,
+                  color: AppColors.errorLight,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
           // 참여자 아바타들
           if (participants.isNotEmpty)
             Expanded(
@@ -704,6 +768,23 @@ class _MonthView extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 공휴일 이름 축약
+  String _shortenHolidayName(String name) {
+    // 긴 공휴일 이름을 2~3글자로 축약
+    if (name.contains('설날')) return '설날';
+    if (name.contains('추석')) return '추석';
+    if (name.contains('부처님')) return '석가탄신';
+    if (name.contains('어린이')) return '어린이날';
+    if (name.contains('현충')) return '현충일';
+    if (name.contains('광복')) return '광복절';
+    if (name.contains('개천')) return '개천절';
+    if (name.contains('한글')) return '한글날';
+    if (name.contains('크리스마스')) return '성탄절';
+    if (name.contains('신정')) return '신정';
+    if (name.contains('삼일')) return '삼일절';
+    return name.length > 4 ? name.substring(0, 4) : name;
   }
 
   Widget _buildParticipantAvatars(List<dynamic> participants, bool isSelected) {

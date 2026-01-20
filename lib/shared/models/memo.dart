@@ -19,8 +19,8 @@ class Memo {
   Memo({
     required this.id,
     required this.familyId,
-    this.title = '',
-    required this.content,
+    required this.title,
+    this.content = '',
     this.categoryId,
     this.categoryName,
     this.tags = const [],

@@ -16,6 +16,7 @@ class AddMemoSheet extends ConsumerStatefulWidget {
 }
 
 class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
+  final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   String? _selectedCategoryId;
   String? _selectedCategoryName;
@@ -23,18 +24,21 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
 
   @override
   void dispose() {
+    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
 
   Future<void> _saveMemo() async {
-    final content = _contentController.text.trim();
-    if (content.isEmpty) {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('내용을 입력해주세요')),
+        const SnackBar(content: Text('제목을 입력해주세요')),
       );
       return;
     }
+
+    final content = _contentController.text.trim();
 
     setState(() => _isLoading = true);
 
@@ -55,6 +59,7 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
 
     try {
       await ref.read(memoServiceProvider).addMemo(
+            title: title,
             content: content,
             categoryId: _selectedCategoryId,
             categoryName: _selectedCategoryName,
@@ -184,16 +189,41 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
             ),
           ),
           const SizedBox(height: AppTheme.spacingM),
-          // 내용 입력
+          // 제목 입력
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+            child: TextField(
+              controller: _titleController,
+              maxLines: 1,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: '제목',
+                hintStyle: TextStyle(
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor:
+                    isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                contentPadding: const EdgeInsets.all(AppTheme.spacingM),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          // 내용 입력 (선택)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
             child: TextField(
               controller: _contentController,
-              maxLines: 5,
-              minLines: 3,
-              autofocus: true,
+              maxLines: 4,
+              minLines: 2,
               decoration: InputDecoration(
-                hintText: '메모 내용을 입력하세요...',
+                hintText: '내용 (선택)',
                 hintStyle: TextStyle(
                   color: isDark
                       ? AppColors.textSecondaryDark

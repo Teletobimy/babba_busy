@@ -63,13 +63,15 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   }
 
   Future<void> _saveMemo() async {
-    final content = _contentController.text.trim();
-    if (content.isEmpty) {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('내용을 입력해주세요')),
+        const SnackBar(content: Text('제목을 입력해주세요')),
       );
       return;
     }
+
+    final content = _contentController.text.trim();
 
     setState(() => _isLoading = true);
 
@@ -88,7 +90,6 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     }
 
     try {
-      final title = _titleController.text.trim();
       final memoService = ref.read(memoServiceProvider);
 
       if (_isNewMemo) {
@@ -391,14 +392,14 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 제목 입력
+                  // 제목 입력 (필수)
                   TextField(
                     controller: _titleController,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                     decoration: InputDecoration(
-                      hintText: '제목 (선택)',
+                      hintText: '제목',
                       hintStyle: TextStyle(
                         color: isDark
                             ? AppColors.textSecondaryDark
@@ -410,14 +411,14 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                     ),
                   ),
                   const Divider(height: AppTheme.spacingL),
-                  // 내용 입력
+                  // 내용 입력 (선택)
                   TextField(
                     controller: _contentController,
                     maxLines: null,
                     keyboardType: TextInputType.multiline,
                     style: Theme.of(context).textTheme.bodyLarge,
                     decoration: InputDecoration(
-                      hintText: '내용을 입력하세요...',
+                      hintText: '내용 (선택)',
                       hintStyle: TextStyle(
                         color: isDark
                             ? AppColors.textSecondaryDark
