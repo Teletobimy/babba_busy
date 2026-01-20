@@ -47,6 +47,47 @@ final memberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, membe
   return todos.where((todo) => todo.assigneeId == memberId).toList();
 });
 
+/// 특정 날짜의 시간 있는 할일 (Day View용)
+final timedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
+  final todos = ref.watch(todosProvider).value ?? [];
+  final targetDate = DateTime(date.year, date.month, date.day);
+
+  return todos.where((todo) {
+    if (!todo.hasTime || todo.startTime == null) return false;
+    final todoDate = DateTime(
+      todo.startTime!.year,
+      todo.startTime!.month,
+      todo.startTime!.day,
+    );
+    return todoDate.isAtSameMomentAs(targetDate);
+  }).toList()..sort((a, b) => a.startTime!.compareTo(b.startTime!));
+});
+
+/// 완료된 할일 목록
+final completedTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(todosProvider).value ?? [];
+  return todos.where((todo) => todo.isCompleted).toList()
+    ..sort((a, b) {
+      // completedAt이 있으면 그걸로 정렬, 없으면 createdAt으로
+      final aTime = a.completedAt ?? a.createdAt;
+      final bTime = b.completedAt ?? b.createdAt;
+      return bTime.compareTo(aTime); // 최근 완료된 것이 위로
+    });
+});
+
+/// 오늘 완료된 할일 목록
+final todayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(completedTodosProvider);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  return todos.where((todo) {
+    final completedDate = todo.completedAt ?? todo.createdAt;
+    final todoDate = DateTime(completedDate.year, completedDate.month, completedDate.day);
+    return todoDate.isAtSameMomentAs(today);
+  }).toList();
+});
+
 /// 할일 서비스
 final todoServiceProvider = Provider<TodoService>((ref) {
   return TodoService(ref);
@@ -75,6 +116,9 @@ class TodoService {
     DateTime? dueDate,
     String? repeatType,
     int priority = 1,
+    DateTime? startTime,
+    DateTime? endTime,
+    bool hasTime = false,
   }) async {
     final todosRef = _todosCollection;
     if (todosRef == null || _userId == null) return;
@@ -90,6 +134,10 @@ class TodoService {
       'priority': priority,
       'createdBy': _userId,
       'createdAt': FieldValue.serverTimestamp(),
+      'startTime': startTime != null ? Timestamp.fromDate(startTime) : null,
+      'endTime': endTime != null ? Timestamp.fromDate(endTime) : null,
+      'hasTime': hasTime,
+      'completedAt': null,
     });
   }
 
@@ -97,7 +145,10 @@ class TodoService {
   Future<void> toggleTodo(String todoId, bool isCompleted) async {
     final todosRef = _todosCollection;
     if (todosRef == null) return;
-    await todosRef.doc(todoId).update({'isCompleted': isCompleted});
+    await todosRef.doc(todoId).update({
+      'isCompleted': isCompleted,
+      'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
+    });
   }
 
   /// 할일 수정
@@ -108,10 +159,13 @@ class TodoService {
     DateTime? dueDate,
     String? repeatType,
     int? priority,
+    DateTime? startTime,
+    DateTime? endTime,
+    bool? hasTime,
   }) async {
     final todosRef = _todosCollection;
     if (todosRef == null) return;
-    
+
     final updates = <String, dynamic>{};
     if (title != null) updates['title'] = title;
     if (note != null) updates['note'] = note;
@@ -119,6 +173,9 @@ class TodoService {
     if (dueDate != null) updates['dueDate'] = Timestamp.fromDate(dueDate);
     if (repeatType != null) updates['repeatType'] = repeatType;
     if (priority != null) updates['priority'] = priority;
+    if (startTime != null) updates['startTime'] = Timestamp.fromDate(startTime);
+    if (endTime != null) updates['endTime'] = Timestamp.fromDate(endTime);
+    if (hasTime != null) updates['hasTime'] = hasTime;
 
     if (updates.isNotEmpty) {
       await todosRef.doc(todoId).update(updates);

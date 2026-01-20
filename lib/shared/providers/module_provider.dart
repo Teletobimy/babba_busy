@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 앱 모듈 정의
 enum AppModule {
+  memo('메모', 'memo'),
   memory('추억', 'memory'),
   budget('가계부', 'budget'),
   people('사람들', 'people'),
@@ -51,25 +52,30 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
 
   /// 기본 모듈 설정 (모두 활성화)
   static final Map<AppModule, ModuleInfo> _defaultModules = {
+    AppModule.memo: const ModuleInfo(
+      module: AppModule.memo,
+      isEnabled: true,
+      order: 0,
+    ),
     AppModule.memory: const ModuleInfo(
       module: AppModule.memory,
       isEnabled: true,
-      order: 0,
+      order: 1,
     ),
     AppModule.budget: const ModuleInfo(
       module: AppModule.budget,
       isEnabled: true,
-      order: 1,
+      order: 2,
     ),
     AppModule.people: const ModuleInfo(
       module: AppModule.people,
       isEnabled: true,
-      order: 2,
+      order: 3,
     ),
     AppModule.chat: const ModuleInfo(
       module: AppModule.chat,
       isEnabled: true,
-      order: 3,
+      order: 4,
     ),
   };
 

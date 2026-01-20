@@ -29,11 +29,21 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
     with SingleTickerProviderStateMixin {
   bool _isCompleting = false;
   bool _isExpanded = false;
+  bool _showCompletionEffect = false;
 
   Future<void> _toggleComplete() async {
     if (_isCompleting) return;
 
+    final wasCompleted = widget.todo.isCompleted;
+
     setState(() => _isCompleting = true);
+
+    // 완료 체크 시 애니메이션 효과
+    if (!wasCompleted) {
+      setState(() => _showCompletionEffect = true);
+      // 체크 애니메이션 후 잠시 대기
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
 
     try {
       await ref.read(todoServiceProvider).toggleTodo(
@@ -42,7 +52,10 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
       );
     } finally {
       if (mounted) {
-        setState(() => _isCompleting = false);
+        setState(() {
+          _isCompleting = false;
+          _showCompletionEffect = false;
+        });
       }
     }
   }
@@ -96,12 +109,12 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                         width: 22,
                         height: 22,
                         decoration: BoxDecoration(
-                          color: widget.todo.isCompleted
+                          color: (widget.todo.isCompleted || _showCompletionEffect)
                               ? memberColor
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(
-                            color: widget.todo.isCompleted
+                            color: (widget.todo.isCompleted || _showCompletionEffect)
                                 ? memberColor
                                 : (isDark
                                         ? AppColors.textSecondaryDark
@@ -110,7 +123,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                             width: 2,
                           ),
                         ),
-                        child: widget.todo.isCompleted
+                        child: (widget.todo.isCompleted || _showCompletionEffect)
                             ? const Icon(
                                 Icons.check,
                                 size: 14,
@@ -126,20 +139,25 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                       padding: const EdgeInsets.symmetric(
                         vertical: AppTheme.spacingS,
                       ),
-                      child: Text(
-                        widget.todo.title,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              decoration: widget.todo.isCompleted
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 200),
+                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                              decoration: (widget.todo.isCompleted || _showCompletionEffect)
                                   ? TextDecoration.lineThrough
                                   : null,
-                              color: widget.todo.isCompleted
+                              color: (widget.todo.isCompleted || _showCompletionEffect)
                                   ? (isDark
                                       ? AppColors.textSecondaryDark
                                       : AppColors.textSecondaryLight)
-                                  : null,
+                                  : (isDark
+                                      ? AppColors.textPrimaryDark
+                                      : AppColors.textPrimaryLight),
                             ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: Text(
+                          widget.todo.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),

@@ -145,6 +145,39 @@ $memberName님의 이번 주 활동을 요약해주세요.
     }
   }
 
+  /// 메모 분석
+  Future<String> analyzeMemo({
+    required String content,
+    String? categoryName,
+  }) async {
+    // API 키가 없거나 내용이 너무 짧으면 빈 문자열 반환
+    if (!hasApiKey || content.length < 20) {
+      return '';
+    }
+
+    try {
+      final prompt = '''
+당신은 개인 메모 분석 AI입니다.
+다음 메모를 분석하여 핵심 인사이트를 2-3문장으로 요약해주세요.
+따뜻하고 도움이 되는 톤으로 작성하세요.
+${categoryName != null ? '카테고리: $categoryName' : ''}
+
+메모 내용:
+$content
+
+응답 형식:
+- 핵심 주제나 감정 파악
+- 실행 가능한 조언이나 인사이트 (해당 시)
+- 격려나 공감의 한마디
+''';
+
+      final response = await model.generateContent([Content.text(prompt)]);
+      return response.text ?? '';
+    } catch (e) {
+      return '';
+    }
+  }
+
   /// 할일 추천 생성
   Future<List<String>> suggestTodos({
     required String familyName,

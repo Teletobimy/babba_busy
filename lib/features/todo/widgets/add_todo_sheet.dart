@@ -21,6 +21,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   final _noteController = TextEditingController();
   String? _selectedAssigneeId;
   DateTime? _dueDate;
+  TimeOfDay? _startTime;
+  TimeOfDay? _endTime;
+  bool _hasTime = false;
   bool _isLoading = false;
   bool _showNoteField = false;
 
@@ -38,11 +41,46 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
 
     try {
       final todoService = ref.read(todoServiceProvider);
+
+      // 시작/종료 시간을 DateTime으로 변환
+      DateTime? startDateTime;
+      DateTime? endDateTime;
+
+      if (_hasTime && _dueDate != null && _startTime != null) {
+        startDateTime = DateTime(
+          _dueDate!.year,
+          _dueDate!.month,
+          _dueDate!.day,
+          _startTime!.hour,
+          _startTime!.minute,
+        );
+
+        if (_endTime != null) {
+          endDateTime = DateTime(
+            _dueDate!.year,
+            _dueDate!.month,
+            _dueDate!.day,
+            _endTime!.hour,
+            _endTime!.minute,
+          );
+          // 종료 시간이 시작 시간보다 이전이면 다음 날로 설정
+          if (endDateTime.isBefore(startDateTime)) {
+            endDateTime = endDateTime.add(const Duration(days: 1));
+          }
+        } else {
+          // 종료 시간이 없으면 시작 시간 + 1시간
+          endDateTime = startDateTime.add(const Duration(hours: 1));
+        }
+      }
+
       await todoService.addTodo(
         title: _titleController.text.trim(),
         note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
         assigneeId: _selectedAssigneeId,
         dueDate: _dueDate,
+        hasTime: _hasTime,
+        startTime: startDateTime,
+        endTime: endDateTime,
       );
       if (mounted) {
         Navigator.of(context).pop();
@@ -64,6 +102,44 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     if (picked != null) {
       setState(() => _dueDate = picked);
     }
+  }
+
+  Future<void> _selectStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _startTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        _startTime = picked;
+        _hasTime = true;
+        // 종료 시간이 없거나 시작 시간보다 이전이면 1시간 후로 설정
+        if (_endTime == null || _isEndTimeBeforeStart(picked, _endTime!)) {
+          final endHour = (picked.hour + 1) % 24;
+          _endTime = TimeOfDay(hour: endHour, minute: picked.minute);
+        }
+      });
+    }
+  }
+
+  Future<void> _selectEndTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _endTime ?? _startTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() => _endTime = picked);
+    }
+  }
+
+  bool _isEndTimeBeforeStart(TimeOfDay start, TimeOfDay end) {
+    return end.hour < start.hour || (end.hour == start.hour && end.minute <= start.minute);
+  }
+
+  String _formatTimeOfDay(TimeOfDay time) {
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
   }
 
   @override
@@ -161,10 +237,46 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                     isSelected: _dueDate != null,
                     onTap: _selectDate,
                     onClear: _dueDate != null
-                        ? () => setState(() => _dueDate = null)
+                        ? () => setState(() {
+                              _dueDate = null;
+                              _hasTime = false;
+                              _startTime = null;
+                              _endTime = null;
+                            })
                         : null,
                   ),
                   const SizedBox(width: 8),
+
+                  // 시간 선택 (날짜가 선택된 경우에만 표시)
+                  if (_dueDate != null) ...[
+                    _OptionChip(
+                      icon: Iconsax.clock,
+                      label: _hasTime && _startTime != null
+                          ? _formatTimeOfDay(_startTime!)
+                          : '시작',
+                      isSelected: _hasTime,
+                      onTap: _selectStartTime,
+                      onClear: _hasTime
+                          ? () => setState(() {
+                                _hasTime = false;
+                                _startTime = null;
+                                _endTime = null;
+                              })
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    if (_hasTime && _startTime != null) ...[
+                      _OptionChip(
+                        icon: Iconsax.clock_1,
+                        label: _endTime != null
+                            ? _formatTimeOfDay(_endTime!)
+                            : '종료',
+                        isSelected: _endTime != null,
+                        onTap: _selectEndTime,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                  ],
 
                   // 담당자 선택
                   ...members.map((member) => Padding(

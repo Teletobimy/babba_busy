@@ -7,6 +7,8 @@ import '../models/memory.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
 import '../models/chat_message.dart';
+import '../models/memo.dart';
+import '../models/memo_category.dart';
 import '../../app/router.dart';
 import 'auth_provider.dart';
 import 'demo_provider.dart';
@@ -17,6 +19,7 @@ import 'budget_provider.dart';
 import 'group_provider.dart';
 import 'chat_provider.dart';
 import 'calendar_group_provider.dart';
+import 'memo_provider.dart';
 
 /// ========================================
 /// 스마트 Provider - 데모/실제 데이터 자동 선택
@@ -111,7 +114,42 @@ final smartPendingTodosProvider = Provider<List<TodoItem>>((ref) {
 /// 완료된 할일
 final smartCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(smartTodosProvider);
-  return todos.where((todo) => todo.isCompleted).toList();
+  return todos.where((todo) => todo.isCompleted).toList()
+    ..sort((a, b) {
+      // completedAt이 있으면 그걸로 정렬, 없으면 createdAt으로
+      final aTime = a.completedAt ?? a.createdAt;
+      final bTime = b.completedAt ?? b.createdAt;
+      return bTime.compareTo(aTime); // 최근 완료된 것이 위로
+    });
+});
+
+/// 오늘 완료된 할일
+final smartTodayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(smartCompletedTodosProvider);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  return todos.where((todo) {
+    final completedDate = todo.completedAt ?? todo.createdAt;
+    final todoDate = DateTime(completedDate.year, completedDate.month, completedDate.day);
+    return todoDate.isAtSameMomentAs(today);
+  }).toList();
+});
+
+/// 특정 날짜의 시간 있는 할일 (Day View용)
+final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
+  final todos = ref.watch(smartTodosProvider);
+  final targetDate = DateTime(date.year, date.month, date.day);
+
+  return todos.where((todo) {
+    if (!todo.hasTime || todo.startTime == null) return false;
+    final todoDate = DateTime(
+      todo.startTime!.year,
+      todo.startTime!.month,
+      todo.startTime!.day,
+    );
+    return todoDate.isAtSameMomentAs(targetDate);
+  }).toList()..sort((a, b) => a.startTime!.compareTo(b.startTime!));
 });
 
 /// 특정 구성원의 할일
@@ -291,4 +329,63 @@ final smartLastChatMessageProvider = Provider<ChatMessage?>((ref) {
   final messages = ref.watch(smartChatMessagesProvider);
   if (messages.isEmpty) return null;
   return messages.last;
+});
+
+/// ========================================
+/// 메모 관련 스마트 Provider
+/// ========================================
+
+/// 메모 목록 (데모/실제)
+final smartMemosProvider = Provider<List<Memo>>((ref) {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return ref.watch(demoMemosProvider);
+  return ref.watch(memosProvider).value ?? [];
+});
+
+/// 메모 카테고리 목록 (데모/실제)
+final smartMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
+  final demoMode = ref.watch(demoModeProvider);
+  if (demoMode) return ref.watch(demoMemoCategoriesProvider);
+  return ref.watch(memoCategoriesProvider).value ?? [];
+});
+
+/// 선택된 카테고리 ID (스마트)
+final smartSelectedMemoCategoryIdProvider = StateProvider<String?>((ref) => null);
+
+/// 필터링된 메모 목록 (스마트)
+final smartFilteredMemosProvider = Provider<List<Memo>>((ref) {
+  final memos = ref.watch(smartMemosProvider);
+  final categoryId = ref.watch(smartSelectedMemoCategoryIdProvider);
+
+  if (categoryId == null) return memos;
+  return memos.where((m) => m.categoryId == categoryId).toList();
+});
+
+/// 고정된 메모 목록 (스마트)
+final smartPinnedMemosProvider = Provider<List<Memo>>((ref) {
+  final memos = ref.watch(smartFilteredMemosProvider);
+  return memos.where((m) => m.isPinned).toList();
+});
+
+/// 고정되지 않은 메모 목록 (스마트)
+final smartUnpinnedMemosProvider = Provider<List<Memo>>((ref) {
+  final memos = ref.watch(smartFilteredMemosProvider);
+  return memos.where((m) => !m.isPinned).toList();
+});
+
+/// 메모 검색 쿼리 (스마트)
+final smartMemoSearchQueryProvider = StateProvider<String>((ref) => '');
+
+/// 검색된 메모 목록 (스마트)
+final smartSearchedMemosProvider = Provider<List<Memo>>((ref) {
+  final memos = ref.watch(smartFilteredMemosProvider);
+  final query = ref.watch(smartMemoSearchQueryProvider).toLowerCase();
+
+  if (query.isEmpty) return memos;
+
+  return memos.where((m) {
+    return m.title.toLowerCase().contains(query) ||
+           m.content.toLowerCase().contains(query) ||
+           m.tags.any((t) => t.toLowerCase().contains(query));
+  }).toList();
 });

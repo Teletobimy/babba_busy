@@ -7,6 +7,8 @@ import '../models/memory.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
 import '../models/chat_message.dart';
+import '../models/memo.dart';
+import '../models/memo_category.dart';
 
 /// 데모 가족 구성원 (4명)
 final demoMembersProvider = Provider<List<FamilyMember>>((ref) {
@@ -115,6 +117,37 @@ final demoTodosProvider = Provider<List<TodoItem>>((ref) {
       priority: 2,
       createdAt: now.subtract(const Duration(hours: 2)),
       createdBy: 'member1',
+    ),
+    // 시간이 있는 할일 (Day View 테스트용)
+    TodoItem(
+      id: 'todo_timed1',
+      familyId: 'family1',
+      title: '아이 학원 픽업',
+      note: '영어 학원 앞에서 대기',
+      assigneeId: 'member1',
+      isCompleted: false,
+      dueDate: today,
+      priority: 2,
+      createdAt: now.subtract(const Duration(hours: 1)),
+      createdBy: 'member1',
+      hasTime: true,
+      startTime: DateTime(today.year, today.month, today.day, 16, 30),
+      endTime: DateTime(today.year, today.month, today.day, 17, 0),
+    ),
+    TodoItem(
+      id: 'todo_timed2',
+      familyId: 'family1',
+      title: '저녁 식사 준비',
+      note: '오늘 메뉴: 된장찌개',
+      assigneeId: 'member1',
+      isCompleted: false,
+      dueDate: today,
+      priority: 1,
+      createdAt: now.subtract(const Duration(hours: 1)),
+      createdBy: 'member1',
+      hasTime: true,
+      startTime: DateTime(today.year, today.month, today.day, 18, 0),
+      endTime: DateTime(today.year, today.month, today.day, 19, 0),
     ),
     TodoItem(
       id: 'todo2',
@@ -1244,6 +1277,265 @@ final demoChatMessagesProvider = Provider<List<ChatMessage>>((ref) {
       type: MessageType.text,
       createdAt: now.subtract(const Duration(minutes: 15)),
       readBy: ['member1', 'member2'],
+    ),
+  ];
+});
+
+/// 데모 메모 카테고리 (4개)
+final demoMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
+  final now = DateTime.now();
+  return [
+    MemoCategory(
+      id: 'diary',
+      familyId: 'family1',
+      name: '일기',
+      icon: 'book_1',
+      color: '#FFB74D',
+      sortOrder: 0,
+      createdAt: now,
+    ),
+    MemoCategory(
+      id: 'note',
+      familyId: 'family1',
+      name: '간단메모',
+      icon: 'note_1',
+      color: '#64B5F6',
+      sortOrder: 1,
+      createdAt: now,
+    ),
+    MemoCategory(
+      id: 'idea',
+      familyId: 'family1',
+      name: '아이디어',
+      icon: 'lamp_charge',
+      color: '#BA68C8',
+      sortOrder: 2,
+      createdAt: now,
+    ),
+    MemoCategory(
+      id: 'todo_memo',
+      familyId: 'family1',
+      name: '할일메모',
+      icon: 'task_square',
+      color: '#4DB6AC',
+      sortOrder: 3,
+      createdAt: now,
+    ),
+  ];
+});
+
+/// 데모 메모 (10개+)
+final demoMemosProvider = Provider<List<Memo>>((ref) {
+  final now = DateTime.now();
+
+  return [
+    // 고정 메모
+    Memo(
+      id: 'memo1',
+      familyId: 'family1',
+      title: '가족 비상연락처',
+      content: '''아빠 회사: 02-1234-5678
+엄마 회사: 02-8765-4321
+할머니: 010-1111-2222
+할아버지: 010-3333-4444
+가까운 병원: 강남세브란스 02-2019-3114''',
+      categoryId: 'note',
+      categoryName: '간단메모',
+      tags: ['중요', '연락처'],
+      isPinned: true,
+      createdAt: now.subtract(const Duration(days: 30)),
+      updatedAt: now.subtract(const Duration(days: 5)),
+      createdBy: 'member1',
+    ),
+    Memo(
+      id: 'memo2',
+      familyId: 'family1',
+      title: 'Wi-Fi 비밀번호',
+      content: '''거실 공유기: family2024!
+서재 공유기: study_room123
+게스트용: guest1234''',
+      categoryId: 'note',
+      categoryName: '간단메모',
+      tags: ['집', '비밀번호'],
+      isPinned: true,
+      createdAt: now.subtract(const Duration(days: 60)),
+      updatedAt: now.subtract(const Duration(days: 60)),
+      createdBy: 'member2',
+    ),
+
+    // 일기
+    Memo(
+      id: 'memo3',
+      familyId: 'family1',
+      title: '',
+      content: '''오늘 딸이 피아노 학원에서 상을 받아왔다. 그동안 매일 연습하느라 힘들었을 텐데 정말 대견하다. 저녁에 치킨 시켜서 축하해줬더니 정말 좋아했다.
+
+아이들이 자라는 모습을 보면서 뿌듯함을 느낀다. 앞으로도 열심히 응원해줘야지.''',
+      categoryId: 'diary',
+      categoryName: '일기',
+      tags: ['육아', '행복'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 3)),
+      updatedAt: now.subtract(const Duration(days: 3)),
+      createdBy: 'member1',
+    ),
+    Memo(
+      id: 'memo4',
+      familyId: 'family1',
+      title: '주말 가족 나들이',
+      content: '''서울숲에서 피크닉을 했다. 날씨가 정말 좋았고, 아이들이 자전거 타면서 신나했다.
+
+도시락은 김밥이랑 샌드위치를 준비했는데 다 먹었다. 다음에는 삼겹살 구워먹자는 아빠 의견.''',
+      categoryId: 'diary',
+      categoryName: '일기',
+      tags: ['가족', '나들이'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 7)),
+      updatedAt: now.subtract(const Duration(days: 7)),
+      createdBy: 'member1',
+    ),
+
+    // 아이디어
+    Memo(
+      id: 'memo5',
+      familyId: 'family1',
+      title: '여름 휴가 계획',
+      content: '''후보지:
+1. 제주도 - 항공권 예약 필요, 렌터카 필수
+2. 부산 해운대 - KTX로 이동, 호텔 예약
+3. 강릉 - 드라이브 여행, 펜션
+
+예산: 150만원 정도
+기간: 3박 4일
+
+아이들 방학 맞춰서 7월 말~8월 초가 좋을 듯''',
+      categoryId: 'idea',
+      categoryName: '아이디어',
+      tags: ['여행', '계획'],
+      isPinned: false,
+      aiAnalysis: '가족 여름 휴가 계획입니다. 제주도, 부산, 강릉 세 곳을 후보로 두고 계시네요. 예산과 기간을 고려하면 KTX로 이동 가능한 부산이 이동 시간 대비 효율적일 수 있습니다.',
+      analyzedAt: now.subtract(const Duration(days: 1)),
+      createdAt: now.subtract(const Duration(days: 14)),
+      updatedAt: now.subtract(const Duration(days: 1)),
+      createdBy: 'member1',
+    ),
+    Memo(
+      id: 'memo6',
+      familyId: 'family1',
+      title: '거실 인테리어 아이디어',
+      content: '''- 소파 교체 (그레이 패브릭)
+- 러그 추가 (160x230)
+- 조명 교체 (간접조명)
+- 벽면 갤러리 월 만들기
+- 식물 추가 (몬스테라, 여행자나무)
+
+예산: 300만원 내외
+참고: 오늘의집 앱 스크랩 참고''',
+      categoryId: 'idea',
+      categoryName: '아이디어',
+      tags: ['인테리어', '집'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 10)),
+      updatedAt: now.subtract(const Duration(days: 10)),
+      createdBy: 'member1',
+    ),
+
+    // 할일메모
+    Memo(
+      id: 'memo7',
+      familyId: 'family1',
+      title: '이번 주 장볼 것',
+      content: '''식재료:
+- 우유 2팩
+- 계란 30구
+- 돼지고기 (삼겹살, 목살)
+- 소고기 (국거리용)
+- 두부, 콩나물
+- 양파, 대파, 마늘
+
+생필품:
+- 휴지 (30롤)
+- 세제
+- 샴푸''',
+      categoryId: 'todo_memo',
+      categoryName: '할일메모',
+      tags: ['장보기'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 2)),
+      updatedAt: now.subtract(const Duration(days: 1)),
+      createdBy: 'member1',
+    ),
+    Memo(
+      id: 'memo8',
+      familyId: 'family1',
+      title: '아들 생일파티 준비',
+      content: '''날짜: 다음 주 토요일
+장소: 집
+
+준비물:
+- 케이크 주문 (초코케이크)
+- 풍선, 가랜드
+- 간식 (피자, 치킨 주문)
+- 선물 포장
+
+초대: 5명 정도
+예산: 30만원''',
+      categoryId: 'todo_memo',
+      categoryName: '할일메모',
+      tags: ['생일', '파티'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 5)),
+      updatedAt: now.subtract(const Duration(days: 4)),
+      createdBy: 'member1',
+    ),
+
+    // 간단메모
+    Memo(
+      id: 'memo9',
+      familyId: 'family1',
+      title: '택배 송장번호',
+      content: '''쿠팡 - 123456789012
+네이버 - 987654321098
+
+둘 다 이번 주 중 도착 예정''',
+      categoryId: 'note',
+      categoryName: '간단메모',
+      tags: ['택배'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 1)),
+      updatedAt: now.subtract(const Duration(days: 1)),
+      createdBy: 'member2',
+    ),
+    Memo(
+      id: 'memo10',
+      familyId: 'family1',
+      title: '읽고 싶은 책',
+      content: '''1. 원씽 - 게리 켈러
+2. 아주 작은 습관의 힘 - 제임스 클리어
+3. 부의 추월차선 - 엠제이 드마코
+4. 역행자 - 자청''',
+      categoryId: 'note',
+      categoryName: '간단메모',
+      tags: ['독서', '자기계발'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 20)),
+      updatedAt: now.subtract(const Duration(days: 20)),
+      createdBy: 'member3',
+    ),
+    Memo(
+      id: 'memo11',
+      familyId: 'family1',
+      title: '',
+      content: '''오늘 학교에서 발표를 잘했다!
+선생님이 칭찬해주셨다.
+다음에도 열심히 해야지.''',
+      categoryId: 'diary',
+      categoryName: '일기',
+      tags: ['학교'],
+      isPinned: false,
+      createdAt: now.subtract(const Duration(days: 2)),
+      updatedAt: now.subtract(const Duration(days: 2)),
+      createdBy: 'member4',
     ),
   ];
 });

@@ -660,6 +660,8 @@ class _ModuleTile extends StatelessWidget {
 
   IconData _getModuleIcon(AppModule module) {
     switch (module) {
+      case AppModule.memo:
+        return Iconsax.note_1;
       case AppModule.memory:
         return Iconsax.map_1;
       case AppModule.budget:
@@ -673,6 +675,8 @@ class _ModuleTile extends StatelessWidget {
 
   Color _getModuleColor(AppModule module) {
     switch (module) {
+      case AppModule.memo:
+        return AppColors.memoColor;
       case AppModule.memory:
         return AppColors.memoryColor;
       case AppModule.budget:
@@ -686,6 +690,8 @@ class _ModuleTile extends StatelessWidget {
 
   String _getModuleDescription(AppModule module) {
     switch (module) {
+      case AppModule.memo:
+        return '메모 및 아이디어 기록';
       case AppModule.memory:
         return '추억 장소 기록';
       case AppModule.budget:

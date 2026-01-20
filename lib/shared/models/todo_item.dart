@@ -14,6 +14,12 @@ class TodoItem {
   final DateTime createdAt;
   final String createdBy;
 
+  // 시간 관련 필드 (Day View 지원)
+  final DateTime? startTime;    // 시작 시간
+  final DateTime? endTime;      // 종료 시간
+  final bool hasTime;           // 시간 정보 유무
+  final DateTime? completedAt;  // 완료 시간 (UX용)
+
   TodoItem({
     required this.id,
     required this.familyId,
@@ -26,7 +32,14 @@ class TodoItem {
     this.priority = 1,
     required this.createdAt,
     required this.createdBy,
+    this.startTime,
+    this.endTime,
+    this.hasTime = false,
+    this.completedAt,
   });
+
+  /// 시간이 지정된 할일인지 여부
+  bool get isTimedTodo => hasTime && startTime != null;
 
   factory TodoItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -42,6 +55,10 @@ class TodoItem {
       priority: data['priority'] ?? 1,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] ?? '',
+      startTime: (data['startTime'] as Timestamp?)?.toDate(),
+      endTime: (data['endTime'] as Timestamp?)?.toDate(),
+      hasTime: data['hasTime'] ?? false,
+      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -57,6 +74,10 @@ class TodoItem {
       'priority': priority,
       'createdAt': Timestamp.fromDate(createdAt),
       'createdBy': createdBy,
+      'startTime': startTime != null ? Timestamp.fromDate(startTime!) : null,
+      'endTime': endTime != null ? Timestamp.fromDate(endTime!) : null,
+      'hasTime': hasTime,
+      'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
     };
   }
 
@@ -72,6 +93,10 @@ class TodoItem {
     int? priority,
     DateTime? createdAt,
     String? createdBy,
+    DateTime? startTime,
+    DateTime? endTime,
+    bool? hasTime,
+    DateTime? completedAt,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -85,6 +110,10 @@ class TodoItem {
       priority: priority ?? this.priority,
       createdAt: createdAt ?? this.createdAt,
       createdBy: createdBy ?? this.createdBy,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      hasTime: hasTime ?? this.hasTime,
+      completedAt: completedAt ?? this.completedAt,
     );
   }
 }

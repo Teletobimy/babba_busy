@@ -32,6 +32,7 @@ class AppColors {
   static const Color calendarColor = Color(0xFF85DCBA);     // Sage - 차분한 계획
   static const Color memoryColor = Color(0xFFC3B1E1);       // Lavender - 감성적 추억
   static const Color budgetColor = Color(0xFFF4D06F);       // Honey - 안정적 재정
+  static const Color memoColor = Color(0xFF7986CB);         // Indigo - 깊이있는 기록
 
   // ============ 구성원 색상 (6인 기준) ============
   static const List<Color> memberColors = [

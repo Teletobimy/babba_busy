@@ -16,6 +16,7 @@ import '../memory/memory_screen.dart';
 import '../memory/widgets/add_memory_sheet.dart';
 import '../budget/widgets/add_transaction_sheet.dart';
 import '../people/people_screen.dart';
+import '../memo/memo_screen.dart';
 
 /// 현재 선택된 도구 탭 인덱스
 final selectedToolTabProvider = StateProvider<int>((ref) => 0);
@@ -196,6 +197,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
 
   Widget _buildModuleContent(AppModule module) {
     switch (module) {
+      case AppModule.memo:
+        return const MemoContent();
       case AppModule.memory:
         return const _MemoryContent();
       case AppModule.budget:
@@ -209,6 +212,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
 
   IconData _getModuleIcon(AppModule module) {
     switch (module) {
+      case AppModule.memo:
+        return Iconsax.note_1;
       case AppModule.memory:
         return Iconsax.map_1;
       case AppModule.budget:
@@ -223,6 +228,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
   Color _getModuleColor(AppModule? module) {
     if (module == null) return AppColors.primaryLight;
     switch (module) {
+      case AppModule.memo:
+        return AppColors.memoColor;
       case AppModule.memory:
         return AppColors.memoryColor;
       case AppModule.budget:

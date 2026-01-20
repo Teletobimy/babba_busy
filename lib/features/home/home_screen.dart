@@ -17,6 +17,9 @@ import '../../shared/widgets/group_selector.dart';
 /// 선택된 구성원 필터
 final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
 
+/// 완료 섹션 펼침 상태
+final completedSectionExpandedProvider = StateProvider<bool>((ref) => false);
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -36,7 +39,13 @@ class HomeScreen extends ConsumerWidget {
         : allTodos.where((t) => t.assigneeId == selectedMemberId).toList();
     
     final pendingTodos = todos.where((t) => !t.isCompleted).toList();
-    final completedTodos = todos.where((t) => t.isCompleted).toList();
+    final completedTodos = todos.where((t) => t.isCompleted).toList()
+      ..sort((a, b) {
+        final aTime = a.completedAt ?? a.createdAt;
+        final bTime = b.completedAt ?? b.createdAt;
+        return bTime.compareTo(aTime); // 최근 완료된 것이 위로
+      });
+    final isCompletedExpanded = ref.watch(completedSectionExpandedProvider);
 
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
@@ -177,6 +186,23 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
 
+            // 완료된 할일 섹션 (접기/펼치기)
+            if (completedTodos.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                  child: _CompletedSection(
+                    completedTodos: completedTodos,
+                    members: members,
+                    isExpanded: isCompletedExpanded,
+                    onToggle: () {
+                      ref.read(completedSectionExpandedProvider.notifier).state =
+                          !isCompletedExpanded;
+                    },
+                  ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                ),
+              ),
+
             // 다가오는 일정
             SliverToBoxAdapter(
               child: Padding(
@@ -225,5 +251,117 @@ class HomeScreen extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => const AddTodoSheet(),
     );
+  }
+}
+
+/// 완료된 할일 섹션 위젯
+class _CompletedSection extends StatelessWidget {
+  final List completedTodos;
+  final List members;
+  final bool isExpanded;
+  final VoidCallback onToggle;
+
+  const _CompletedSection({
+    required this.completedTodos,
+    required this.members,
+    required this.isExpanded,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: AppTheme.spacingM),
+        // 섹션 헤더 (접기/펼치기)
+        GestureDetector(
+          onTap: onToggle,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              vertical: AppTheme.spacingS,
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Iconsax.tick_circle,
+                  size: 18,
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '완료됨 (${completedTodos.length})',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                ),
+                const Spacer(),
+                AnimatedRotation(
+                  turns: isExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Iconsax.arrow_down_1,
+                    size: 18,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // 완료된 할일 목록 (펼쳐졌을 때만 표시)
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: Column(
+            children: [
+              const SizedBox(height: AppTheme.spacingXS),
+              ...completedTodos.take(5).map((todo) {
+                final member = _findMember(members, todo.assigneeId);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: AppTheme.spacingXS),
+                  child: CompactTodoCard(
+                    todo: todo,
+                    assignee: member,
+                  ),
+                );
+              }),
+              if (completedTodos.length > 5)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppTheme.spacingXS),
+                  child: Text(
+                    '외 ${completedTodos.length - 5}개',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
+                        ),
+                  ),
+                ),
+            ],
+          ),
+          crossFadeState:
+              isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 200),
+        ),
+      ],
+    );
+  }
+
+  dynamic _findMember(List members, String? memberId) {
+    if (memberId == null || members.isEmpty) return null;
+    try {
+      return members.firstWhere((m) => m.id == memberId);
+    } catch (e) {
+      return null;
+    }
   }
 }

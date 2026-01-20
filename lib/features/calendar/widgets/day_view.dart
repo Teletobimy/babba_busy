@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/event.dart';
+import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
+import '../../../shared/providers/todo_provider.dart';
 
 /// 일간 뷰 위젯
 class DayView extends ConsumerWidget {
@@ -24,11 +26,12 @@ class DayView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final events = ref.watch(smartEventsForDateProvider(selectedDay));
+    final timedTodos = ref.watch(smartTimedTodosForDateProvider(selectedDay));
     final allDayEvents = events.where((e) => e.isAllDay).toList();
     final timedEvents = events.where((e) => !e.isAllDay).toList();
     final now = DateTime.now();
-    final isToday = selectedDay.year == now.year && 
-                    selectedDay.month == now.month && 
+    final isToday = selectedDay.year == now.year &&
+                    selectedDay.month == now.month &&
                     selectedDay.day == now.day;
 
     return Column(
@@ -42,7 +45,7 @@ class DayView extends ConsumerWidget {
           isDark: isDark,
         ),
         const SizedBox(height: AppTheme.spacingS),
-        
+
         // 종일 이벤트
         if (allDayEvents.isNotEmpty) ...[
           _AllDayEventsSection(
@@ -51,11 +54,12 @@ class DayView extends ConsumerWidget {
           ),
           const SizedBox(height: AppTheme.spacingS),
         ],
-        
-        // 시간별 이벤트 그리드
+
+        // 시간별 이벤트/할일 그리드
         Expanded(
           child: _TimelineGrid(
             events: timedEvents,
+            todos: timedTodos,
             isDark: isDark,
             isToday: isToday,
             currentTime: now,
@@ -236,21 +240,23 @@ class _AllDayEventsSection extends StatelessWidget {
   }
 }
 
-class _TimelineGrid extends StatelessWidget {
+class _TimelineGrid extends ConsumerWidget {
   final List<Event> events;
+  final List<TodoItem> todos;
   final bool isDark;
   final bool isToday;
   final DateTime currentTime;
 
   const _TimelineGrid({
     required this.events,
+    required this.todos,
     required this.isDark,
     required this.isToday,
     required this.currentTime,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
@@ -277,6 +283,13 @@ class _TimelineGrid extends StatelessWidget {
             ...events.map((event) {
               return _DayEventBlock(
                 event: event,
+                isDark: isDark,
+              );
+            }),
+            // 할일 블록들
+            ...todos.map((todo) {
+              return _DayTodoBlock(
+                todo: todo,
                 isDark: isDark,
               );
             }),
@@ -519,5 +532,137 @@ class _DayEventBlock extends StatelessWidget {
     } catch (e) {
       return AppColors.calendarColor;
     }
+  }
+}
+
+class _DayTodoBlock extends ConsumerWidget {
+  final TodoItem todo;
+  final bool isDark;
+
+  const _DayTodoBlock({
+    required this.todo,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (todo.startTime == null) return const SizedBox.shrink();
+
+    final startHour = todo.startTime!.hour + todo.startTime!.minute / 60;
+    final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+    final endHour = endTime.hour + endTime.minute / 60;
+    final duration = endHour - startHour;
+
+    // 최소 30분 높이 보장
+    final height = (duration < 0.5 ? 0.5 : duration) * 60;
+    final top = startHour * 60;
+
+    final todoColor = AppColors.todoColor;
+
+    return Positioned(
+      top: top,
+      left: 55,
+      right: 8,
+      height: height,
+      child: GestureDetector(
+        onTap: () => _toggleComplete(ref),
+        child: Container(
+          decoration: BoxDecoration(
+            color: todo.isCompleted
+                ? todoColor.withValues(alpha: 0.4)
+                : todoColor.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: todoColor,
+              width: 2,
+              strokeAlign: BorderSide.strokeAlignInside,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: todoColor.withValues(alpha: 0.2),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              // 체크박스
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: todo.isCompleted ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 2,
+                  ),
+                ),
+                child: todo.isCompleted
+                    ? Icon(
+                        Icons.check,
+                        size: 14,
+                        color: todoColor,
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 10),
+              // 내용
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      todo.title,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        decoration: todo.isCompleted
+                            ? TextDecoration.lineThrough
+                            : null,
+                        decorationColor: Colors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (height > 40) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Iconsax.clock,
+                            size: 12,
+                            color: Colors.white.withValues(alpha: 0.8),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${DateFormat('HH:mm').format(todo.startTime!)} - ${DateFormat('HH:mm').format(endTime)}',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.8),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _toggleComplete(WidgetRef ref) async {
+    await ref.read(todoServiceProvider).toggleTodo(
+      todo.id,
+      !todo.isCompleted,
+    );
   }
 }
