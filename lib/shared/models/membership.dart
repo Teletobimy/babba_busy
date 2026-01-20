@@ -11,6 +11,7 @@ class Membership {
   final String role; // 'admin' or 'member'
   final String? avatarUrl; // 사용자 프로필 사진 URL (Google 등)
   final DateTime joinedAt;
+  final List<String> sharedEventTypes; // 공유할 일정 타입 ['todo', 'schedule', 'event']
 
   Membership({
     required this.id,
@@ -22,6 +23,7 @@ class Membership {
     required this.role,
     this.avatarUrl,
     required this.joinedAt,
+    this.sharedEventTypes = const ['event'], // 기본값: 이벤트만 공유
   });
 
   factory Membership.fromFirestore(DocumentSnapshot doc) {
@@ -36,6 +38,7 @@ class Membership {
       role: data['role'] ?? 'member',
       avatarUrl: data['avatarUrl'],
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      sharedEventTypes: List<String>.from(data['sharedEventTypes'] ?? ['event']),
     );
   }
 
@@ -49,6 +52,7 @@ class Membership {
       'role': role,
       'avatarUrl': avatarUrl,
       'joinedAt': Timestamp.fromDate(joinedAt),
+      'sharedEventTypes': sharedEventTypes,
     };
   }
 
@@ -62,6 +66,7 @@ class Membership {
     String? role,
     String? avatarUrl,
     DateTime? joinedAt,
+    List<String>? sharedEventTypes,
   }) {
     return Membership(
       id: id ?? this.id,
@@ -73,6 +78,7 @@ class Membership {
       role: role ?? this.role,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       joinedAt: joinedAt ?? this.joinedAt,
+      sharedEventTypes: sharedEventTypes ?? this.sharedEventTypes,
     );
   }
 }

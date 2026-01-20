@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// 메모 카테고리 모델
 class MemoCategory {
   final String id;
-  final String familyId;
+  final String userId;
   final String name;
   final String? icon;
   final String color;
@@ -12,7 +12,7 @@ class MemoCategory {
 
   MemoCategory({
     required this.id,
-    required this.familyId,
+    required this.userId,
     required this.name,
     this.icon,
     required this.color,
@@ -24,7 +24,7 @@ class MemoCategory {
     final data = doc.data() as Map<String, dynamic>;
     return MemoCategory(
       id: doc.id,
-      familyId: data['familyId'] ?? '',
+      userId: data['userId'] ?? '',
       name: data['name'] ?? '',
       icon: data['icon'],
       color: data['color'] ?? '#64B5F6',
@@ -35,7 +35,7 @@ class MemoCategory {
 
   Map<String, dynamic> toFirestore() {
     return {
-      'familyId': familyId,
+      'userId': userId,
       'name': name,
       'icon': icon,
       'color': color,
@@ -46,7 +46,7 @@ class MemoCategory {
 
   MemoCategory copyWith({
     String? id,
-    String? familyId,
+    String? userId,
     String? name,
     String? icon,
     String? color,
@@ -55,7 +55,7 @@ class MemoCategory {
   }) {
     return MemoCategory(
       id: id ?? this.id,
-      familyId: familyId ?? this.familyId,
+      userId: userId ?? this.userId,
       name: name ?? this.name,
       icon: icon ?? this.icon,
       color: color ?? this.color,
@@ -98,12 +98,12 @@ class DefaultMemoCategories {
     },
   ];
 
-  /// familyId로 기본 카테고리 목록 생성
-  static List<MemoCategory> createDefaults(String familyId) {
+  /// userId로 기본 카테고리 목록 생성
+  static List<MemoCategory> createDefaults(String userId) {
     final now = DateTime.now();
     return categories.map((c) => MemoCategory(
       id: c['id'] as String,
-      familyId: familyId,
+      userId: userId,
       name: c['name'] as String,
       icon: c['icon'] as String?,
       color: c['color'] as String,

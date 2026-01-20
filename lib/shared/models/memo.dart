@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// 메모 모델
 class Memo {
   final String id;
-  final String familyId;
+  final String userId;
   final String title;
   final String content;
   final String? categoryId;
@@ -18,7 +18,7 @@ class Memo {
 
   Memo({
     required this.id,
-    required this.familyId,
+    required this.userId,
     required this.title,
     this.content = '',
     this.categoryId,
@@ -36,7 +36,7 @@ class Memo {
     final data = doc.data() as Map<String, dynamic>;
     return Memo(
       id: doc.id,
-      familyId: data['familyId'] ?? '',
+      userId: data['userId'] ?? '',
       title: data['title'] ?? '',
       content: data['content'] ?? '',
       categoryId: data['categoryId'],
@@ -53,7 +53,7 @@ class Memo {
 
   Map<String, dynamic> toFirestore() {
     return {
-      'familyId': familyId,
+      'userId': userId,
       'title': title,
       'content': content,
       'categoryId': categoryId,
@@ -70,7 +70,7 @@ class Memo {
 
   Memo copyWith({
     String? id,
-    String? familyId,
+    String? userId,
     String? title,
     String? content,
     String? categoryId,
@@ -85,7 +85,7 @@ class Memo {
   }) {
     return Memo(
       id: id ?? this.id,
-      familyId: familyId ?? this.familyId,
+      userId: userId ?? this.userId,
       title: title ?? this.title,
       content: content ?? this.content,
       categoryId: categoryId ?? this.categoryId,

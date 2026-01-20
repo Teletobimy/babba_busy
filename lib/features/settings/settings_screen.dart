@@ -12,6 +12,19 @@ import '../auth/widgets/group_setup_dialog.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
 import '../../app/router.dart';
+import '../../shared/models/todo_item.dart';
+import '../../shared/providers/group_provider.dart';
+
+String _getEventTypeDescription(EventType type) {
+  switch (type) {
+    case EventType.todo:
+      return '개인적인 작은 할일';
+    case EventType.schedule:
+      return '일반적인 스케줄 및 일정';
+    case EventType.event:
+      return '중요한 행사 및 약속';
+  }
+}
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -256,6 +269,69 @@ class SettingsScreen extends ConsumerWidget {
                             .toList(),
                       ),
                       const SizedBox(height: AppTheme.spacingL),
+                      const Divider(),
+                      const SizedBox(height: AppTheme.spacingM),
+                      // 캘린더 공유 설정
+                      Text(
+                        '캘린더 공유 설정',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 13),
+                      ),
+                      const SizedBox(height: AppTheme.spacingS),
+                      Text(
+                        '이 그룹에 공유할 일정 타입을 선택하세요',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: AppTheme.spacingM),
+                      ...EventType.values.map((type) {
+                        final currentMembership = ref.watch(currentMembershipProvider);
+                        final isShared = currentMembership?.sharedEventTypes.contains(type.value) ?? false;
+
+                        return CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          value: isShared,
+                          onChanged: (value) async {
+                            if (currentMembership == null) return;
+
+                            final updatedTypes = List<String>.from(currentMembership.sharedEventTypes);
+                            if (value == true) {
+                              if (!updatedTypes.contains(type.value)) {
+                                updatedTypes.add(type.value);
+                              }
+                            } else {
+                              updatedTypes.remove(type.value);
+                            }
+
+                            try {
+                              await updateMembershipSharedEventTypes(
+                                ref,
+                                currentMembership.id,
+                                updatedTypes,
+                              );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('${type.label} 공유 설정이 업데이트되었습니다'),
+                                    duration: const Duration(seconds: 1),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('설정 업데이트 실패: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          title: Text(type.label),
+                          subtitle: Text(_getEventTypeDescription(type)),
+                        );
+                      }),
+                      const SizedBox(height: AppTheme.spacingM),
                       // 다른 그룹 추가 버튼
                       SizedBox(
                         width: double.infinity,

@@ -105,8 +105,23 @@ Future<void> completeOnboarding(dynamic ref) async {
 /// 그룹 전환
 Future<void> switchGroup(dynamic ref, String groupId) async {
   ref.read(selectedGroupIdProvider.notifier).state = groupId;
-  
+
   // 로컬 저장소에 저장
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('last_selected_group_id', groupId);
+}
+
+/// Membership의 공유 타입 업데이트
+Future<void> updateMembershipSharedEventTypes(
+  dynamic ref,
+  String membershipId,
+  List<String> sharedEventTypes,
+) async {
+  final firestore = ref.read(firestoreProvider);
+  if (firestore == null) return;
+
+  await firestore
+      .collection('memberships')
+      .doc(membershipId)
+      .update({'sharedEventTypes': sharedEventTypes});
 }

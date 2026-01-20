@@ -1287,7 +1287,7 @@ final demoMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
   return [
     MemoCategory(
       id: 'diary',
-      familyId: 'family1',
+      userId: 'user1',
       name: '일기',
       icon: 'book_1',
       color: '#FFB74D',
@@ -1296,7 +1296,7 @@ final demoMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
     ),
     MemoCategory(
       id: 'note',
-      familyId: 'family1',
+      userId: 'user1',
       name: '간단메모',
       icon: 'note_1',
       color: '#64B5F6',
@@ -1305,7 +1305,7 @@ final demoMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
     ),
     MemoCategory(
       id: 'idea',
-      familyId: 'family1',
+      userId: 'user1',
       name: '아이디어',
       icon: 'lamp_charge',
       color: '#BA68C8',
@@ -1314,7 +1314,7 @@ final demoMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
     ),
     MemoCategory(
       id: 'todo_memo',
-      familyId: 'family1',
+      userId: 'user1',
       name: '할일메모',
       icon: 'task_square',
       color: '#4DB6AC',
@@ -1332,7 +1332,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     // 고정 메모
     Memo(
       id: 'memo1',
-      familyId: 'family1',
+      userId: 'user1',
       title: '가족 비상연락처',
       content: '''아빠 회사: 02-1234-5678
 엄마 회사: 02-8765-4321
@@ -1349,7 +1349,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo2',
-      familyId: 'family1',
+      userId: 'user1',
       title: 'Wi-Fi 비밀번호',
       content: '''거실 공유기: family2024!
 서재 공유기: study_room123
@@ -1366,7 +1366,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     // 일기
     Memo(
       id: 'memo3',
-      familyId: 'family1',
+      userId: 'user1',
       title: '',
       content: '''오늘 딸이 피아노 학원에서 상을 받아왔다. 그동안 매일 연습하느라 힘들었을 텐데 정말 대견하다. 저녁에 치킨 시켜서 축하해줬더니 정말 좋아했다.
 
@@ -1381,7 +1381,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo4',
-      familyId: 'family1',
+      userId: 'user1',
       title: '주말 가족 나들이',
       content: '''서울숲에서 피크닉을 했다. 날씨가 정말 좋았고, 아이들이 자전거 타면서 신나했다.
 
@@ -1398,7 +1398,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     // 아이디어
     Memo(
       id: 'memo5',
-      familyId: 'family1',
+      userId: 'user1',
       title: '여름 휴가 계획',
       content: '''후보지:
 1. 제주도 - 항공권 예약 필요, 렌터카 필수
@@ -1421,7 +1421,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo6',
-      familyId: 'family1',
+      userId: 'user1',
       title: '거실 인테리어 아이디어',
       content: '''- 소파 교체 (그레이 패브릭)
 - 러그 추가 (160x230)
@@ -1443,7 +1443,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     // 할일메모
     Memo(
       id: 'memo7',
-      familyId: 'family1',
+      userId: 'user1',
       title: '이번 주 장볼 것',
       content: '''식재료:
 - 우유 2팩
@@ -1467,7 +1467,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo8',
-      familyId: 'family1',
+      userId: 'user1',
       title: '아들 생일파티 준비',
       content: '''날짜: 다음 주 토요일
 장소: 집
@@ -1492,7 +1492,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     // 간단메모
     Memo(
       id: 'memo9',
-      familyId: 'family1',
+      userId: 'user1',
       title: '택배 송장번호',
       content: '''쿠팡 - 123456789012
 네이버 - 987654321098
@@ -1508,7 +1508,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo10',
-      familyId: 'family1',
+      userId: 'user1',
       title: '읽고 싶은 책',
       content: '''1. 원씽 - 게리 켈러
 2. 아주 작은 습관의 힘 - 제임스 클리어
@@ -1524,7 +1524,7 @@ final demoMemosProvider = Provider<List<Memo>>((ref) {
     ),
     Memo(
       id: 'memo11',
-      familyId: 'family1',
+      userId: 'user1',
       title: '',
       content: '''오늘 학교에서 발표를 잘했다!
 선생님이 칭찬해주셨다.

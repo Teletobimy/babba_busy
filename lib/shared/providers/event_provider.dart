@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/event.dart';
 import '../models/holiday.dart';
+import '../models/recurrence.dart';
 import 'auth_provider.dart';
 import 'group_provider.dart';
 import 'holiday_provider.dart';
@@ -251,7 +252,8 @@ class EventService {
     return _firestore!.collection('families').doc(_familyId).collection('events');
   }
 
-  /// 이벤트 추가
+  /// 이벤트 추가 (더 이상 사용 안 함)
+  @Deprecated('Use TodoService.addTodo() instead. Events are now managed as Todos.')
   Future<void> addEvent({
     required String title,
     String? description,
@@ -267,32 +269,13 @@ class EventService {
     DateTime? recurrenceEndDate,
     bool excludeHolidays = false,
   }) async {
-    final eventsRef = _eventsCollection;
-    if (eventsRef == null || _userId == null) return;
-
-    await eventsRef.add({
-      'familyId': _familyId,
-      'title': title,
-      'description': description,
-      'startAt': Timestamp.fromDate(startAt),
-      'endAt': Timestamp.fromDate(endAt),
-      'isAllDay': isAllDay,
-      'participants': participants,
-      'location': location,
-      'color': color,
-      'calendarGroupId': calendarGroupId,
-      'createdBy': _userId,
-      'createdAt': FieldValue.serverTimestamp(),
-      'recurrenceType': recurrenceType == RecurrenceType.none ? null : recurrenceType.name,
-      'recurrenceDays': recurrenceDays,
-      'recurrenceEndDate': recurrenceEndDate != null
-          ? Timestamp.fromDate(recurrenceEndDate)
-          : null,
-      'excludeHolidays': excludeHolidays,
-    });
+    throw UnimplementedError(
+      'Creating new events is deprecated. Use TodoService.addTodo() instead.',
+    );
   }
 
-  /// 이벤트 수정
+  /// 이벤트 수정 (더 이상 사용 안 함)
+  @Deprecated('Use TodoService.updateTodo() instead. Events are now managed as Todos.')
   Future<void> updateEvent(String eventId, {
     String? title,
     String? description,
@@ -308,33 +291,9 @@ class EventService {
     DateTime? recurrenceEndDate,
     bool? excludeHolidays,
   }) async {
-    final eventsRef = _eventsCollection;
-    if (eventsRef == null) return;
-
-    final updates = <String, dynamic>{};
-    if (title != null) updates['title'] = title;
-    if (description != null) updates['description'] = description;
-    if (startAt != null) updates['startAt'] = Timestamp.fromDate(startAt);
-    if (endAt != null) updates['endAt'] = Timestamp.fromDate(endAt);
-    if (isAllDay != null) updates['isAllDay'] = isAllDay;
-    if (participants != null) updates['participants'] = participants;
-    if (location != null) updates['location'] = location;
-    if (color != null) updates['color'] = color;
-    if (calendarGroupId != null) updates['calendarGroupId'] = calendarGroupId;
-    if (recurrenceType != null) {
-      updates['recurrenceType'] = recurrenceType == RecurrenceType.none
-          ? null
-          : recurrenceType.name;
-    }
-    if (recurrenceDays != null) updates['recurrenceDays'] = recurrenceDays;
-    if (recurrenceEndDate != null) {
-      updates['recurrenceEndDate'] = Timestamp.fromDate(recurrenceEndDate);
-    }
-    if (excludeHolidays != null) updates['excludeHolidays'] = excludeHolidays;
-
-    if (updates.isNotEmpty) {
-      await eventsRef.doc(eventId).update(updates);
-    }
+    throw UnimplementedError(
+      'Updating events is deprecated. Use TodoService.updateTodo() instead.',
+    );
   }
 
   /// 이벤트 삭제

@@ -1,7 +1,7 @@
 name: babba
 description: "BABBA - 바쁜 일상 관리 및 공유 앱 (할일, 일정, 추억 지도, 가계부)"
 publish_to: 'none'
-version: 1.1.0+9
+version: 1.1.0+10
 
 environment:
   sdk: ^3.9.2

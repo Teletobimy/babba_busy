@@ -130,52 +130,71 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
                     style: Theme.of(context).textTheme.headlineSmall,
                   ).animate().fadeIn(duration: 300.ms),
                   const SizedBox(height: AppTheme.spacingM),
-                  // 탭바
+                  // 탭바 (2줄 배치)
                   Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: isDark
                           ? AppColors.surfaceDark
                           : AppColors.backgroundLight,
                       borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: _getModuleColor(activeModules.isNotEmpty
-                            ? activeModules[_tabController.index]
-                            : null),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                      ),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      indicatorPadding: const EdgeInsets.all(4),
-                      labelColor: Colors.white,
-                      unselectedLabelColor: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                      labelStyle: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                      ),
-                      unselectedLabelStyle: const TextStyle(
-                        fontWeight: FontWeight.w400,
-                        fontSize: 13,
-                      ),
-                      dividerColor: Colors.transparent,
-                      tabs: activeModules.map((module) {
-                        return Tab(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                _getModuleIcon(module),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(module.label),
-                            ],
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.center,
+                      children: List.generate(activeModules.length, (index) {
+                        final module = activeModules[index];
+                        final isSelected = _tabController.index == index;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _tabController.animateTo(index);
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? _getModuleColor(module)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getModuleIcon(module),
+                                  size: 16,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : (isDark
+                                          ? AppColors.textSecondaryDark
+                                          : AppColors.textSecondaryLight),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  module.label,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : (isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
-                      }).toList(),
+                      }),
                     ),
                   ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
                 ],

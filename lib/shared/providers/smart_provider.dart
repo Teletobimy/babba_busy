@@ -195,17 +195,75 @@ final filteredEventsProvider = Provider<List<Event>>((ref) {
   }).toList();
 });
 
-/// 특정 날짜의 이벤트 (필터 적용)
+/// 특정 날짜의 이벤트 (필터 적용, Todo 포함)
 final smartEventsForDateProvider = Provider.family<List<Event>, DateTime>((ref, date) {
-  final events = ref.watch(filteredEventsProvider);
+  final demoMode = ref.watch(demoModeProvider);
   final startOfDay = DateTime(date.year, date.month, date.day);
   final endOfDay = startOfDay.add(const Duration(days: 1));
 
-  return events.where((event) {
+  // 1. 기존 Event 가져오기 (읽기 전용)
+  final events = ref.watch(filteredEventsProvider);
+  final filteredEvents = events.where((event) {
     return event.startAt.isBefore(endOfDay) && event.endAt.isAfter(startOfDay);
-  }).toList()
-    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+  }).toList();
+
+  // 2. Todo 가져오기 (반복 확장 포함)
+  List<TodoItem> todos;
+  if (demoMode) {
+    // 데모 모드: 기본 todos 사용
+    todos = ref.watch(demoTodosProvider).where((todo) {
+      if (todo.dueDate == null) return false;
+      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+      return todoDate.isAtSameMomentAs(startOfDay);
+    }).toList();
+  } else {
+    // 실제 모드: 반복 확장된 todos 사용
+    todos = ref.watch(todosForDateProvider(date));
+  }
+
+  // 3. Todo → Event 변환 (실제 필드 사용)
+  final todoEvents = todos.map((todo) => _todoToEvent(todo)).toList();
+
+  // 4. 병합 및 정렬
+  final allEvents = [...filteredEvents, ...todoEvents];
+  allEvents.sort((a, b) => a.startAt.compareTo(b.startAt));
+
+  return allEvents;
 });
+
+/// Todo를 Event로 변환
+Event _todoToEvent(TodoItem todo) {
+  final startAt = todo.startTime ??
+      (todo.dueDate != null
+          ? DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day, 9, 0)
+          : DateTime.now());
+  final endAt = todo.endTime ??
+      (todo.startTime ?? startAt).add(const Duration(hours: 1));
+
+  return Event(
+    id: 'todo_${todo.id}',
+    familyId: todo.familyId,
+    title: todo.title,
+    description: todo.note,
+    startAt: startAt,
+    endAt: endAt,
+    isAllDay: todo.isAllDay,
+    participants: todo.participants.isNotEmpty
+        ? todo.participants
+        : (todo.assigneeId != null ? [todo.assigneeId!] : []),
+    location: todo.location,
+    color: todo.color ?? '#9AD0EC',
+    createdBy: todo.createdBy,
+    createdAt: todo.createdAt,
+    calendarGroupId: todo.calendarGroupId,
+    isPersonal: todo.isPersonal,
+    recurrenceType: todo.recurrenceType,
+    recurrenceDays: todo.recurrenceDays,
+    recurrenceEndDate: todo.recurrenceEndDate,
+    excludeHolidays: todo.excludeHolidays,
+    parentEventId: todo.parentTodoId,
+  );
+}
 
 /// 다가오는 이벤트 (7일 이내, 필터 적용)
 final smartUpcomingEventsProvider = Provider<List<Event>>((ref) {

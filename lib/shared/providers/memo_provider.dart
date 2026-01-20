@@ -3,17 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/memo.dart';
 import '../models/memo_category.dart';
 import 'auth_provider.dart';
-import 'group_provider.dart';
 
-/// 현재 그룹의 메모 목록 (실시간)
+/// 현재 사용자의 메모 목록 (실시간)
 final memosProvider = StreamProvider<List<Memo>>((ref) {
-  final membership = ref.watch(currentMembershipProvider);
+  final user = ref.watch(currentUserProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (membership == null || firestore == null) return Stream.value([]);
+  if (user == null || firestore == null) return Stream.value([]);
 
   return firestore
-      .collection('families')
-      .doc(membership.groupId)
+      .collection('users')
+      .doc(user.uid)
       .collection('memos')
       .orderBy('updatedAt', descending: true)
       .snapshots()
@@ -21,15 +20,15 @@ final memosProvider = StreamProvider<List<Memo>>((ref) {
           snapshot.docs.map((doc) => Memo.fromFirestore(doc)).toList());
 });
 
-/// 현재 그룹의 메모 카테고리 목록
+/// 현재 사용자의 메모 카테고리 목록
 final memoCategoriesProvider = StreamProvider<List<MemoCategory>>((ref) {
-  final membership = ref.watch(currentMembershipProvider);
+  final user = ref.watch(currentUserProvider);
   final firestore = ref.watch(firestoreProvider);
-  if (membership == null || firestore == null) return Stream.value([]);
+  if (user == null || firestore == null) return Stream.value([]);
 
   return firestore
-      .collection('families')
-      .doc(membership.groupId)
+      .collection('users')
+      .doc(user.uid)
       .collection('memo_categories')
       .orderBy('sortOrder')
       .snapshots()
@@ -91,17 +90,16 @@ class MemoService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
-  String? get _groupId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
   CollectionReference? get _memosCollection {
-    if (_groupId == null || _firestore == null) return null;
-    return _firestore!.collection('families').doc(_groupId).collection('memos');
+    if (_userId == null || _firestore == null) return null;
+    return _firestore!.collection('users').doc(_userId).collection('memos');
   }
 
   CollectionReference? get _categoriesCollection {
-    if (_groupId == null || _firestore == null) return null;
-    return _firestore!.collection('families').doc(_groupId).collection('memo_categories');
+    if (_userId == null || _firestore == null) return null;
+    return _firestore!.collection('users').doc(_userId).collection('memo_categories');
   }
 
   /// 메모 추가
@@ -117,7 +115,7 @@ class MemoService {
     if (memosRef == null || _userId == null) return null;
 
     final doc = await memosRef.add({
-      'familyId': _groupId,
+      'userId': _userId,
       'title': title,
       'content': content,
       'categoryId': categoryId,
@@ -201,7 +199,7 @@ class MemoService {
     final finalOrder = sortOrder ?? await _getNextCategorySortOrder();
 
     final doc = await categoriesRef.add({
-      'familyId': _groupId,
+      'userId': _userId,
       'name': name,
       'icon': icon,
       'color': color,
@@ -253,12 +251,12 @@ class MemoService {
     await categoriesRef.doc(categoryId).delete();
   }
 
-  /// 기본 카테고리 생성 (그룹 생성 시 호출)
+  /// 기본 카테고리 생성 (사용자 첫 로그인 시 호출)
   Future<void> createDefaultCategories() async {
     final categoriesRef = _categoriesCollection;
-    if (categoriesRef == null || _groupId == null) return;
+    if (categoriesRef == null || _userId == null) return;
 
-    final defaults = DefaultMemoCategories.createDefaults(_groupId!);
+    final defaults = DefaultMemoCategories.createDefaults(_userId!);
 
     for (final category in defaults) {
       await categoriesRef.doc(category.id).set(category.toFirestore());

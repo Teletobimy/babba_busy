@@ -7,10 +7,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import '../../../shared/models/todo_item.dart';
+import '../../../shared/models/recurrence.dart';
 
-/// 할일 추가 바텀 시트
+/// 할일 추가/수정 바텀 시트
 class AddTodoSheet extends ConsumerStatefulWidget {
-  const AddTodoSheet({super.key});
+  final String? todoId;
+  final DateTime? initialDate;
+
+  const AddTodoSheet({super.key, this.todoId, this.initialDate});
 
   @override
   ConsumerState<AddTodoSheet> createState() => _AddTodoSheetState();
@@ -19,6 +24,7 @@ class AddTodoSheet extends ConsumerStatefulWidget {
 class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
+  final _locationController = TextEditingController();
   String? _selectedAssigneeId;
   DateTime? _dueDate;
   TimeOfDay? _startTime;
@@ -26,11 +32,78 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   bool _hasTime = false;
   bool _isLoading = false;
   bool _showNoteField = false;
+  EventType _eventType = EventType.todo;
+
+  // Event 통합 필드
+  final List<String> _selectedParticipants = [];
+  bool _showLocationField = false;
+  bool _isAllDay = false;
+  RecurrenceType _recurrenceType = RecurrenceType.none;
+  final List<int> _recurrenceDays = [];
+  DateTime? _recurrenceEndDate;
+  bool _excludeHolidays = false;
+  String? _selectedColor;
+
+  @override
+  void initState() {
+    super.initState();
+    // initialDate가 있으면 설정
+    if (widget.initialDate != null) {
+      _dueDate = widget.initialDate;
+    }
+    // 수정 모드인 경우 기존 값 로드
+    if (widget.todoId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadTodoData();
+      });
+    }
+  }
+
+  void _loadTodoData() {
+    final todos = ref.read(todosProvider).value ?? [];
+    final todo = todos.firstWhere(
+      (t) => t.id == widget.todoId,
+      orElse: () => throw Exception('Todo not found'),
+    );
+
+    setState(() {
+      _titleController.text = todo.title;
+      _noteController.text = todo.note ?? '';
+      _selectedAssigneeId = todo.assigneeId;
+      _dueDate = todo.dueDate;
+      _hasTime = todo.hasTime;
+      _showNoteField = todo.note != null && todo.note!.isNotEmpty;
+      _eventType = todo.eventType;
+
+      if (todo.startTime != null) {
+        _startTime = TimeOfDay.fromDateTime(todo.startTime!);
+      }
+      if (todo.endTime != null) {
+        _endTime = TimeOfDay.fromDateTime(todo.endTime!);
+      }
+
+      // Event 통합 필드
+      _selectedParticipants.clear();
+      _selectedParticipants.addAll(todo.participants);
+      _locationController.text = todo.location ?? '';
+      _showLocationField = todo.location != null && todo.location!.isNotEmpty;
+      _isAllDay = todo.isAllDay;
+      _recurrenceType = todo.recurrenceType;
+      _recurrenceDays.clear();
+      if (todo.recurrenceDays != null) {
+        _recurrenceDays.addAll(todo.recurrenceDays!);
+      }
+      _recurrenceEndDate = todo.recurrenceEndDate;
+      _excludeHolidays = todo.excludeHolidays;
+      _selectedColor = todo.color;
+    });
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
     _noteController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -73,15 +146,48 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
         }
       }
 
-      await todoService.addTodo(
-        title: _titleController.text.trim(),
-        note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
-        assigneeId: _selectedAssigneeId,
-        dueDate: _dueDate,
-        hasTime: _hasTime,
-        startTime: startDateTime,
-        endTime: endDateTime,
-      );
+      // 수정 모드인 경우
+      if (widget.todoId != null) {
+        await todoService.updateTodo(
+          widget.todoId!,
+          title: _titleController.text.trim(),
+          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+          assigneeId: _selectedAssigneeId,
+          dueDate: _dueDate,
+          hasTime: _hasTime,
+          startTime: startDateTime,
+          endTime: endDateTime,
+          eventType: _eventType,
+          participants: _selectedParticipants,
+          location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+          isAllDay: _isAllDay,
+          recurrenceType: _recurrenceType,
+          recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
+          recurrenceEndDate: _recurrenceEndDate,
+          excludeHolidays: _excludeHolidays,
+          color: _selectedColor,
+        );
+      } else {
+        // 추가 모드
+        await todoService.addTodo(
+          title: _titleController.text.trim(),
+          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+          assigneeId: _selectedAssigneeId,
+          dueDate: _dueDate,
+          hasTime: _hasTime,
+          startTime: startDateTime,
+          endTime: endDateTime,
+          eventType: _eventType,
+          participants: _selectedParticipants,
+          location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+          isAllDay: _isAllDay,
+          recurrenceType: _recurrenceType,
+          recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
+          recurrenceEndDate: _recurrenceEndDate,
+          excludeHolidays: _excludeHolidays,
+          color: _selectedColor,
+        );
+      }
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -142,12 +248,48 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     return '$hour:$minute';
   }
 
+  Future<void> _showRecurrenceSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _RecurrenceSheet(
+        initialType: _recurrenceType,
+        initialDays: _recurrenceDays,
+        initialEndDate: _recurrenceEndDate,
+        initialExcludeHolidays: _excludeHolidays,
+        onSave: (type, days, endDate, excludeHolidays) {
+          setState(() {
+            _recurrenceType = type;
+            _recurrenceDays.clear();
+            _recurrenceDays.addAll(days);
+            _recurrenceEndDate = endDate;
+            _excludeHolidays = excludeHolidays;
+          });
+        },
+      ),
+    );
+  }
+
+  String _getRecurrenceLabel() {
+    if (_recurrenceType == RecurrenceType.none) return '반복';
+    String label = _recurrenceType.shortName;
+    if (_recurrenceType == RecurrenceType.weekly && _recurrenceDays.isNotEmpty) {
+      final dayNames = _recurrenceDays.map((d) => Weekdays.getName(d)).join(',');
+      label += ' ($dayNames)';
+    }
+    return label;
+  }
+
   @override
   Widget build(BuildContext context) {
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.9,
+      ),
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
         borderRadius: const BorderRadius.vertical(
@@ -161,10 +303,11 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           top: AppTheme.spacingM,
           bottom: MediaQuery.of(context).viewInsets.bottom + AppTheme.spacingL,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // 핸들바
             Center(
               child: Container(
@@ -183,7 +326,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
 
             // 타이틀
             Text(
-              '새 할일',
+              widget.todoId != null ? '할일 수정' : '새 할일',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppTheme.spacingM),
@@ -201,6 +344,52 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
             ),
             const SizedBox(height: AppTheme.spacingM),
 
+            // 타입 선택
+            Row(
+              children: EventType.values.map((type) {
+                final isSelected = _eventType == type;
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _eventType = type),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primaryLight.withValues(alpha: 0.15)
+                              : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primaryLight
+                                : (isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight)
+                                    .withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          type.label,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                            color: isSelected
+                                ? AppColors.primaryLight
+                                : (isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
             // 노트 입력 (토글)
             if (_showNoteField) ...[
               TextField(
@@ -210,6 +399,41 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                   hintText: '메모 (선택)',
                   prefixIcon: Icon(Iconsax.note_1),
                 ),
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+            ],
+
+            // 위치 입력 (토글)
+            if (_showLocationField) ...[
+              TextField(
+                controller: _locationController,
+                decoration: const InputDecoration(
+                  hintText: '위치 (선택)',
+                  prefixIcon: Icon(Iconsax.location),
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+            ],
+
+            // 종일 토글 (날짜가 선택된 경우에만 표시)
+            if (_dueDate != null) ...[
+              Row(
+                children: [
+                  Checkbox(
+                    value: _isAllDay,
+                    onChanged: (value) {
+                      setState(() {
+                        _isAllDay = value ?? false;
+                        if (_isAllDay) {
+                          _hasTime = false;
+                          _startTime = null;
+                          _endTime = null;
+                        }
+                      });
+                    },
+                  ),
+                  Text('종일', style: Theme.of(context).textTheme.bodyMedium),
+                ],
               ),
               const SizedBox(height: AppTheme.spacingM),
             ],
@@ -228,6 +452,15 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                   ),
                   const SizedBox(width: 8),
 
+                  // 위치 추가 버튼
+                  _OptionChip(
+                    icon: Iconsax.location,
+                    label: '위치',
+                    isSelected: _showLocationField,
+                    onTap: () => setState(() => _showLocationField = !_showLocationField),
+                  ),
+                  const SizedBox(width: 8),
+
                   // 날짜 선택
                   _OptionChip(
                     icon: Iconsax.calendar_1,
@@ -242,13 +475,14 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                               _hasTime = false;
                               _startTime = null;
                               _endTime = null;
+                              _isAllDay = false;
                             })
                         : null,
                   ),
                   const SizedBox(width: 8),
 
-                  // 시간 선택 (날짜가 선택된 경우에만 표시)
-                  if (_dueDate != null) ...[
+                  // 시간 선택 (날짜가 선택되고 종일이 아닌 경우에만 표시)
+                  if (_dueDate != null && !_isAllDay) ...[
                     _OptionChip(
                       icon: Iconsax.clock,
                       label: _hasTime && _startTime != null
@@ -278,30 +512,77 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                     ],
                   ],
 
-                  // 담당자 선택
-                  ...members.map((member) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: MemberAvatar(
-                          member: member,
-                          size: 36,
-                          isSelected: _selectedAssigneeId == member.id,
-                          onTap: () {
-                            setState(() {
-                              if (_selectedAssigneeId == member.id) {
-                                _selectedAssigneeId = null;
-                              } else {
-                                _selectedAssigneeId = member.id;
-                              }
-                            });
-                          },
-                        ),
-                      )),
+                  // 반복 설정
+                  if (_dueDate != null) ...[
+                    _OptionChip(
+                      icon: Iconsax.repeat,
+                      label: _getRecurrenceLabel(),
+                      isSelected: _recurrenceType != RecurrenceType.none,
+                      onTap: _showRecurrenceSheet,
+                      onClear: _recurrenceType != RecurrenceType.none
+                          ? () => setState(() {
+                                _recurrenceType = RecurrenceType.none;
+                                _recurrenceDays.clear();
+                                _recurrenceEndDate = null;
+                                _excludeHolidays = false;
+                              })
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                 ],
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // 참여자 선택 (다중 선택)
+            Text(
+              '참여자',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: members
+                    .map((member) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: MemberAvatar(
+                            member: member,
+                            size: 40,
+                            isSelected: _selectedParticipants.contains(member.id),
+                            onTap: () {
+                              setState(() {
+                                if (_selectedParticipants.contains(member.id)) {
+                                  _selectedParticipants.remove(member.id);
+                                  // assigneeId 업데이트
+                                  if (_selectedAssigneeId == member.id) {
+                                    _selectedAssigneeId =
+                                        _selectedParticipants.isNotEmpty
+                                            ? _selectedParticipants.first
+                                            : null;
+                                  }
+                                } else {
+                                  _selectedParticipants.add(member.id);
+                                  // 첫 번째 참여자를 assigneeId로 설정
+                                  if (_selectedAssigneeId == null) {
+                                    _selectedAssigneeId = member.id;
+                                  }
+                                }
+                              });
+                            },
+                          ),
+                        ))
+                    .toList(),
               ),
             ),
             const SizedBox(height: AppTheme.spacingL),
 
-            // 추가 버튼
+            // 추가/저장 버튼
             SizedBox(
               height: 48,
               child: ElevatedButton(
@@ -315,10 +596,11 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('추가'),
+                    : Text(widget.todoId != null ? '저장' : '추가'),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -399,6 +681,215 @@ class _OptionChip extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RecurrenceSheet extends StatefulWidget {
+  final RecurrenceType initialType;
+  final List<int> initialDays;
+  final DateTime? initialEndDate;
+  final bool initialExcludeHolidays;
+  final Function(RecurrenceType, List<int>, DateTime?, bool) onSave;
+
+  const _RecurrenceSheet({
+    required this.initialType,
+    required this.initialDays,
+    required this.initialEndDate,
+    required this.initialExcludeHolidays,
+    required this.onSave,
+  });
+
+  @override
+  State<_RecurrenceSheet> createState() => _RecurrenceSheetState();
+}
+
+class _RecurrenceSheetState extends State<_RecurrenceSheet> {
+  late RecurrenceType _type;
+  late List<int> _days;
+  DateTime? _endDate;
+  late bool _excludeHolidays;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.initialType;
+    _days = List.from(widget.initialDays);
+    _endDate = widget.initialEndDate;
+    _excludeHolidays = widget.initialExcludeHolidays;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingL),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('반복 설정', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppTheme.spacingM),
+          // 반복 유형 선택
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: RecurrenceType.values.map((type) {
+              final isSelected = _type == type;
+              return GestureDetector(
+                onTap: () => setState(() => _type = type),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Text(
+                    type.displayName,
+                    style: TextStyle(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : (isDark
+                              ? AppColors.textPrimaryDark
+                              : AppColors.textPrimaryLight),
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          // 매주 선택 시 요일 선택
+          if (_type == RecurrenceType.weekly) ...[
+            const SizedBox(height: AppTheme.spacingM),
+            Text('반복 요일', style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: AppTheme.spacingS),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: Weekdays.all.map((day) {
+                final isSelected = _days.contains(day);
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _days.remove(day);
+                      } else {
+                        _days.add(day);
+                      }
+                    });
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.primaryLight
+                            : (isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        Weekdays.getName(day),
+                        style: TextStyle(
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight),
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+          // 반복 종료일
+          if (_type != RecurrenceType.none) ...[
+            const SizedBox(height: AppTheme.spacingM),
+            Row(
+              children: [
+                Expanded(
+                  child: Text('반복 종료일',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                    );
+                    if (picked != null) {
+                      setState(() => _endDate = picked);
+                    }
+                  },
+                  child: Text(_endDate != null
+                      ? DateFormat('yyyy/M/d').format(_endDate!)
+                      : '설정 안 함'),
+                ),
+                if (_endDate != null)
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    onPressed: () => setState(() => _endDate = null),
+                  ),
+              ],
+            ),
+            // 공휴일 제외
+            Row(
+              children: [
+                Checkbox(
+                  value: _excludeHolidays,
+                  onChanged: (value) =>
+                      setState(() => _excludeHolidays = value ?? false),
+                ),
+                Text('공휴일 제외', style: Theme.of(context).textTheme.bodyMedium),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppTheme.spacingL),
+          // 저장 버튼
+          SizedBox(
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                widget.onSave(_type, _days, _endDate, _excludeHolidays);
+                Navigator.of(context).pop();
+              },
+              child: const Text('저장'),
+            ),
+          ),
+        ],
       ),
     );
   }

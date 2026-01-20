@@ -9,6 +9,7 @@ import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import 'add_todo_sheet.dart';
 
 /// 할일 아이템 카드
 class TodoItemCard extends ConsumerStatefulWidget {
@@ -89,18 +90,27 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
       onDismissed: (direction) {
         ref.read(todoServiceProvider).deleteTodo(widget.todo.id);
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
+      child: GestureDetector(
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => AddTodoSheet(todoId: widget.todo.id),
+          );
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
+          decoration: BoxDecoration(
+            color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
                 // 색상 바
                 Container(
                   width: 4,
@@ -227,7 +237,8 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                       size: 28,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

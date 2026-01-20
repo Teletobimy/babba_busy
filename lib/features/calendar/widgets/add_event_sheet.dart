@@ -6,7 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/event_provider.dart';
-import '../../../shared/models/event.dart';
+import '../../../shared/models/recurrence.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
 /// 이벤트 추가 바텀 시트
@@ -72,7 +72,7 @@ class _AddEventSheetState extends ConsumerState<AddEventSheet> {
             ? DateTime(_startDate.year, _startDate.month, _startDate.day)
             : _combineDateAndTime(_startDate, _startTime),
         endAt: _isAllDay
-            ? DateTime(_endDate.year, _endDate.month, _endDate.day, 23, 59)
+            ? DateTime(_endDate.year, _endDate.month, _endDate.day).add(const Duration(days: 1))
             : _combineDateAndTime(_endDate, _endTime),
         isAllDay: _isAllDay,
         participants: _selectedParticipants,
