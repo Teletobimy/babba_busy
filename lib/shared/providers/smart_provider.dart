@@ -249,6 +249,27 @@ final smartEventsForDateProvider = Provider.family<List<Event>, DateTime>((ref, 
     todos = ref.watch(todosForDateProvider(date));
   }
 
+  // 2.5. 각 Todo 작성자의 공유 설정에 따라 필터링
+  // "이 그룹에 공유할 일정 타입" 설정은 작성자 본인이 다른 사람에게 보여줄지 결정
+  final groupMemberships = ref.watch(groupMembershipsProvider).value ?? [];
+  final membershipByUserId = {
+    for (final m in groupMemberships) m.userId: m,
+  };
+
+  todos = todos.where((todo) {
+    // createdBy가 비어있으면 기본적으로 표시
+    if (todo.createdBy.isEmpty) return true;
+
+    // 작성자의 membership 조회
+    final creatorMembership = membershipByUserId[todo.createdBy];
+
+    // membership을 찾을 수 없으면 기본값으로 event만 공유
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['event'];
+
+    // 작성자가 해당 타입을 공유하도록 설정했는지 확인
+    return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
   // 3. Todo → Event 변환 (실제 필드 사용)
   final todoEvents = todos.map((todo) => _todoToEvent(todo)).toList();
 

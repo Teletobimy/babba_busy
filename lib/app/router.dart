@@ -10,6 +10,7 @@ import '../features/home/home_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/tools/tools_hub_screen.dart';
 import '../features/tools/business/business_review_screen.dart';
+import '../features/tools/business/business_history_screen.dart';
 import '../features/tools/psychology/psychology_hub_screen.dart';
 import '../features/tools/psychology/psychology_test_screen.dart';
 import '../features/tools/psychology/psychology_history_screen.dart';
@@ -149,6 +150,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tools/business',
         name: 'business-review',
         builder: (context, state) => const BusinessReviewScreen(),
+      ),
+      GoRoute(
+        path: '/tools/business/history',
+        name: 'business-history',
+        builder: (context, state) => const BusinessHistoryScreen(),
       ),
       GoRoute(
         path: '/tools/psychology',

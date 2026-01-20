@@ -5,7 +5,10 @@ import 'package:iconsax/iconsax.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
+import '../../../services/ai/business_agent_service.dart';
 import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/providers/business_review_provider.dart';
+import '../../../shared/models/business_review.dart';
 
 /// 사업 검토 화면
 class BusinessReviewScreen extends ConsumerStatefulWidget {
@@ -68,11 +71,13 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     setState(() {
       _isAnalyzing = true;
       _analysisProgress = {
-        'market_research': 'pending',
-        'competitor_analysis': 'pending',
-        'product_planning': 'pending',
-        'financial_analysis': 'pending',
-        'final_report': 'pending',
+        '시장조사 전문가': 'pending',
+        '경쟁사 분석가': 'pending',
+        '재무 분석가': 'pending',
+        '법률/규제 전문가': 'pending',
+        '마케팅 전략가': 'pending',
+        '제품 기획자': 'pending',
+        '종합 전략 컨설턴트': 'pending',
       };
       _result = null;
       _error = null;
@@ -82,44 +87,55 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
       final user = ref.read(currentUserProvider);
       if (user == null) throw Exception('로그인이 필요합니다');
 
-      final aiService = ref.read(aiApiServiceProvider);
+      final agentService = BusinessAgentService();
+      BusinessAnalysisResult? finalResult;
 
-      // 진행 상황 시뮬레이션 (실제로는 스트리밍 API 사용)
-      _updateProgress('market_research', 'started');
-      _updateProgress('competitor_analysis', 'started');
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      final result = await aiService.analyzeBusinessIdea(
-        userId: user.uid,
-        idea: _ideaController.text.trim(),
+      await for (final progress in agentService.analyzeWithAgents(
+        businessIdea: _ideaController.text.trim(),
         industry: _selectedIndustry,
         budget: _selectedBudget,
-      );
+      )) {
+        setState(() {
+          _analysisProgress[progress.agentName] = progress.status;
+        });
 
-      _updateProgress('market_research', 'completed');
-      _updateProgress('competitor_analysis', 'completed');
-      await Future.delayed(const Duration(milliseconds: 300));
-      _updateProgress('product_planning', 'completed');
-      _updateProgress('financial_analysis', 'completed');
-      await Future.delayed(const Duration(milliseconds: 300));
-      _updateProgress('final_report', 'completed');
+        if (progress.agentName == '종합 전략 컨설턴트' &&
+            progress.status == 'completed') {
+          finalResult = progress.result as BusinessAnalysisResult;
+        }
+      }
 
-      setState(() {
-        _result = result;
-        _isAnalyzing = false;
-      });
+      if (finalResult != null) {
+        setState(() {
+          _result = finalResult;
+          _isAnalyzing = false;
+        });
+
+        // 자동 저장
+        final reviewService = ref.read(businessReviewServiceProvider);
+        final review = BusinessReview.fromAnalysisResult(
+          userId: user.uid,
+          businessIdea: _ideaController.text.trim(),
+          industry: _selectedIndustry,
+          budget: _selectedBudget,
+          result: {
+            'score': finalResult.score,
+            'summary': finalResult.summary,
+            'strengths': finalResult.strengths,
+            'weaknesses': finalResult.weaknesses,
+            'opportunities': finalResult.opportunities,
+            'threats': finalResult.threats,
+            'nextSteps': finalResult.nextSteps,
+          },
+        );
+        await reviewService.saveReview(review);
+      }
     } catch (e) {
       setState(() {
         _error = e.toString();
         _isAnalyzing = false;
       });
     }
-  }
-
-  void _updateProgress(String step, String status) {
-    setState(() {
-      _analysisProgress[step] = status;
-    });
   }
 
   // P1: 분석 중 이탈 방지 다이얼로그
@@ -176,6 +192,13 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   },
                 )
               : null,
+          actions: [
+            if (!_isAnalyzing)
+              IconButton(
+                icon: const Icon(Iconsax.document_text),
+                onPressed: () => context.push('/tools/business/history'),
+              ),
+          ],
         ),
         body: _result != null ? _buildResultView() : _buildInputView(),
       ),
@@ -373,11 +396,13 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
   Widget _buildProgressView() {
     final steps = [
-      ('market_research', '시장 조사', Iconsax.chart),
-      ('competitor_analysis', '경쟁사 분석', Iconsax.people),
-      ('product_planning', '상품 기획', Iconsax.box),
-      ('financial_analysis', '재무 분석', Iconsax.money),
-      ('final_report', '최종 리포트', Iconsax.document_text),
+      ('시장조사 전문가', '시장 조사', Iconsax.chart),
+      ('경쟁사 분석가', '경쟁사 분석', Iconsax.people),
+      ('재무 분석가', '재무 분석', Iconsax.money),
+      ('법률/규제 전문가', '법률/규제', Iconsax.shield_tick),
+      ('마케팅 전략가', '마케팅 전략', Iconsax.trend_up),
+      ('제품 기획자', '제품 기획', Iconsax.box),
+      ('종합 전략 컨설턴트', '최종 리포트', Iconsax.document_text),
     ];
 
     return Container(
@@ -395,7 +420,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
       child: Column(
         children: [
           const Text(
-            '🔍 AI가 분석 중입니다',
+            '🔍 7개 전문 에이전트가 분석 중입니다',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -412,8 +437,12 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   const SizedBox(width: 12),
                   Icon(step.$3, size: 20, color: AppColors.grayScale[600]),
                   const SizedBox(width: 8),
-                  Text(step.$2),
-                  const Spacer(),
+                  Expanded(
+                    child: Text(
+                      step.$2,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                  ),
                   Text(
                     _getStatusText(status),
                     style: TextStyle(
@@ -712,36 +741,151 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   }
 
   Widget _buildSwotItem(String emoji, String title, List<String> items, Color bgColor) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$emoji $title',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 13,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...items.take(3).map((item) => Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Text(
-                  '• $item',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.grayScale[700],
+    final hasMore = items.length > 3 || items.any((item) => item.length > 50);
+
+    return GestureDetector(
+      onTap: () => _showSwotDetailSheet(context, emoji, title, items, bgColor),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '$emoji $title',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              )),
-        ],
+                if (hasMore)
+                  Icon(Iconsax.arrow_right_3, size: 14, color: AppColors.grayScale[400]),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...items.take(3).map((item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '• $item',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.grayScale[700],
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                )),
+            if (items.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '+${items.length - 3}개 더보기',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.grayScale[500],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showSwotDetailSheet(
+    BuildContext context,
+    String emoji,
+    String title,
+    List<String> items,
+    Color bgColor,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // 드래그 핸들
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.grayScale[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      title,
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              // 전체 아이템 리스트
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(20),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 12,
+                          backgroundColor: bgColor,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            items[index],
+                            style: const TextStyle(height: 1.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
