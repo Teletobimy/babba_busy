@@ -10,10 +10,10 @@ final aiApiServiceProvider = Provider<AiApiService>((ref) {
 
 /// Cloud Run AI API 서비스
 class AiApiService {
-  // 배포된 Cloud Run URL (배포 후 업데이트 필요)
+  // Cloud Run API URL
   static const String _baseUrl = String.fromEnvironment(
     'AI_API_URL',
-    defaultValue: 'http://localhost:8080',
+    defaultValue: 'https://***REMOVED_CLOUD_RUN_URL***',
   );
 
   /// Firebase Auth 토큰 가져오기
