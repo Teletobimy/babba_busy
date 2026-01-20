@@ -17,6 +17,7 @@ import '../memory/widgets/add_memory_sheet.dart';
 import '../budget/widgets/add_transaction_sheet.dart';
 import '../people/people_screen.dart';
 import '../memo/memo_screen.dart';
+import 'package:go_router/go_router.dart';
 
 /// 현재 선택된 도구 탭 인덱스
 final selectedToolTabProvider = StateProvider<int>((ref) => 0);
@@ -129,6 +130,9 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
                     style: Theme.of(context).textTheme.headlineSmall,
                   ).animate().fadeIn(duration: 300.ms),
                   const SizedBox(height: AppTheme.spacingM),
+                  // AI 도구 섹션
+                  _buildAIToolsSection(context),
+                  const SizedBox(height: AppTheme.spacingM),
                   // 탭바
                   Container(
                     decoration: BoxDecoration(
@@ -239,6 +243,114 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
       case AppModule.chat:
         return const Color(0xFF9B59B6); // 대화방용 보라 컬러
     }
+  }
+
+  Widget _buildAIToolsSection(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _AIToolCard(
+            icon: Iconsax.briefcase,
+            title: '사업 검토',
+            subtitle: 'AI 멀티 에이전트',
+            color: AppColors.coral[500]!,
+            onTap: () => context.push('/tools/business'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _AIToolCard(
+            icon: Iconsax.heart,
+            title: '심리검사',
+            subtitle: '7종 검사',
+            color: AppColors.lavender[500]!,
+            onTap: () => context.push('/tools/psychology'),
+          ),
+        ),
+      ],
+    ).animate().fadeIn(duration: 300.ms, delay: 50.ms).slideY(begin: 0.1);
+  }
+}
+
+/// AI 도구 카드 위젯
+class _AIToolCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _AIToolCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: isDark ? AppColors.surfaceDark : Colors.white,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        child: Container(
+          padding: const EdgeInsets.all(AppTheme.spacingM),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            border: Border.all(
+              color: color.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Iconsax.arrow_right_3,
+                size: 16,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

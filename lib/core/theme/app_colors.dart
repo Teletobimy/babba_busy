@@ -67,6 +67,63 @@ class AppColors {
     'other': Color(0xFFBDBDBD),      // 기타 - Gray
   };
 
+  // ============ MaterialColor 팔레트 ============
+  /// Coral 팔레트 (따뜻한 코랄)
+  static const MaterialColor coral = MaterialColor(0xFFE8A87C, {
+    50: Color(0xFFFDF3EE),
+    100: Color(0xFFFBE4D5),
+    200: Color(0xFFF5CEB3),
+    300: Color(0xFFEFB791),
+    400: Color(0xFFE8A87C),
+    500: Color(0xFFE8A87C),
+    600: Color(0xFFD4917A),
+    700: Color(0xFFBF7A68),
+    800: Color(0xFFAA6456),
+    900: Color(0xFF8A4D43),
+  });
+
+  /// Sage 팔레트 (세이지 그린)
+  static const MaterialColor sage = MaterialColor(0xFF85DCBA, {
+    50: Color(0xFFEDF9F4),
+    100: Color(0xFFD1F0E3),
+    200: Color(0xFFB3E7D1),
+    300: Color(0xFF98DDBF),
+    400: Color(0xFF85DCBA),
+    500: Color(0xFF85DCBA),
+    600: Color(0xFF6BB89B),
+    700: Color(0xFF52947C),
+    800: Color(0xFF3A705D),
+    900: Color(0xFF234C3E),
+  });
+
+  /// Lavender 팔레트 (라벤더)
+  static const MaterialColor lavender = MaterialColor(0xFFC3B1E1, {
+    50: Color(0xFFF5F3FA),
+    100: Color(0xFFE8E2F4),
+    200: Color(0xFFD9CFEC),
+    300: Color(0xFFCBC0E6),
+    400: Color(0xFFC3B1E1),
+    500: Color(0xFFC3B1E1),
+    600: Color(0xFFA596C4),
+    700: Color(0xFF877BA7),
+    800: Color(0xFF6A618A),
+    900: Color(0xFF4D466D),
+  });
+
+  /// GrayScale 팔레트
+  static const MaterialColor grayScale = MaterialColor(0xFF7A7A7A, {
+    50: Color(0xFFFAFAFA),
+    100: Color(0xFFF5F5F5),
+    200: Color(0xFFEEEEEE),
+    300: Color(0xFFE0E0E0),
+    400: Color(0xFFBDBDBD),
+    500: Color(0xFF9E9E9E),
+    600: Color(0xFF757575),
+    700: Color(0xFF616161),
+    800: Color(0xFF424242),
+    900: Color(0xFF212121),
+  });
+
   // ============ 그라디언트 ============
   static const LinearGradient primaryGradientLight = LinearGradient(
     begin: Alignment.topLeft,

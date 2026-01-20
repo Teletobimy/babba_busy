@@ -9,10 +9,10 @@ genai.configure(api_key=settings.gemini_api_key)
 
 
 class GeminiService:
-    """Gemini AI 서비스"""
+    """Gemini AI 서비스 (일반 요약용 - Lite 모델)"""
 
     def __init__(self):
-        self.model = genai.GenerativeModel(settings.gemini_model)
+        self.model = genai.GenerativeModel(settings.gemini_lite_model)
 
     async def generate_daily_summary(
         self,

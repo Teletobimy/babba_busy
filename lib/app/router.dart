@@ -10,6 +10,9 @@ import '../features/home/home_screen.dart';
 import '../features/todo/todo_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/tools/tools_hub_screen.dart';
+import '../features/tools/business/business_review_screen.dart';
+import '../features/tools/psychology/psychology_hub_screen.dart';
+import '../features/tools/psychology/psychology_test_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../main.dart' show firebaseInitialized;
 import 'main_shell.dart';
@@ -140,6 +143,25 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
         ],
+      ),
+      // AI 도구 라우트 (독립 화면)
+      GoRoute(
+        path: '/tools/business',
+        name: 'business-review',
+        builder: (context, state) => const BusinessReviewScreen(),
+      ),
+      GoRoute(
+        path: '/tools/psychology',
+        name: 'psychology-hub',
+        builder: (context, state) => const PsychologyHubScreen(),
+      ),
+      GoRoute(
+        path: '/tools/psychology/test/:testType',
+        name: 'psychology-test',
+        builder: (context, state) {
+          final testType = state.pathParameters['testType'] ?? 'big5';
+          return PsychologyTestScreen(testType: testType);
+        },
       ),
     ],
   );

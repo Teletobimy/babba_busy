@@ -1,128 +1,102 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 import uuid
+from typing import Optional
 
 from models import (
-    PsychologyStartRequest,
     PsychologyStartResponse,
-    PsychologyAnswerRequest,
     PsychologyAnswerResponse,
     PsychologyResultResponse,
     PsychologyQuestion,
-    PsychologyTestType,
     ErrorResponse,
 )
-from services import FirestoreCache, gemini_service
+from services import FirestoreCache
+from agents.psychology_agents import PsychologyPMAgent, TestType, PSYCHOLOGY_TESTS
 from dependencies import get_current_user
 
 router = APIRouter(prefix="/api/psychology", tags=["Psychology"])
 
-# 심리검사 질문 데이터베이스 (실제로는 별도 파일이나 DB로 관리)
-PSYCHOLOGY_QUESTIONS = {
-    PsychologyTestType.STRESS: [
-        {
-            "id": "stress_1",
-            "question": "최근 한 달간 예상치 못한 일이 생겨서 기분이 상한 적이 얼마나 있었나요?",
-            "options": ["전혀 없었다", "거의 없었다", "가끔 있었다", "자주 있었다", "매우 자주 있었다"],
-        },
-        {
-            "id": "stress_2",
-            "question": "최근 한 달간 중요한 일을 처리할 수 없다고 느낀 적이 얼마나 있었나요?",
-            "options": ["전혀 없었다", "거의 없었다", "가끔 있었다", "자주 있었다", "매우 자주 있었다"],
-        },
-        {
-            "id": "stress_3",
-            "question": "최근 한 달간 일이 뜻대로 되어간다고 느낀 적이 얼마나 있었나요?",
-            "options": ["매우 자주 있었다", "자주 있었다", "가끔 있었다", "거의 없었다", "전혀 없었다"],
-        },
-        {
-            "id": "stress_4",
-            "question": "최근 한 달간 일상의 짜증스러운 일들을 처리할 수 없다고 느낀 적이 얼마나 있었나요?",
-            "options": ["전혀 없었다", "거의 없었다", "가끔 있었다", "자주 있었다", "매우 자주 있었다"],
-        },
-        {
-            "id": "stress_5",
-            "question": "최근 한 달간 긴장하거나 스트레스를 받았다고 느낀 적이 얼마나 있었나요?",
-            "options": ["전혀 없었다", "거의 없었다", "가끔 있었다", "자주 있었다", "매우 자주 있었다"],
-        },
-    ],
-    PsychologyTestType.SELF_ESTEEM: [
-        {
-            "id": "esteem_1",
-            "question": "나는 내가 적어도 다른 사람만큼은 가치 있는 사람이라고 생각한다.",
-            "options": ["전혀 그렇지 않다", "그렇지 않다", "그렇다", "매우 그렇다"],
-        },
-        {
-            "id": "esteem_2",
-            "question": "나는 좋은 자질을 가지고 있다고 생각한다.",
-            "options": ["전혀 그렇지 않다", "그렇지 않다", "그렇다", "매우 그렇다"],
-        },
-        {
-            "id": "esteem_3",
-            "question": "대체로 나는 실패자라고 느껴진다.",
-            "options": ["매우 그렇다", "그렇다", "그렇지 않다", "전혀 그렇지 않다"],
-        },
-        {
-            "id": "esteem_4",
-            "question": "나는 다른 사람만큼 일을 잘 할 수 있다.",
-            "options": ["전혀 그렇지 않다", "그렇지 않다", "그렇다", "매우 그렇다"],
-        },
-        {
-            "id": "esteem_5",
-            "question": "나는 자랑할 만한 것이 별로 없다.",
-            "options": ["매우 그렇다", "그렇다", "그렇지 않다", "전혀 그렇지 않다"],
-        },
-    ],
-}
+# PM 에이전트 싱글톤
+psychology_pm = PsychologyPMAgent()
 
 
-@router.post(
-    "/start",
-    response_model=PsychologyStartResponse,
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-)
+# ============ 검사 목록 ============
+
+@router.get("/tests")
+async def get_available_tests():
+    """사용 가능한 모든 심리검사 목록"""
+    return {
+        "tests": psychology_pm.get_all_tests(),
+    }
+
+
+@router.get("/tests/{test_type}")
+async def get_test_info(test_type: str):
+    """특정 검사 정보 조회"""
+    try:
+        t_type = TestType(test_type)
+        info = psychology_pm.get_test_info(t_type)
+        if not info:
+            raise HTTPException(status_code=404, detail="검사를 찾을 수 없습니다.")
+        return info
+    except ValueError:
+        raise HTTPException(status_code=400, detail="잘못된 검사 유형입니다.")
+
+
+# ============ 검사 시작 ============
+
+@router.post("/start")
 async def start_psychology_test(
-    request: PsychologyStartRequest,
+    user_id: str,
+    test_type: str,
     current_user: dict = Depends(get_current_user),
 ):
     """심리검사 시작"""
     try:
         # 권한 확인
-        if current_user["uid"] != request.user_id:
+        if current_user["uid"] != user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
         # 검사 유형 확인
-        questions = PSYCHOLOGY_QUESTIONS.get(request.test_type)
-        if not questions:
+        try:
+            t_type = TestType(test_type)
+        except ValueError:
             raise HTTPException(status_code=400, detail="지원하지 않는 검사 유형입니다.")
+
+        test = PSYCHOLOGY_TESTS.get(t_type)
+        if not test:
+            raise HTTPException(status_code=400, detail="검사 데이터를 찾을 수 없습니다.")
 
         # 세션 생성
         session_id = str(uuid.uuid4())
+        questions = psychology_pm.get_questions(t_type)
+
         session = {
             "id": session_id,
-            "test_type": request.test_type.value,
+            "test_type": test_type,
             "answers": [],
             "current_index": 0,
             "total_questions": len(questions),
             "started_at": datetime.utcnow(),
         }
 
-        await FirestoreCache.set_psychology_session(
-            request.user_id, session_id, session
-        )
+        await FirestoreCache.set_psychology_session(user_id, session_id, session)
 
-        # 첫 번째 질문 반환
+        # 첫 번째 질문
         first_q = questions[0]
-        return PsychologyStartResponse(
-            session_id=session_id,
-            test_type=request.test_type,
-            total_questions=len(questions),
-            first_question=PsychologyQuestion(
-                question_id=first_q["id"],
-                question=first_q["question"],
-                options=first_q["options"],
-            ),
-        )
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "test_type": test_type,
+            "test_name": test["name"],
+            "total_questions": len(questions),
+            "first_question": {
+                "question_id": first_q["id"],
+                "question": first_q["text"],
+                "options": first_q["options"],
+            },
+        }
 
     except HTTPException:
         raise
@@ -131,36 +105,35 @@ async def start_psychology_test(
         raise HTTPException(status_code=500, detail="검사 시작 중 오류가 발생했습니다.")
 
 
-@router.post(
-    "/answer",
-    response_model=PsychologyAnswerResponse,
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-)
+# ============ 답변 제출 ============
+
+@router.post("/answer")
 async def submit_psychology_answer(
-    request: PsychologyAnswerRequest,
+    user_id: str,
+    session_id: str,
+    question_id: str,
+    answer_index: int,
     current_user: dict = Depends(get_current_user),
 ):
     """심리검사 답변 제출"""
     try:
         # 권한 확인
-        if current_user["uid"] != request.user_id:
+        if current_user["uid"] != user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
         # 세션 조회
-        session = await FirestoreCache.get_psychology_session(
-            request.user_id, request.session_id
-        )
+        session = await FirestoreCache.get_psychology_session(user_id, session_id)
         if not session:
             raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
 
-        test_type = PsychologyTestType(session["test_type"])
-        questions = PSYCHOLOGY_QUESTIONS.get(test_type, [])
+        test_type = TestType(session["test_type"])
+        questions = psychology_pm.get_questions(test_type)
 
         # 답변 저장
         answers = session.get("answers", [])
         answers.append({
-            "question_id": request.question_id,
-            "answer_index": request.answer_index,
+            "question_id": question_id,
+            "answer_index": answer_index,
         })
         session["answers"] = answers
 
@@ -175,26 +148,27 @@ async def submit_psychology_answer(
         is_complete = next_index >= session["total_questions"]
 
         # 세션 업데이트
-        await FirestoreCache.set_psychology_session(
-            request.user_id, request.session_id, session
-        )
+        await FirestoreCache.set_psychology_session(user_id, session_id, session)
 
         # 다음 질문 또는 완료
         next_question = None
         if not is_complete and next_index < len(questions):
             next_q = questions[next_index]
-            next_question = PsychologyQuestion(
-                question_id=next_q["id"],
-                question=next_q["question"],
-                options=next_q["options"],
-            )
+            next_question = {
+                "question_id": next_q["id"],
+                "question": next_q["text"],
+                "options": next_q["options"],
+            }
 
-        return PsychologyAnswerResponse(
-            session_id=request.session_id,
-            progress=progress,
-            next_question=next_question,
-            is_complete=is_complete,
-        )
+        return {
+            "success": True,
+            "session_id": session_id,
+            "progress": progress,
+            "answered": next_index,
+            "total": session["total_questions"],
+            "next_question": next_question,
+            "is_complete": is_complete,
+        }
 
     except HTTPException:
         raise
@@ -203,17 +177,15 @@ async def submit_psychology_answer(
         raise HTTPException(status_code=500, detail="답변 처리 중 오류가 발생했습니다.")
 
 
-@router.get(
-    "/result/{session_id}",
-    response_model=PsychologyResultResponse,
-    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
-)
+# ============ 결과 조회 ============
+
+@router.get("/result/{session_id}")
 async def get_psychology_result(
     session_id: str,
     user_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """심리검사 결과 조회"""
+    """심리검사 결과 조회 (AI 분석 포함)"""
     try:
         # 권한 확인
         if current_user["uid"] != user_id:
@@ -229,44 +201,39 @@ async def get_psychology_result(
             raise HTTPException(status_code=400, detail="검사가 완료되지 않았습니다.")
 
         # 이미 결과가 있으면 반환
-        if session.get("result"):
-            return PsychologyResultResponse(
-                session_id=session_id,
-                test_type=PsychologyTestType(session["test_type"]),
-                result=session["result"],
-                summary=session.get("summary", ""),
-                recommendations=session.get("recommendations", []),
-                completed_at=session.get("completed_at", datetime.utcnow()),
-            )
+        if session.get("analysis_result"):
+            return {
+                "success": True,
+                "session_id": session_id,
+                "test_type": session["test_type"],
+                "scores": session.get("scores", {}),
+                "analysis": session["analysis_result"],
+                "completed_at": session.get("completed_at"),
+            }
 
         # 점수 계산
-        test_type = PsychologyTestType(session["test_type"])
+        test_type = TestType(session["test_type"])
         answers = session.get("answers", [])
-        scores = _calculate_scores(test_type, answers)
+        scores = psychology_pm.calculate_scores(test_type, answers)
 
-        # AI 결과 생성
-        ai_result = await gemini_service.generate_psychology_result(
-            test_type=test_type.value,
-            answers=answers,
-            scores=scores,
-        )
+        # AI 분석
+        analysis = await psychology_pm.analyze(test_type, scores)
 
         # 세션에 결과 저장
-        session["result"] = {**scores, **ai_result}
-        session["summary"] = ai_result.get("summary", "")
-        session["recommendations"] = ai_result.get("recommendations", [])
+        session["scores"] = scores
+        session["analysis_result"] = analysis
         session["completed_at"] = datetime.utcnow()
 
         await FirestoreCache.set_psychology_session(user_id, session_id, session)
 
-        return PsychologyResultResponse(
-            session_id=session_id,
-            test_type=test_type,
-            result=session["result"],
-            summary=session["summary"],
-            recommendations=session["recommendations"],
-            completed_at=session["completed_at"],
-        )
+        return {
+            "success": True,
+            "session_id": session_id,
+            "test_type": session["test_type"],
+            "scores": scores,
+            "analysis": analysis,
+            "completed_at": session["completed_at"],
+        }
 
     except HTTPException:
         raise
@@ -275,42 +242,65 @@ async def get_psychology_result(
         raise HTTPException(status_code=500, detail="결과 조회 중 오류가 발생했습니다.")
 
 
-def _calculate_scores(test_type: PsychologyTestType, answers: list) -> dict:
-    """검사 유형별 점수 계산"""
-    total_score = sum(a["answer_index"] for a in answers)
-    max_score = len(answers) * 4  # 대부분 5점 척도 (0-4)
+# ============ 히스토리 ============
 
-    if test_type == PsychologyTestType.STRESS:
-        # 스트레스 점수 (높을수록 스트레스 높음)
-        percentage = (total_score / max_score) * 100 if max_score > 0 else 0
-        level = (
-            "낮음" if percentage < 30 else
-            "보통" if percentage < 60 else
-            "높음" if percentage < 80 else
-            "매우 높음"
-        )
+@router.get("/history")
+async def get_test_history(
+    user_id: str,
+    limit: int = 10,
+    current_user: dict = Depends(get_current_user),
+):
+    """사용자의 검사 히스토리 조회"""
+    if current_user["uid"] != user_id:
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+    # TODO: Firestore에서 히스토리 조회 구현
+    # 현재는 빈 배열 반환
+    return {
+        "history": [],
+        "total": 0,
+    }
+
+
+# ============ 종합 리포트 ============
+
+@router.post("/comprehensive-report")
+async def generate_comprehensive_report(
+    user_id: str,
+    session_ids: list[str],
+    current_user: dict = Depends(get_current_user),
+):
+    """여러 검사 결과를 종합한 리포트 생성"""
+    try:
+        if current_user["uid"] != user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+        # 각 세션의 결과 수집
+        results = []
+        for sid in session_ids:
+            session = await FirestoreCache.get_psychology_session(user_id, sid)
+            if session and session.get("analysis_result"):
+                results.append({
+                    "test_type": session["test_type"],
+                    "scores": session.get("scores", {}),
+                    "analysis": session["analysis_result"],
+                })
+
+        if not results:
+            raise HTTPException(status_code=400, detail="분석할 결과가 없습니다.")
+
+        # 종합 리포트 생성
+        report = await psychology_pm.generate_comprehensive_report(results)
+
         return {
-            "total_score": total_score,
-            "max_score": max_score,
-            "percentage": round(percentage, 1),
-            "level": level,
+            "success": True,
+            "comprehensive_report": report,
+            "included_tests": [r["test_type"] for r in results],
+            "generated_at": datetime.utcnow(),
         }
 
-    elif test_type == PsychologyTestType.SELF_ESTEEM:
-        # 자존감 점수 (높을수록 자존감 높음)
-        percentage = (total_score / max_score) * 100 if max_score > 0 else 0
-        level = (
-            "낮음" if percentage < 40 else
-            "보통" if percentage < 60 else
-            "높음" if percentage < 80 else
-            "매우 높음"
-        )
-        return {
-            "total_score": total_score,
-            "max_score": max_score,
-            "percentage": round(percentage, 1),
-            "level": level,
-        }
-
-    # 기본
-    return {"total_score": total_score, "max_score": max_score}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Comprehensive report error: {e}")
+        raise HTTPException(status_code=500, detail="종합 리포트 생성 중 오류가 발생했습니다.")

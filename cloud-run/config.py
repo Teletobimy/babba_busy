@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     # Google Cloud
     gcp_project_id: str = os.getenv("GCP_PROJECT_ID", "***REMOVED_PROJECT_ID***")
 
-    # Gemini AI
+    # Gemini AI Models
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite-preview-09-2025")
+    gemini_pm_model: str = os.getenv("GEMINI_PM_MODEL", "gemini-3-pro-preview")  # PM Agent
+    gemini_agent_model: str = os.getenv("GEMINI_AGENT_MODEL", "gemini-3-flash-preview")  # Sub Agents
+    gemini_lite_model: str = os.getenv("GEMINI_LITE_MODEL", "gemini-3-flash-preview")  # 일반 요약용
 
     # 캐시 설정 (초 단위)
     cache_daily_summary_ttl: int = 86400  # 24시간
