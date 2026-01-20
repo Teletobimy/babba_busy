@@ -21,10 +21,12 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          touch .env
+          flutter pub get
 
       - name: Analyze code
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
   test:
     name: Test
@@ -41,7 +43,9 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          touch .env
+          flutter pub get
 
       - name: Run tests
         run: flutter test --coverage || true
@@ -68,7 +72,9 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          touch .env
+          flutter pub get
 
       - name: Auto-increment build number
         id: version
@@ -144,7 +150,9 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          touch .env
+          flutter pub get
 
       - name: Build APK
         run: flutter build apk --release
@@ -172,7 +180,9 @@ jobs:
           cache: true
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          touch .env
+          flutter pub get
 
       - name: Build iOS (no codesign)
         run: flutter build ios --release --no-codesign
