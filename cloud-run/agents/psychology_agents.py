@@ -219,200 +219,40 @@ PSYCHOLOGY_TESTS = {
 
 # ============ 개별 분석 에이전트들 ============
 
-class Big5AnalysisAgent(BaseAgent):
-    """Big5 분석 에이전트"""
+class PersonalityAnalystAgent(BaseAgent):
+    """성격 특성 분석 전문 에이전트"""
     def __init__(self):
         super().__init__(model_type="agent")
 
-    async def run(self, scores: dict) -> dict:
-        prompt = f"""당신은 성격 심리학 전문가입니다.
-Big5 성격검사 결과를 분석해주세요.
-
-점수 (각 0-100):
-- 개방성(Openness): {scores.get('openness', 0)}
-- 성실성(Conscientiousness): {scores.get('conscientiousness', 0)}
-- 외향성(Extraversion): {scores.get('extraversion', 0)}
-- 친화성(Agreeableness): {scores.get('agreeableness', 0)}
-- 신경증(Neuroticism): {scores.get('neuroticism', 0)}
-
-다음 JSON 형식으로 분석해주세요:
-{{
-    "profile_type": "프로파일 유형명 (예: 창의적 탐험가)",
-    "summary": "전체 성격 요약 (3-4문장)",
-    "dimension_analysis": {{
-        "openness": {{"level": "높음/보통/낮음", "description": "설명", "traits": ["특성1", "특성2"]}},
-        "conscientiousness": {{"level": "높음/보통/낮음", "description": "설명", "traits": ["특성1", "특성2"]}},
-        "extraversion": {{"level": "높음/보통/낮음", "description": "설명", "traits": ["특성1", "특성2"]}},
-        "agreeableness": {{"level": "높음/보통/낮음", "description": "설명", "traits": ["특성1", "특성2"]}},
-        "neuroticism": {{"level": "높음/보통/낮음", "description": "설명", "traits": ["특성1", "특성2"]}}
-    }},
-    "strengths": ["강점1", "강점2", "강점3"],
-    "growth_areas": ["성장 영역1", "성장 영역2"],
-    "career_suggestions": ["적합 직업/역할 1", "적합 직업/역할 2"],
-    "relationship_style": "대인관계 스타일 설명 (2문장)"
-}}
-
-따뜻하고 긍정적인 톤으로 작성해주세요."""
-
-        return await self._generate_json(prompt)
+    async def run(self, test_type: str, scores: dict) -> str:
+        prompt = f"""당신은 성격 심리학 전문가입니다. '{test_type}' 검사 결과를 바탕으로 사용자의 핵심 성격 특성을 깊이 있게 분석해주세요.
+점수 데이터: {scores}
+사용자의 강점과 고유한 성향에 집중하여 5-7줄로 분석 리포트를 작성하세요."""
+        return await self._generate(prompt)
 
 
-class AttachmentAnalysisAgent(BaseAgent):
-    """애착유형 분석 에이전트"""
+class EmotionalWellbeingAgent(BaseAgent):
+    """정서적 웰빙 및 스트레스 분석 에이전트"""
     def __init__(self):
         super().__init__(model_type="agent")
 
-    async def run(self, scores: dict) -> dict:
-        prompt = f"""당신은 애착이론 전문 심리상담사입니다.
-애착유형 검사 결과를 분석해주세요.
-
-점수 (각 0-100):
-- 안정(Secure): {scores.get('secure', 0)}
-- 불안(Anxious): {scores.get('anxious', 0)}
-- 회피(Avoidant): {scores.get('avoidant', 0)}
-- 혼란(Fearful): {scores.get('fearful', 0)}
-
-다음 JSON 형식으로 분석해주세요:
-{{
-    "primary_type": "주 애착유형",
-    "secondary_type": "부 애착유형 (있다면)",
-    "summary": "애착 패턴 요약 (3-4문장)",
-    "type_description": "해당 유형의 특징 설명",
-    "relationship_patterns": ["관계 패턴1", "관계 패턴2", "관계 패턴3"],
-    "triggers": ["불안/회피 유발 상황1", "유발 상황2"],
-    "coping_strategies": ["대처 전략1", "대처 전략2", "대처 전략3"],
-    "growth_suggestions": ["성장을 위한 제안1", "제안2", "제안3"],
-    "partner_compatibility": "파트너 유형별 궁합 조언"
-}}
-
-비판단적이고 지지적인 톤으로 작성해주세요."""
-
-        return await self._generate_json(prompt)
+    async def run(self, test_type: str, scores: dict) -> str:
+        prompt = f"""당신은 정서 건강 전문가입니다. '{test_type}' 검사 결과를 바탕으로 사용자의 현재 정서 상태와 스트레스 회복탄력성을 분석해주세요.
+점수 데이터: {scores}
+사용자가 심리적 안정감을 찾을 수 있는 통찰을 5-7줄로 제공하세요."""
+        return await self._generate(prompt)
 
 
-class MBTIAnalysisAgent(BaseAgent):
-    """MBTI 분석 에이전트"""
+class SocialRelationalAgent(BaseAgent):
+    """대인관계 및 사회적 상호작용 분석 에이전트"""
     def __init__(self):
         super().__init__(model_type="agent")
 
-    async def run(self, type_code: str, dimension_scores: dict) -> dict:
-        prompt = f"""당신은 MBTI 전문가입니다.
-MBTI 검사 결과를 분석해주세요.
-
-결과 유형: {type_code}
-차원별 점수:
-- E/I: E {dimension_scores.get('E', 0)}% / I {dimension_scores.get('I', 0)}%
-- S/N: S {dimension_scores.get('S', 0)}% / N {dimension_scores.get('N', 0)}%
-- T/F: T {dimension_scores.get('T', 0)}% / F {dimension_scores.get('F', 0)}%
-- J/P: J {dimension_scores.get('J', 0)}% / P {dimension_scores.get('P', 0)}%
-
-다음 JSON 형식으로 분석해주세요:
-{{
-    "type": "{type_code}",
-    "nickname": "유형 별명 (예: 논리적인 사색가)",
-    "summary": "유형 요약 (3-4문장)",
-    "core_traits": ["핵심 특성1", "핵심 특성2", "핵심 특성3", "핵심 특성4"],
-    "cognitive_functions": {{
-        "dominant": "주기능 설명",
-        "auxiliary": "부기능 설명"
-    }},
-    "strengths": ["강점1", "강점2", "강점3"],
-    "weaknesses": ["약점1", "약점2"],
-    "career_matches": ["적합 직업1", "적합 직업2", "적합 직업3"],
-    "relationship_style": "연애/친구 관계 스타일",
-    "compatible_types": ["궁합 유형1", "궁합 유형2"],
-    "growth_advice": "성장을 위한 조언 (2-3문장)"
-}}
-
-재미있고 공감되는 톤으로 작성해주세요."""
-
-        return await self._generate_json(prompt)
-
-
-class LoveLanguageAnalysisAgent(BaseAgent):
-    """사랑의 언어 분석 에이전트"""
-    def __init__(self):
-        super().__init__(model_type="agent")
-
-    async def run(self, scores: dict) -> dict:
-        prompt = f"""당신은 관계 코칭 전문가입니다.
-사랑의 언어 검사 결과를 분석해주세요.
-
-점수 (각 0-100):
-- 인정의 말(Words): {scores.get('words', 0)}
-- 봉사(Service): {scores.get('service', 0)}
-- 선물(Gifts): {scores.get('gifts', 0)}
-- 함께하는 시간(Time): {scores.get('time', 0)}
-- 스킨십(Touch): {scores.get('touch', 0)}
-
-다음 JSON 형식으로 분석해주세요:
-{{
-    "primary_language": "1순위 사랑의 언어",
-    "secondary_language": "2순위 사랑의 언어",
-    "summary": "사랑 표현 방식 요약 (3문장)",
-    "language_details": {{
-        "words": {{"rank": 1-5, "description": "이 언어가 당신에게 어떤 의미인지"}},
-        "service": {{"rank": 1-5, "description": "설명"}},
-        "gifts": {{"rank": 1-5, "description": "설명"}},
-        "time": {{"rank": 1-5, "description": "설명"}},
-        "touch": {{"rank": 1-5, "description": "설명"}}
-    }},
-    "how_to_feel_loved": ["사랑받는다고 느끼는 방법1", "방법2", "방법3"],
-    "how_you_show_love": ["사랑을 표현하는 방법1", "방법2"],
-    "partner_tips": "파트너에게 전하는 팁 (상대방이 알면 좋을 것)",
-    "self_care_suggestions": ["자기 돌봄 방법1", "방법2"]
-}}
-
-따뜻하고 로맨틱한 톤으로 작성해주세요."""
-
-        return await self._generate_json(prompt)
-
-
-class ClinicalAnalysisAgent(BaseAgent):
-    """임상 척도 분석 에이전트 (스트레스/불안/우울)"""
-    def __init__(self):
-        super().__init__(model_type="agent")
-
-    async def run(self, test_type: str, score: int, max_score: int) -> dict:
-        test_info = {
-            "stress": {"name": "스트레스", "scale": "PSS-10", "ranges": [(0, 13, "낮음"), (14, 26, "보통"), (27, 40, "높음")]},
-            "anxiety": {"name": "불안", "scale": "GAD-7", "ranges": [(0, 4, "정상"), (5, 9, "경미"), (10, 14, "중등도"), (15, 21, "심함")]},
-            "depression": {"name": "우울", "scale": "PHQ-9", "ranges": [(0, 4, "정상"), (5, 9, "경미"), (10, 14, "중등도"), (15, 19, "중등도-심함"), (20, 27, "심함")]},
-        }
-
-        info = test_info.get(test_type, test_info["stress"])
-        level = "보통"
-        for min_s, max_s, lv in info["ranges"]:
-            if min_s <= score <= max_s:
-                level = lv
-                break
-
-        prompt = f"""당신은 임상심리 전문가입니다.
-{info['name']} 검사({info['scale']}) 결과를 분석해주세요.
-
-점수: {score} / {max_score}
-수준: {level}
-
-다음 JSON 형식으로 분석해주세요:
-{{
-    "score": {score},
-    "max_score": {max_score},
-    "level": "{level}",
-    "percentage": {round(score/max_score*100)},
-    "interpretation": "점수 해석 (2-3문장)",
-    "possible_causes": ["가능한 원인1", "원인2"],
-    "physical_symptoms": ["관련 신체 증상1", "증상2"],
-    "coping_strategies": ["대처 방법1", "대처 방법2", "대처 방법3"],
-    "lifestyle_suggestions": ["생활 습관 제안1", "제안2"],
-    "professional_help": "전문가 도움 필요 여부 및 조언",
-    "resources": ["도움 받을 수 있는 곳1", "곳2"],
-    "encouragement": "격려의 말 (2문장)"
-}}
-
-따뜻하고 지지적인 톤으로 작성해주세요.
-주의: 이 검사는 선별 목적이며, 진단이 아님을 명시해주세요."""
-
-        return await self._generate_json(prompt)
+    async def run(self, test_type: str, scores: dict) -> str:
+        prompt = f"""당신은 대인관계 심리 전문가입니다. '{test_type}' 검사 결과를 바탕으로 사용자의 사회적 상호작용 스타일과 관계에서의 특징을 분석해주세요.
+점수 데이터: {scores}
+타인과의 조화로운 관계를 위한 조언을 포함하여 5-7줄로 작성하세요."""
+        return await self._generate(prompt)
 
 
 # ============ PM 에이전트 ============
@@ -422,11 +262,9 @@ class PsychologyPMAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(model_type="pm")
-        self.big5_agent = Big5AnalysisAgent()
-        self.attachment_agent = AttachmentAnalysisAgent()
-        self.mbti_agent = MBTIAnalysisAgent()
-        self.love_agent = LoveLanguageAnalysisAgent()
-        self.clinical_agent = ClinicalAnalysisAgent()
+        self.personality_analyst = PersonalityAnalystAgent()
+        self.emotional_analyst = EmotionalWellbeingAgent()
+        self.social_analyst = SocialRelationalAgent()
 
     def get_test_info(self, test_type: TestType) -> dict:
         """검사 정보 반환"""
@@ -465,7 +303,6 @@ class PsychologyPMAgent(BaseAgent):
         if not test:
             return {}
 
-        # 차원별 점수 집계
         dimension_scores = {}
         dimension_counts = {}
 
@@ -478,7 +315,6 @@ class PsychologyPMAgent(BaseAgent):
             dimension = q_data["dimension"]
             score = answer["answer_index"]
 
-            # 역채점 처리
             if q_data.get("reverse"):
                 max_idx = len(test["options"]) - 1
                 score = max_idx - score
@@ -490,7 +326,6 @@ class PsychologyPMAgent(BaseAgent):
             dimension_scores[dimension] += score
             dimension_counts[dimension] += 1
 
-        # 백분율로 변환
         max_score_per_item = len(test["options"]) - 1
         result = {}
         for dim, total in dimension_scores.items():
@@ -498,30 +333,21 @@ class PsychologyPMAgent(BaseAgent):
             max_total = count * max_score_per_item
             result[dim] = round((total / max_total) * 100) if max_total > 0 else 0
 
-        # MBTI 특수 처리
         if test_type == TestType.MBTI:
             result = self._calculate_mbti_type(test, answers)
 
         return result
 
     def _calculate_mbti_type(self, test: dict, answers: List[dict]) -> dict:
-        """MBTI 유형 계산"""
         poles = {"E": 0, "I": 0, "S": 0, "N": 0, "T": 0, "F": 0, "J": 0, "P": 0}
-
         for answer in answers:
             q_id = answer["question_id"]
             q_data = next((q for q in test["questions"] if q["id"] == q_id), None)
-            if not q_data:
-                continue
-
+            if not q_data: continue
             pole = q_data.get("pole")
-            score = answer["answer_index"]  # 0-4
+            score = answer["answer_index"]
+            if pole: poles[pole] += score
 
-            if pole:
-                # 높은 점수 = 해당 극에 동의
-                poles[pole] += score
-
-        # 각 차원별 백분율 계산
         result = {
             "E": round(poles["E"] / (poles["E"] + poles["I"] + 0.001) * 100),
             "I": round(poles["I"] / (poles["E"] + poles["I"] + 0.001) * 100),
@@ -532,65 +358,75 @@ class PsychologyPMAgent(BaseAgent):
             "J": round(poles["J"] / (poles["J"] + poles["P"] + 0.001) * 100),
             "P": round(poles["P"] / (poles["J"] + poles["P"] + 0.001) * 100),
         }
-
-        # 유형 코드 결정
-        type_code = ""
-        type_code += "E" if result["E"] >= result["I"] else "I"
-        type_code += "S" if result["S"] >= result["N"] else "N"
-        type_code += "T" if result["T"] >= result["F"] else "F"
-        type_code += "J" if result["J"] >= result["P"] else "P"
-
+        type_code = ("E" if result["E"] >= result["I"] else "I") + \
+                    ("S" if result["S"] >= result["N"] else "N") + \
+                    ("T" if result["T"] >= result["F"] else "F") + \
+                    ("J" if result["J"] >= result["P"] else "P")
         result["type_code"] = type_code
         return result
 
+    async def run(self, test_type: TestType, scores: dict, on_progress=None) -> dict:
+        """멀티 에이전트 분석 실행 (Orchestration)"""
+        
+        async def run_agent(agent, name, key):
+            if on_progress: await on_progress(key, "started")
+            res = await agent.run(test_type.value, scores)
+            if on_progress: await on_progress(key, "completed")
+            return res
+
+        # Phase 1: 3개 에이전트 병렬 실행
+        tasks = [
+            run_agent(self.personality_analyst, "성격 특성 분석가", "personality_analyst"),
+            run_agent(self.emotional_analyst, "정서 건강 전문가", "emotional_wellbeing"),
+            run_agent(self.social_analyst, "대인관계 심리 전문가", "social_relational"),
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        agent_reports = {
+            "personality": results[0],
+            "emotional": results[1],
+            "social": results[2]
+        }
+
+        # Phase 2: PM 에이전트가 종합 분석 (Final Report)
+        if on_progress: await on_progress("final_report", "started")
+        
+        prompt = f"""당신은 심리분석 오케스트레이터(PM)입니다. 3명의 전문가 에이전트가 작성한 분석 내용을 종합하여 사용자에게 전달할 최종 리포트를 작성해주세요.
+
+검사 유형: {test_type.value}
+서브 에이전트 리포트:
+1. 성격 분석: {results[0]}
+2. 정서 분석: {results[1]}
+3. 사회성 분석: {results[2]}
+
+다음 JSON 형식으로만 응답하세요:
+{{
+  "summary": "전체적인 심리 상태를 아우르는 따뜻한 요약 (4-5줄)",
+  "result": {{
+    "core_personality": "핵심 성격 요약",
+    "emotional_stability": "정서적 안정도 요약",
+    "social_style": "대인관계 스타일 요약"
+  }},
+  "recommendations": ["사용자를 위한 구체적인 솔루션 1", "솔루션 2", "솔루션 3"]
+}}
+"""
+        final_json = await self._generate_json(prompt)
+        
+        if on_progress: await on_progress("final_report", "completed")
+        
+        return {
+            "test_type": test_type.value,
+            "scores": scores,
+            "agent_reports": agent_reports,
+            "final_report": final_json
+        }
+
     async def analyze(self, test_type: TestType, scores: dict) -> dict:
-        """검사 결과 분석"""
-        try:
-            if test_type == TestType.BIG5:
-                return await self.big5_agent.run(scores)
-            elif test_type == TestType.ATTACHMENT:
-                return await self.attachment_agent.run(scores)
-            elif test_type == TestType.MBTI:
-                type_code = scores.get("type_code", "INFP")
-                return await self.mbti_agent.run(type_code, scores)
-            elif test_type == TestType.LOVE_LANGUAGE:
-                return await self.love_agent.run(scores)
-            elif test_type in [TestType.STRESS, TestType.ANXIETY, TestType.DEPRESSION]:
-                # 임상 척도는 단일 점수
-                test = PSYCHOLOGY_TESTS[test_type]
-                total_score = sum(scores.values())
-                max_score = len(test["questions"]) * (len(test["options"]) - 1)
-                return await self.clinical_agent.run(test_type.value, total_score, max_score)
-            else:
-                return {"error": "지원하지 않는 검사 유형입니다."}
-        except Exception as e:
-            print(f"Psychology analysis error: {e}")
-            return {"error": str(e)}
+        """단일 호출 분석 (기존 호환성용)"""
+        result = await self.run(test_type, scores)
+        return result["final_report"]
 
     async def generate_comprehensive_report(self, results: List[dict]) -> dict:
         """여러 검사 결과 종합 리포트"""
-        prompt = f"""당신은 통합 심리분석 전문가입니다.
-다음 심리검사 결과들을 종합하여 통합 심리 프로파일을 작성해주세요.
-
-검사 결과:
-{results}
-
-다음 JSON 형식으로 종합 리포트를 작성해주세요:
-{{
-    "overall_profile": "종합 심리 프로파일 요약 (4-5문장)",
-    "key_insights": ["핵심 인사이트1", "인사이트2", "인사이트3"],
-    "personality_summary": "성격 종합",
-    "relationship_summary": "관계 패턴 종합",
-    "emotional_wellbeing": "정서적 웰빙 상태",
-    "integrated_recommendations": ["통합 추천1", "추천2", "추천3"],
-    "self_care_plan": {{
-        "daily": ["일상 실천 사항1", "사항2"],
-        "weekly": ["주간 실천 사항1", "사항2"],
-        "monthly": ["월간 점검 사항1"]
-    }},
-    "growth_journey": "성장을 위한 여정 제안 (3-4문장)"
-}}
-
-따뜻하고 통찰력 있는 톤으로 작성해주세요."""
-
+        prompt = f"""당신은 통합 심리분석 전문가입니다. 다음 심리검사 결과들을 종합하여 통합 심리 프로파일을 작성해주세요.\n\n검사 결과:\n{results}\n\n다음 JSON 형식으로 종합 리포트를 작성해주세요:\n{{\n    "overall_profile": "종합 심리 프로파일 요약 (4-5문장)",\n    "key_insights": ["핵심 인사이트1", "인사이트2", "인사이트3"],\n    "personality_summary": "성격 종합",\n    "relationship_summary": "관계 패턴 종합",\n    "emotional_wellbeing": "정서적 웰빙 상태",\n    "integrated_recommendations": ["통합 추천1", "추천2", "추천3"],\n    "self_care_plan": {{\n        "daily": ["일상 실천 사항1", "사항2"],\n        "weekly": ["주간 실천 사항1", "사항2"],\n        "monthly": ["월간 점검 사항1"]\n    }},\n    "growth_journey": "성장을 위한 여정 제안 (3-4문장)"\n}}\n\n따뜻하고 통찰력 있는 톤으로 작성해주세요."""
         return await self._generate_json(prompt)

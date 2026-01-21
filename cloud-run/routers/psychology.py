@@ -242,6 +242,76 @@ async def get_psychology_result(
         raise HTTPException(status_code=500, detail="결과 조회 중 오류가 발생했습니다.")
 
 
+@router.post("/analyze/stream")
+async def analyze_psychology_stream(
+    user_id: str,
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """심리검사 분석 (스트리밍 - 멀티 에이전트 진행 상황)"""
+    if current_user["uid"] != user_id:
+        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+    # 세션 조회
+    session = await FirestoreCache.get_psychology_session(user_id, session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+    # 완료 확인
+    if len(session.get("answers", [])) < session.get("total_questions", 0):
+        raise HTTPException(status_code=400, detail="검사가 완료되지 않았습니다.")
+
+    test_type = TestType(session["test_type"])
+    answers = session.get("answers", [])
+    scores = psychology_pm.calculate_scores(test_type, answers)
+
+    async def generate():
+        progress_queue = asyncio.Queue()
+
+        async def on_progress(step: str, status: str):
+            await progress_queue.put({"step": step, "status": status})
+
+        # 분석 태스크 시작
+        task = asyncio.create_task(
+            psychology_pm.run(
+                test_type=test_type,
+                scores=scores,
+                on_progress=on_progress,
+            )
+        )
+
+        # 진행 상황 스트리밍
+        while not task.done() or not progress_queue.empty():
+            try:
+                progress = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
+                yield f"data: {json.dumps(progress)}\n\n"
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                print(f"Stream progress error: {e}")
+                break
+
+        # 최종 결과
+        try:
+            result = await task
+            
+            # 세션에 결과 저장
+            session["scores"] = scores
+            session["analysis_result"] = result["final_report"]
+            session["agent_reports"] = result["agent_reports"]
+            session["completed_at"] = datetime.utcnow()
+            
+            await FirestoreCache.set_psychology_session(user_id, session_id, session)
+            
+            yield f"data: {json.dumps({'type': 'result', 'data': result['final_report']})}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            print(f"Analysis task failed: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
 # ============ 히스토리 ============
 
 @router.get("/history")
