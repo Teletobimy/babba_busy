@@ -204,6 +204,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 테스트 진행 중일 때는 _buildTestScreen()이 자체 Scaffold를 가짐 (PopScope 포함)
+    if (!_isLoading && _error == null && !_isComplete && !_isAnalyzing) {
+      return _buildTestScreen();
+    }
+
     return Scaffold(
       backgroundColor: AppColors.grayScale[50],
       appBar: AppBar(
@@ -217,9 +222,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
               ? _buildErrorView()
               : _isComplete
                   ? _buildResultScreen()
-                  : _isAnalyzing
-                      ? _buildAnalysisProgress()
-                      : _buildTestScreen(),
+                  : _buildAnalysisProgress(),
     );
   }
 
