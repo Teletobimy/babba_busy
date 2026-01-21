@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
+import '../../shared/providers/notification_settings_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../auth/widgets/group_setup_dialog.dart';
 import '../../shared/widgets/app_card.dart';
@@ -405,17 +406,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const Divider(height: 1),
                     // 알림 설정
-                    _SettingsTile(
-                      icon: Iconsax.notification,
-                      title: '알림',
-                      trailing: Switch(
-                        value: true,
-                        onChanged: (value) {
-                          // 알림 설정
-                        },
-                        activeTrackColor: AppColors.primaryLight,
-                      ),
-                    ),
+                    const _NotificationSettingsSection(),
                   ],
                 ),
               ).animate().fadeIn(duration: 300.ms, delay: 350.ms).slideY(begin: 0.1),
@@ -788,5 +779,195 @@ class _ModuleTile extends StatelessWidget {
       case AppModule.psychology:
         return '7종 심리검사';
     }
+  }
+}
+
+/// 알림 설정 섹션
+class _NotificationSettingsSection extends ConsumerWidget {
+  const _NotificationSettingsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settingsAsync = ref.watch(notificationSettingsProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return settingsAsync.when(
+      data: (settings) => Column(
+        children: [
+          // 전체 알림 토글
+          InkWell(
+            onTap: () {},
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingM,
+                vertical: AppTheme.spacingM,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Iconsax.notification,
+                    size: 22,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '알림',
+                          style: TextStyle(fontSize: 15),
+                        ),
+                        Text(
+                          settings.enabled ? '알림이 켜져 있습니다' : '알림이 꺼져 있습니다',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: settings.enabled,
+                    onChanged: (value) {
+                      ref
+                          .read(notificationSettingsServiceProvider)
+                          .toggleEnabled(value);
+                    },
+                    activeTrackColor: AppColors.primaryLight,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // 세부 알림 설정 (전체 알림이 켜진 경우에만)
+          if (settings.enabled) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 34),
+              child: Column(
+                children: [
+                  const Divider(height: 1),
+                  _NotificationSubTile(
+                    icon: Iconsax.message,
+                    title: '채팅 알림',
+                    subtitle: '새 채팅 메시지 수신 시 알림',
+                    value: settings.chatEnabled,
+                    onChanged: (value) {
+                      ref
+                          .read(notificationSettingsServiceProvider)
+                          .toggleChat(value);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _NotificationSubTile(
+                    icon: Iconsax.task_square,
+                    title: '할일 알림',
+                    subtitle: '할일 마감, 변경 알림',
+                    value: settings.todoEnabled,
+                    onChanged: (value) {
+                      ref
+                          .read(notificationSettingsServiceProvider)
+                          .toggleTodo(value);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _NotificationSubTile(
+                    icon: Iconsax.calendar,
+                    title: '일정 알림',
+                    subtitle: '일정 시작 전 알림',
+                    value: settings.eventEnabled,
+                    onChanged: (value) {
+                      ref
+                          .read(notificationSettingsServiceProvider)
+                          .toggleEvent(value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+      loading: () => const Padding(
+        padding: EdgeInsets.all(AppTheme.spacingM),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const _SettingsTile(
+        icon: Iconsax.notification,
+        title: '알림',
+        trailing: Text('로드 실패'),
+      ),
+    );
+  }
+}
+
+/// 알림 세부 설정 타일
+class _NotificationSubTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const _NotificationSubTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppTheme.spacingM,
+        vertical: AppTheme.spacingS,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            size: 18,
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontSize: 14),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: AppColors.primaryLight,
+          ),
+        ],
+      ),
+    );
   }
 }

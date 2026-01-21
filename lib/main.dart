@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'firebase_options.dart';
 import 'shared/providers/group_provider.dart';
+import 'services/firebase/notification_service.dart';
 
 /// Firebase 초기화 성공 여부
 bool firebaseInitialized = false;
@@ -49,7 +51,17 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     firebaseInitialized = true;
-    debugPrint('✅ Firebase 초기화 성공!');
+    debugPrint('Firebase 초기화 성공!');
+
+    // FCM 백그라운드 핸들러 등록
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // NotificationService 초기화
+    final notificationService = NotificationService();
+    await notificationService.initialize();
+
+    // 알림 권한 요청
+    await notificationService.requestPermission();
   } catch (e) {
     debugPrint('Firebase 초기화 실패: $e');
     debugPrint('데모 모드로 실행합니다.');
