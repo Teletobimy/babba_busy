@@ -15,11 +15,11 @@ class UpcomingEventsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Smart Provider 사용
-    final events = ref.watch(smartUpcomingEventsProvider);
+    final todos = ref.watch(smartUpcomingTodosProvider);
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (events.isEmpty) {
+    if (todos.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -40,8 +40,14 @@ class UpcomingEventsCard extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppTheme.spacingS),
-        ...events.take(3).map((event) {
-          final participantColors = event.participants
+        ...todos.take(3).map((todo) {
+          // 참여자 ID 수집
+          final participantIds = {...todo.participants};
+          if (todo.assigneeId != null) {
+            participantIds.add(todo.assigneeId!);
+          }
+
+          final participantColors = participantIds
               .map((id) {
                 try {
                   final member = members.firstWhere((m) => m.id == id);
@@ -51,6 +57,9 @@ class UpcomingEventsCard extends ConsumerWidget {
                 }
               })
               .toList();
+
+          // 날짜 결정
+          final displayDate = todo.startTime ?? todo.dueDate ?? DateTime.now();
 
           return AppCard(
             margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
@@ -68,7 +77,7 @@ class UpcomingEventsCard extends ConsumerWidget {
                   child: Column(
                     children: [
                       Text(
-                        DateFormat('d').format(event.startAt),
+                        DateFormat('d').format(displayDate),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -76,7 +85,7 @@ class UpcomingEventsCard extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        DateFormat('E', 'ko_KR').format(event.startAt),
+                        DateFormat('E', 'ko_KR').format(displayDate),
                         style: TextStyle(
                           fontSize: 11,
                           color: AppColors.calendarColor,
@@ -95,13 +104,13 @@ class UpcomingEventsCard extends ConsumerWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              event.title,
+                              todo.title,
                               style: Theme.of(context).textTheme.titleSmall,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          if (event.isPersonal)
+                          if (todo.isPersonal)
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
@@ -133,12 +142,12 @@ class UpcomingEventsCard extends ConsumerWidget {
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            event.isAllDay
-                                ? '종일'
-                                : DateFormat('a h:mm', 'ko_KR').format(event.startAt),
+                            !todo.hasTime
+                                ? '시간 미정'
+                                : DateFormat('a h:mm', 'ko_KR').format(displayDate),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
-                          if (event.location != null) ...[
+                          if (todo.location != null && todo.location!.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             Icon(
                               Iconsax.location,
@@ -150,7 +159,7 @@ class UpcomingEventsCard extends ConsumerWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                event.location!,
+                                todo.location!,
                                 style: Theme.of(context).textTheme.bodySmall,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

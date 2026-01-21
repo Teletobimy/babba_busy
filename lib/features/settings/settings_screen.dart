@@ -16,14 +16,14 @@ import '../../app/router.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/group_provider.dart';
 
-String _getEventTypeDescription(EventType type) {
+String _getEventTypeDescription(TodoEventType type) {
   switch (type) {
-    case EventType.todo:
+    case TodoEventType.todo:
       return '개인적인 작은 할일';
-    case EventType.schedule:
-      return '일반적인 스케줄 및 일정';
-    case EventType.event:
-      return '중요한 행사 및 약속';
+    case TodoEventType.personal:
+      return '개인 일정';
+    case TodoEventType.event:
+      return '그룹 공유 일정';
   }
 }
 
@@ -283,7 +283,7 @@ class SettingsScreen extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       const SizedBox(height: AppTheme.spacingM),
-                      ...EventType.values.map((type) {
+                      ...TodoEventType.values.map((type) {
                         final currentMembership = ref.watch(currentMembershipProvider);
                         final isShared = currentMembership?.sharedEventTypes.contains(type.value) ?? false;
 

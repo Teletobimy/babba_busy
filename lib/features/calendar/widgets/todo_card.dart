@@ -3,26 +3,32 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/models/event.dart';
+import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/family_member.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
-/// 이벤트 카드
-class EventCard extends StatelessWidget {
-  final Event event;
+/// 할일 카드 (캘린더용)
+class TodoCard extends StatelessWidget {
+  final TodoItem todo;
   final List<dynamic> members;
 
-  const EventCard({
+  const TodoCard({
     super.key,
-    required this.event,
+    required this.todo,
     required this.members,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 참여자 목록
+    final participantIds = {...todo.participants};
+    if (todo.assigneeId != null) {
+      participantIds.add(todo.assigneeId!);
+    }
     final participants = members
-        .where((m) => event.participants.contains(m.id))
+        .where((m) => participantIds.contains(m.id))
         .cast<FamilyMember>()
         .toList();
 
@@ -41,7 +47,7 @@ class EventCard extends StatelessWidget {
               // 색상 바
               Container(
                 width: 4,
-                color: AppColors.calendarColor,
+                color: _getEventTypeColor(todo.eventType),
               ),
               // 내용
               Expanded(
@@ -56,16 +62,14 @@ class EventCard extends StatelessWidget {
                           Icon(
                             Iconsax.clock,
                             size: 14,
-                            color: AppColors.calendarColor,
+                            color: _getEventTypeColor(todo.eventType),
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            event.isAllDay
-                                ? '종일'
-                                : '${DateFormat('HH:mm').format(event.startAt)} - ${DateFormat('HH:mm').format(event.endAt)}',
+                            _formatTimeRange(),
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.calendarColor,
+                              color: _getEventTypeColor(todo.eventType),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -74,23 +78,23 @@ class EventCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       // 제목
                       Text(
-                        event.title,
+                        todo.title,
                         style: Theme.of(context).textTheme.titleSmall,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       // 설명
-                      if (event.description != null && event.description!.isNotEmpty) ...[
+                      if (todo.note != null && todo.note!.isNotEmpty) ...[
                         const SizedBox(height: 4),
                         Text(
-                          event.description!,
+                          todo.note!,
                           style: Theme.of(context).textTheme.bodySmall,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
                       // 장소
-                      if (event.location != null && event.location!.isNotEmpty) ...[
+                      if (todo.location != null && todo.location!.isNotEmpty) ...[
                         const SizedBox(height: 6),
                         Row(
                           children: [
@@ -104,7 +108,7 @@ class EventCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                event.location!,
+                                todo.location!,
                                 style: Theme.of(context).textTheme.bodySmall,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -160,5 +164,33 @@ class EventCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _formatTimeRange() {
+    if (!todo.hasTime) {
+      return '시간 미정';
+    }
+
+    if (todo.startTime != null) {
+      final startStr = DateFormat('HH:mm').format(todo.startTime!);
+      if (todo.endTime != null) {
+        final endStr = DateFormat('HH:mm').format(todo.endTime!);
+        return '$startStr - $endStr';
+      }
+      return startStr;
+    }
+
+    return '시간 미정';
+  }
+
+  Color _getEventTypeColor(TodoEventType eventType) {
+    switch (eventType) {
+      case TodoEventType.event:
+        return AppColors.calendarColor;
+      case TodoEventType.todo:
+        return AppColors.todoColor;
+      case TodoEventType.personal:
+        return AppColors.primaryLight;
+    }
   }
 }

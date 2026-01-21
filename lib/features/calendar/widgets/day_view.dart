@@ -4,7 +4,6 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/models/event.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
@@ -25,11 +24,11 @@ class DayView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final events = ref.watch(smartEventsForDateProvider(selectedDay));
-    final timedTodos = ref.watch(smartTimedTodosForDateProvider(selectedDay));
-    final undecidedTodos = ref.watch(smartUndecidedTodosForDateProvider(selectedDay));
-    final allDayEvents = events.where((e) => e.isAllDay).toList();
-    final timedEvents = events.where((e) => !e.isAllDay).toList();
+    final todos = ref.watch(smartTodosForDateProvider(selectedDay));
+    // 시간 있는 Todo
+    final timedTodos = todos.where((t) => t.hasTime && t.startTime != null).toList();
+    // 시간 미정 Todo
+    final undecidedTodos = todos.where((t) => !t.hasTime).toList();
     final now = DateTime.now();
     final isToday = selectedDay.year == now.year &&
                     selectedDay.month == now.month &&
@@ -56,19 +55,9 @@ class DayView extends ConsumerWidget {
           const SizedBox(height: AppTheme.spacingS),
         ],
 
-        // 종일 이벤트
-        if (allDayEvents.isNotEmpty) ...[
-          _AllDayEventsSection(
-            events: allDayEvents,
-            isDark: isDark,
-          ),
-          const SizedBox(height: AppTheme.spacingS),
-        ],
-
-        // 시간별 이벤트/할일 그리드
+        // 시간별 할일 그리드
         Expanded(
           child: _TimelineGrid(
-            events: timedEvents,
             todos: timedTodos,
             isDark: isDark,
             isToday: isToday,
@@ -163,102 +152,13 @@ class _DayHeader extends StatelessWidget {
   }
 }
 
-class _AllDayEventsSection extends StatelessWidget {
-  final List<Event> events;
-  final bool isDark;
-
-  const _AllDayEventsSection({
-    required this.events,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppTheme.spacingS),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Iconsax.sun_1,
-                size: 14,
-                color: isDark 
-                    ? AppColors.textSecondaryDark 
-                    : AppColors.textSecondaryLight,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '종일',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark 
-                      ? AppColors.textSecondaryDark 
-                      : AppColors.textSecondaryLight,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: events.map((event) {
-              final eventColor = event.color != null 
-                  ? _parseColor(event.color!)
-                  : AppColors.calendarColor;
-              return Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: eventColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  border: Border.all(
-                    color: eventColor.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Text(
-                  event.title,
-                  style: TextStyle(
-                    color: eventColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.calendarColor;
-    }
-  }
-}
-
 class _TimelineGrid extends ConsumerWidget {
-  final List<Event> events;
   final List<TodoItem> todos;
   final bool isDark;
   final bool isToday;
   final DateTime currentTime;
 
   const _TimelineGrid({
-    required this.events,
     required this.todos,
     required this.isDark,
     required this.isToday,
@@ -289,13 +189,6 @@ class _TimelineGrid extends ConsumerWidget {
               _CurrentTimeLine(
                 currentTime: currentTime,
               ),
-            // 이벤트 블록들
-            ...events.map((event) {
-              return _DayEventBlock(
-                event: event,
-                isDark: isDark,
-              );
-            }),
             // 할일 블록들
             ...todos.map((todo) {
               return _DayTodoBlock(
@@ -406,142 +299,6 @@ class _CurrentTimeLine extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _DayEventBlock extends StatelessWidget {
-  final Event event;
-  final bool isDark;
-
-  const _DayEventBlock({
-    required this.event,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final startHour = event.startAt.hour + event.startAt.minute / 60;
-    final endHour = event.endAt.hour + event.endAt.minute / 60;
-    final duration = endHour - startHour;
-    
-    // 최소 30분 높이 보장
-    final height = (duration < 0.5 ? 0.5 : duration) * 60;
-    final top = startHour * 60;
-
-    final eventColor = event.color != null 
-        ? _parseColor(event.color!)
-        : AppColors.calendarColor;
-
-    return Positioned(
-      top: top,
-      left: 55,
-      right: 8,
-      height: height,
-      child: Container(
-        decoration: BoxDecoration(
-          color: eventColor.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: eventColor.withValues(alpha: 0.3),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    event.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (event.isPersonal)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      '개인',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Icon(
-                  Iconsax.clock,
-                  size: 12,
-                  color: Colors.white.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${event.formattedTime} - ${DateFormat('HH:mm').format(event.endAt)}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-            if (height > 70 && event.location != null) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(
-                    Iconsax.location,
-                    size: 12,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      event.location!,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.8),
-                        fontSize: 11,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.calendarColor;
-    }
   }
 }
 

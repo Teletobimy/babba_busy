@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/family_member.dart';
 import '../models/family.dart';
 import '../models/todo_item.dart';
-import '../models/event.dart';
 import '../models/memory.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
@@ -13,7 +12,6 @@ import '../../app/router.dart';
 import 'auth_provider.dart';
 import 'demo_provider.dart';
 import 'todo_provider.dart';
-import 'event_provider.dart';
 import 'memory_provider.dart';
 import 'budget_provider.dart';
 import 'group_provider.dart';
@@ -187,13 +185,6 @@ final smartMemberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, 
   return todos.where((todo) => todo.assigneeId == memberId).toList();
 });
 
-/// 이벤트 목록 (데모/실제)
-final smartEventsProvider = Provider<List<Event>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoEventsProvider);
-  return ref.watch(eventsProvider).value ?? [];
-});
-
 /// 캘린더 그룹 목록 (데모/실제)
 final smartCalendarGroupsProvider = Provider<List<CalendarGroup>>((ref) {
   final demoMode = ref.watch(demoModeProvider);
@@ -208,34 +199,27 @@ final selectedCalendarGroupsProvider = StateProvider<Set<String>>((ref) {
   return groups.map((g) => g.id).toSet();
 });
 
-/// 필터링된 이벤트 (선택된 캘린더 그룹 기반)
-final filteredEventsProvider = Provider<List<Event>>((ref) {
-  final events = ref.watch(smartEventsProvider);
+/// 필터링된 Todo (선택된 캘린더 그룹 기반)
+final filteredTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(smartTodosProvider);
   final selectedGroups = ref.watch(selectedCalendarGroupsProvider);
-  
+
   // 모든 그룹이 선택되었거나 선택이 비어있으면 전체 반환
-  if (selectedGroups.isEmpty) return events;
-  
-  return events.where((event) {
-    // calendarGroupId가 없는 이벤트는 가족 그룹으로 간주
-    final groupId = event.calendarGroupId ?? 'cal_family';
+  if (selectedGroups.isEmpty) return todos;
+
+  return todos.where((todo) {
+    // calendarGroupId가 없는 todo는 가족 그룹으로 간주
+    final groupId = todo.calendarGroupId ?? 'cal_family';
     return selectedGroups.contains(groupId);
   }).toList();
 });
 
-/// 특정 날짜의 이벤트 (필터 적용, Todo 포함)
-final smartEventsForDateProvider = Provider.family<List<Event>, DateTime>((ref, date) {
+/// 특정 날짜의 할일 (필터 적용, 반복 확장 포함)
+final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   final demoMode = ref.watch(demoModeProvider);
   final startOfDay = DateTime(date.year, date.month, date.day);
-  final endOfDay = startOfDay.add(const Duration(days: 1));
 
-  // 1. 기존 Event 가져오기 (읽기 전용)
-  final events = ref.watch(filteredEventsProvider);
-  final filteredEvents = events.where((event) {
-    return event.startAt.isBefore(endOfDay) && event.endAt.isAfter(startOfDay);
-  }).toList();
-
-  // 2. Todo 가져오기 (반복 확장 포함)
+  // Todo 가져오기 (반복 확장 포함)
   List<TodoItem> todos;
   if (demoMode) {
     // 데모 모드: 기본 todos 사용
@@ -249,7 +233,7 @@ final smartEventsForDateProvider = Provider.family<List<Event>, DateTime>((ref, 
     todos = ref.watch(todosForDateProvider(date));
   }
 
-  // 2.5. 각 Todo 작성자의 공유 설정에 따라 필터링
+  // 각 Todo 작성자의 공유 설정에 따라 필터링
   // "이 그룹에 공유할 일정 타입" 설정은 작성자 본인이 다른 사람에게 보여줄지 결정
   final groupMemberships = ref.watch(groupMembershipsProvider).value ?? [];
   final membershipByUserId = {
@@ -270,73 +254,53 @@ final smartEventsForDateProvider = Provider.family<List<Event>, DateTime>((ref, 
     return sharedTypes.contains(todo.eventType.value);
   }).toList();
 
-  // 3. Todo → Event 변환 (실제 필드 사용)
-  final todoEvents = todos.map((todo) => _todoToEvent(todo)).toList();
+  // 정렬
+  todos.sort((a, b) {
+    final aTime = a.startTime ?? a.dueDate ?? a.createdAt;
+    final bTime = b.startTime ?? b.dueDate ?? b.createdAt;
+    return aTime.compareTo(bTime);
+  });
 
-  // 4. 병합 및 정렬
-  final allEvents = [...filteredEvents, ...todoEvents];
-  allEvents.sort((a, b) => a.startAt.compareTo(b.startAt));
-
-  return allEvents;
+  return todos;
 });
 
-/// Todo를 Event로 변환
-Event _todoToEvent(TodoItem todo) {
-  final startAt = todo.startTime ??
-      (todo.dueDate != null
-          ? DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day, 9, 0)
-          : DateTime.now());
-  final endAt = todo.endTime ??
-      (todo.startTime ?? startAt).add(const Duration(hours: 1));
-
-  return Event(
-    id: 'todo_${todo.id}',
-    familyId: todo.familyId,
-    title: todo.title,
-    description: todo.note,
-    startAt: startAt,
-    endAt: endAt,
-    isAllDay: todo.isAllDay,
-    participants: todo.participants.isNotEmpty
-        ? todo.participants
-        : (todo.assigneeId != null ? [todo.assigneeId!] : []),
-    location: todo.location,
-    color: todo.color ?? '#9AD0EC',
-    createdBy: todo.createdBy,
-    createdAt: todo.createdAt,
-    calendarGroupId: todo.calendarGroupId,
-    isPersonal: todo.isPersonal,
-    recurrenceType: todo.recurrenceType,
-    recurrenceDays: todo.recurrenceDays,
-    recurrenceEndDate: todo.recurrenceEndDate,
-    excludeHolidays: todo.excludeHolidays,
-    parentEventId: todo.parentTodoId,
-  );
-}
-
-/// 다가오는 이벤트 (7일 이내, 필터 적용)
-final smartUpcomingEventsProvider = Provider<List<Event>>((ref) {
-  final events = ref.watch(filteredEventsProvider);
+/// 다가오는 할일 (7일 이내, 필터 적용)
+final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(filteredTodosProvider);
   final now = DateTime.now();
-  final weekLater = now.add(const Duration(days: 7));
+  final today = DateTime(now.year, now.month, now.day);
+  final weekLater = today.add(const Duration(days: 7));
 
-  return events.where((event) {
-    return event.startAt.isAfter(now) && event.startAt.isBefore(weekLater);
+  return todos.where((todo) {
+    if (todo.dueDate == null && todo.startTime == null) return false;
+    final todoDate = todo.startTime ?? todo.dueDate!;
+    return todoDate.isAfter(now) && todoDate.isBefore(weekLater);
   }).toList()
-    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    ..sort((a, b) {
+      final aTime = a.startTime ?? a.dueDate ?? a.createdAt;
+      final bTime = b.startTime ?? b.dueDate ?? b.createdAt;
+      return aTime.compareTo(bTime);
+    });
 });
 
-/// 이번 주 이벤트 (필터 적용)
-final smartThisWeekEventsProvider = Provider<List<Event>>((ref) {
-  final events = ref.watch(filteredEventsProvider);
+/// 이번 주 할일 (필터 적용)
+final smartThisWeekTodosProvider = Provider<List<TodoItem>>((ref) {
+  final todos = ref.watch(filteredTodosProvider);
   final now = DateTime.now();
-  final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+  final startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
   final endOfWeek = startOfWeek.add(const Duration(days: 7));
 
-  return events.where((event) {
-    return event.startAt.isBefore(endOfWeek) && event.endAt.isAfter(startOfWeek);
+  return todos.where((todo) {
+    if (todo.dueDate == null && todo.startTime == null) return false;
+    final todoStart = todo.startTime ?? todo.dueDate!;
+    final todoEnd = todo.endTime ?? todoStart;
+    return todoStart.isBefore(endOfWeek) && todoEnd.isAfter(startOfWeek);
   }).toList()
-    ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    ..sort((a, b) {
+      final aTime = a.startTime ?? a.dueDate ?? a.createdAt;
+      final bTime = b.startTime ?? b.dueDate ?? b.createdAt;
+      return aTime.compareTo(bTime);
+    });
 });
 
 /// 추억 목록 (데모/실제)

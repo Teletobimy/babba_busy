@@ -2,48 +2,82 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'recurrence.dart';
 
 /// 일정 타입
-enum EventType {
+enum TodoEventType {
   todo,      // 할일 - 개인적인 작은 할일
-  schedule,  // 일정 - 일반적인 스케줄
-  event,     // 이벤트 - 중요한 행사/약속
+  personal,  // 개인 일정
+  event,     // 이벤트/일정 - 그룹 공유 일정
 }
 
-extension EventTypeExtension on EventType {
+/// 하위 호환성을 위한 별칭
+typedef EventType = TodoEventType;
+
+/// 공개 범위
+enum TodoVisibility {
+  private,  // 나만 보기
+  shared,   // 선택한 그룹에 공유
+}
+
+extension TodoVisibilityExtension on TodoVisibility {
+  String get value {
+    switch (this) {
+      case TodoVisibility.private:
+        return 'private';
+      case TodoVisibility.shared:
+        return 'shared';
+    }
+  }
+
+  static TodoVisibility fromString(String value) {
+    switch (value) {
+      case 'private':
+        return TodoVisibility.private;
+      case 'shared':
+        return TodoVisibility.shared;
+      default:
+        return TodoVisibility.shared;
+    }
+  }
+}
+
+extension TodoEventTypeExtension on TodoEventType {
   String get label {
     switch (this) {
-      case EventType.todo:
+      case TodoEventType.todo:
         return '할일';
-      case EventType.schedule:
+      case TodoEventType.personal:
+        return '개인';
+      case TodoEventType.event:
         return '일정';
-      case EventType.event:
-        return '이벤트';
     }
   }
 
   String get value {
     switch (this) {
-      case EventType.todo:
+      case TodoEventType.todo:
         return 'todo';
-      case EventType.schedule:
-        return 'schedule';
-      case EventType.event:
+      case TodoEventType.personal:
+        return 'personal';
+      case TodoEventType.event:
         return 'event';
     }
   }
 
-  static EventType fromString(String value) {
+  static TodoEventType fromString(String value) {
     switch (value) {
       case 'todo':
-        return EventType.todo;
-      case 'schedule':
-        return EventType.schedule;
+        return TodoEventType.todo;
+      case 'personal':
+        return TodoEventType.personal;
+      case 'schedule': // 하위 호환성
+        return TodoEventType.event;
       case 'event':
-        return EventType.event;
+        return TodoEventType.event;
       default:
-        return EventType.todo;
+        return TodoEventType.todo;
     }
   }
 }
+
 
 /// 할일 모델
 class TodoItem {
@@ -58,7 +92,7 @@ class TodoItem {
   final int priority; // 0: 낮음, 1: 보통, 2: 높음
   final DateTime createdAt;
   final String createdBy;
-  final EventType eventType; // 일정 타입
+  final TodoEventType eventType; // 일정 타입
 
   // 시간 관련 필드 (Day View 지원)
   final DateTime? startTime;    // 시작 시간
@@ -77,7 +111,11 @@ class TodoItem {
   final DateTime? recurrenceEndDate;   // 반복 종료일
   final bool excludeHolidays;          // 공휴일 제외 여부
   final String? parentTodoId;          // 반복 인스턴스 추적용
-  final bool isAllDay;                 // 종일 여부
+
+  // Phase 2: 사용자 중심 데이터 구조
+  final String? ownerId;               // 소유자 userId (사용자 레벨 저장 시 필수)
+  final List<String> sharedGroups;     // 공유 그룹 목록
+  final TodoVisibility visibility;     // 공개 범위 (private | shared)
 
   TodoItem({
     required this.id,
@@ -91,7 +129,7 @@ class TodoItem {
     this.priority = 1,
     required this.createdAt,
     required this.createdBy,
-    this.eventType = EventType.todo,
+    this.eventType = TodoEventType.todo,
     this.startTime,
     this.endTime,
     this.hasTime = false,
@@ -106,7 +144,10 @@ class TodoItem {
     this.recurrenceEndDate,
     this.excludeHolidays = false,
     this.parentTodoId,
-    this.isAllDay = false,
+    // Phase 2 필드
+    this.ownerId,
+    this.sharedGroups = const [],
+    this.visibility = TodoVisibility.shared,
   });
 
   /// 시간이 지정된 할일인지 여부
@@ -134,7 +175,7 @@ class TodoItem {
       priority: data['priority'] ?? 1,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] ?? '',
-      eventType: EventTypeExtension.fromString(data['eventType'] ?? 'todo'),
+      eventType: TodoEventTypeExtension.fromString(data['eventType'] ?? 'todo'),
       startTime: (data['startTime'] as Timestamp?)?.toDate(),
       endTime: (data['endTime'] as Timestamp?)?.toDate(),
       hasTime: data['hasTime'] ?? false,
@@ -154,7 +195,13 @@ class TodoItem {
       recurrenceEndDate: (data['recurrenceEndDate'] as Timestamp?)?.toDate(),
       excludeHolidays: data['excludeHolidays'] ?? false,
       parentTodoId: data['parentTodoId'],
-      isAllDay: data['isAllDay'] ?? !(data['hasTime'] ?? false),
+      // Phase 2 필드
+      ownerId: data['ownerId'],
+      sharedGroups: data['sharedGroups'] != null
+          ? List<String>.from(data['sharedGroups'])
+          : [],
+      visibility: TodoVisibilityExtension.fromString(
+          data['visibility'] ?? 'shared'),
     );
   }
 
@@ -227,7 +274,10 @@ class TodoItem {
           : null,
       'excludeHolidays': excludeHolidays,
       'parentTodoId': parentTodoId,
-      // isAllDay는 더 이상 저장하지 않음 (hasTime으로 대체)
+      // Phase 2 필드
+      'ownerId': ownerId,
+      'sharedGroups': sharedGroups,
+      'visibility': visibility.value,
     };
   }
 
@@ -243,7 +293,7 @@ class TodoItem {
     int? priority,
     DateTime? createdAt,
     String? createdBy,
-    EventType? eventType,
+    TodoEventType? eventType,
     DateTime? startTime,
     DateTime? endTime,
     bool? hasTime,
@@ -258,7 +308,10 @@ class TodoItem {
     DateTime? recurrenceEndDate,
     bool? excludeHolidays,
     String? parentTodoId,
-    bool? isAllDay,
+    // Phase 2 필드
+    String? ownerId,
+    List<String>? sharedGroups,
+    TodoVisibility? visibility,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -287,7 +340,10 @@ class TodoItem {
       recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
       excludeHolidays: excludeHolidays ?? this.excludeHolidays,
       parentTodoId: parentTodoId ?? this.parentTodoId,
-      isAllDay: isAllDay ?? this.isAllDay,
+      // Phase 2 필드
+      ownerId: ownerId ?? this.ownerId,
+      sharedGroups: sharedGroups ?? this.sharedGroups,
+      visibility: visibility ?? this.visibility,
     );
   }
 }

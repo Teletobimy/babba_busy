@@ -8,16 +8,14 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/holiday_provider.dart';
-import '../../shared/models/event.dart';
+import '../../shared/models/todo_item.dart';
 import '../../shared/models/holiday.dart';
-import '../../shared/models/recurrence.dart';
-import 'widgets/event_card.dart';
+import 'widgets/todo_card.dart';
 import 'widgets/week_view.dart';
 import 'widgets/day_view.dart';
 import 'widgets/calendar_filter_sheet.dart';
 import '../todo/widgets/add_todo_sheet.dart';
 import '../../shared/providers/todo_provider.dart';
-import '../../shared/providers/event_provider.dart';
 
 /// 캘린더 뷰 모드
 enum CalendarViewMode {
@@ -43,9 +41,8 @@ class CalendarScreen extends ConsumerWidget {
     final selectedDate = ref.watch(selectedDateProvider);
     final viewMode = ref.watch(calendarViewModeProvider);
     final calendarFormat = ref.watch(calendarFormatProvider);
-    final events = ref.watch(filteredEventsProvider);
-    final todos = ref.watch(smartTodosProvider);
-    final selectedEvents = ref.watch(smartEventsForDateProvider(selectedDate));
+    final todos = ref.watch(filteredTodosProvider);
+    final selectedTodos = ref.watch(smartTodosForDateProvider(selectedDate));
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -95,9 +92,8 @@ class CalendarScreen extends ConsumerWidget {
                 viewMode,
                 selectedDate,
                 calendarFormat,
-                events,
                 todos,
-                selectedEvents,
+                selectedTodos,
                 members,
                 isDark,
               ),
@@ -106,7 +102,7 @@ class CalendarScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddEventSheet(context, selectedDate),
+        onPressed: () => _showAddTodoSheet(context, selectedDate),
         backgroundColor: AppColors.calendarColor,
         child: const Icon(Iconsax.add),
       ).animate().scale(delay: 500.ms, duration: 300.ms),
@@ -119,9 +115,8 @@ class CalendarScreen extends ConsumerWidget {
     CalendarViewMode viewMode,
     DateTime selectedDate,
     CalendarFormat calendarFormat,
-    List<Event> events,
-    List todos,
-    List<Event> selectedEvents,
+    List<TodoItem> todos,
+    List<TodoItem> selectedTodos,
     List members,
     bool isDark,
   ) {
@@ -133,21 +128,20 @@ class CalendarScreen extends ConsumerWidget {
         return _MonthView(
           selectedDate: selectedDate,
           calendarFormat: calendarFormat,
-          events: events,
           todos: todos,
-          selectedEvents: selectedEvents,
+          selectedTodos: selectedTodos,
           members: members,
           holidays: holidays,
           isDark: isDark,
           onDaySelected: (day) {
             ref.read(selectedDateProvider.notifier).state = day;
             // 날짜 선택시 팝업으로 일정 표시
-            _showEventsPopup(context, ref, day, members);
+            _showTodosPopup(context, ref, day, members);
           },
           onFormatChanged: (format) {
             ref.read(calendarFormatProvider.notifier).state = format;
           },
-          onAddEvent: () => _showAddEventSheet(context, selectedDate),
+          onAddTodo: () => _showAddTodoSheet(context, selectedDate),
         );
       case CalendarViewMode.week:
         return Padding(
@@ -175,7 +169,7 @@ class CalendarScreen extends ConsumerWidget {
     }
   }
 
-  void _showAddEventSheet(BuildContext context, DateTime selectedDate) {
+  void _showAddTodoSheet(BuildContext context, DateTime selectedDate) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -184,45 +178,45 @@ class CalendarScreen extends ConsumerWidget {
     );
   }
 
-  void _showEventsPopup(BuildContext context, WidgetRef ref, DateTime date, List members) {
-    final events = ref.read(smartEventsForDateProvider(date));
+  void _showTodosPopup(BuildContext context, WidgetRef ref, DateTime date, List members) {
+    final todos = ref.read(smartTodosForDateProvider(date));
     final holiday = ref.read(holidayForDateProvider(date));
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      useRootNavigator: true, // 루트 네비게이터 사용으로 변경
+      useRootNavigator: true,
       isDismissible: true,
       enableDrag: true,
-      builder: (context) => _EventsPopup(
+      builder: (context) => _TodosPopup(
         date: date,
-        events: events,
+        todos: todos,
         members: members,
         holiday: holiday,
-        onAddEvent: () {
+        onAddTodo: () {
           Navigator.pop(context);
-          _showAddEventSheet(context, date);
+          _showAddTodoSheet(context, date);
         },
       ),
     );
   }
 }
 
-/// 일정 팝업 (날짜 클릭시 표시)
-class _EventsPopup extends ConsumerWidget {
+/// 할일 팝업 (날짜 클릭시 표시)
+class _TodosPopup extends ConsumerWidget {
   final DateTime date;
-  final List<Event> events;
+  final List<TodoItem> todos;
   final List members;
   final Holiday? holiday;
-  final VoidCallback onAddEvent;
+  final VoidCallback onAddTodo;
 
-  const _EventsPopup({
+  const _TodosPopup({
     required this.date,
-    required this.events,
+    required this.todos,
     required this.members,
     this.holiday,
-    required this.onAddEvent,
+    required this.onAddTodo,
   });
 
   @override
@@ -259,7 +253,7 @@ class _EventsPopup extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppTheme.spacingM),
-          
+
           // 헤더
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
@@ -352,7 +346,7 @@ class _EventsPopup extends ConsumerWidget {
                 ),
                 // 일정 추가 버튼
                 IconButton(
-                  onPressed: onAddEvent,
+                  onPressed: onAddTodo,
                   icon: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -370,10 +364,10 @@ class _EventsPopup extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: AppTheme.spacingM),
-          
+
           // 일정 목록
           Flexible(
-            child: events.isEmpty
+            child: todos.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.all(AppTheme.spacingXL),
                     child: Column(
@@ -397,7 +391,7 @@ class _EventsPopup extends ConsumerWidget {
                         ),
                         const SizedBox(height: AppTheme.spacingS),
                         TextButton.icon(
-                          onPressed: onAddEvent,
+                          onPressed: onAddTodo,
                           icon: const Icon(Iconsax.add, size: 18),
                           label: const Text('일정 추가하기'),
                         ),
@@ -407,17 +401,17 @@ class _EventsPopup extends ConsumerWidget {
                 : ListView.builder(
                     shrinkWrap: true,
                     padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-                    itemCount: events.length,
+                    itemCount: todos.length,
                     itemBuilder: (context, index) {
-                      final event = events[index];
+                      final todo = todos[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: AppTheme.spacingS),
                         child: Consumer(
                           builder: (context, ref, child) {
                             return GestureDetector(
-                              onTap: () => _showEventActionsSheet(context, ref, event, date),
-                              child: EventCard(
-                                event: event,
+                              onTap: () => _showTodoActionsSheet(context, ref, todo),
+                              child: TodoCard(
+                                todo: todo,
                                 members: members,
                               ),
                             );
@@ -427,7 +421,7 @@ class _EventsPopup extends ConsumerWidget {
                     },
                   ),
           ),
-          
+
           // 하단 여백
           SizedBox(height: MediaQuery.of(context).padding.bottom + AppTheme.spacingM),
         ],
@@ -435,9 +429,10 @@ class _EventsPopup extends ConsumerWidget {
     );
   }
 
-  void _showEventActionsSheet(BuildContext context, WidgetRef ref, Event event, DateTime date) {
+  void _showTodoActionsSheet(BuildContext context, WidgetRef ref, TodoItem todo) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isTodoEvent = event.id.startsWith('todo_');
+    // 반복 인스턴스의 경우 원본 ID 추출
+    final actualTodoId = todo.parentTodoId ?? todo.id;
 
     showModalBottomSheet(
       context: context,
@@ -472,7 +467,7 @@ class _EventsPopup extends ConsumerWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL, vertical: AppTheme.spacingM),
                 child: Text(
-                  event.title,
+                  todo.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
@@ -482,29 +477,26 @@ class _EventsPopup extends ConsumerWidget {
                 ),
               ),
               // 수정 버튼
-              if (isTodoEvent)
-                ListTile(
-                  leading: const Icon(Iconsax.edit),
-                  title: const Text('수정'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    // Todo 수정
-                    final todoId = event.id.replaceFirst('todo_', '');
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => AddTodoSheet(todoId: todoId),
-                    );
-                  },
-                ),
+              ListTile(
+                leading: const Icon(Iconsax.edit),
+                title: const Text('수정'),
+                onTap: () {
+                  Navigator.pop(context);
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => AddTodoSheet(todoId: actualTodoId),
+                  );
+                },
+              ),
               // 삭제 버튼
               ListTile(
                 leading: Icon(Iconsax.trash, color: AppColors.errorLight),
                 title: Text('삭제', style: TextStyle(color: AppColors.errorLight)),
                 onTap: () {
                   Navigator.pop(context);
-                  _showDeleteConfirmDialog(context, ref, event, isTodoEvent);
+                  _showDeleteConfirmDialog(context, ref, todo, actualTodoId);
                 },
               ),
               const SizedBox(height: AppTheme.spacingM),
@@ -515,12 +507,12 @@ class _EventsPopup extends ConsumerWidget {
     );
   }
 
-  void _showDeleteConfirmDialog(BuildContext context, WidgetRef ref, Event event, bool isTodoEvent) {
+  void _showDeleteConfirmDialog(BuildContext context, WidgetRef ref, TodoItem todo, String todoId) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('삭제 확인'),
-        content: Text('${event.title}을(를) 삭제하시겠습니까?'),
+        content: Text('${todo.title}을(를) 삭제하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -529,16 +521,8 @@ class _EventsPopup extends ConsumerWidget {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
-              if (isTodoEvent) {
-                // Todo 삭제
-                final todoId = event.id.replaceFirst('todo_', '');
-                final todoService = ref.read(todoServiceProvider);
-                await todoService.deleteTodo(todoId);
-              } else {
-                // Event 삭제
-                final eventService = ref.read(eventServiceProvider);
-                await eventService.deleteEvent(event.id);
-              }
+              final todoService = ref.read(todoServiceProvider);
+              await todoService.deleteTodo(todoId);
             },
             child: Text('삭제', style: TextStyle(color: AppColors.errorLight)),
           ),
@@ -663,28 +647,26 @@ class _ViewModeButton extends StatelessWidget {
 class _MonthView extends StatelessWidget {
   final DateTime selectedDate;
   final CalendarFormat calendarFormat;
-  final List<Event> events;
-  final List todos;
-  final List<Event> selectedEvents;
+  final List<TodoItem> todos;
+  final List<TodoItem> selectedTodos;
   final List<dynamic> members;
   final List<Holiday> holidays;
   final bool isDark;
   final Function(DateTime) onDaySelected;
   final Function(CalendarFormat) onFormatChanged;
-  final VoidCallback onAddEvent;
+  final VoidCallback onAddTodo;
 
   const _MonthView({
     required this.selectedDate,
     required this.calendarFormat,
-    required this.events,
     required this.todos,
-    required this.selectedEvents,
+    required this.selectedTodos,
     required this.members,
     required this.holidays,
     required this.isDark,
     required this.onDaySelected,
     required this.onFormatChanged,
-    required this.onAddEvent,
+    required this.onAddTodo,
   });
 
   /// 특정 날짜의 공휴일 찾기
@@ -699,14 +681,20 @@ class _MonthView extends StatelessWidget {
 
   // 해당 날짜의 참여자들 가져오기
   List<dynamic> _getParticipantsForDay(DateTime day) {
-    final dayEvents = events.where((event) {
-      return event.startAt.isBefore(day.add(const Duration(days: 1))) &&
-          event.endAt.isAfter(day);
+    final dayTodos = todos.where((todo) {
+      if (todo.dueDate == null && todo.startTime == null) return false;
+      final todoStart = todo.startTime ?? todo.dueDate!;
+      final todoEnd = todo.endTime ?? todoStart;
+      return todoStart.isBefore(day.add(const Duration(days: 1))) &&
+          todoEnd.isAfter(day);
     }).toList();
 
     final participantIds = <String>{};
-    for (final event in dayEvents) {
-      participantIds.addAll(event.participants);
+    for (final todo in dayTodos) {
+      participantIds.addAll(todo.participants);
+      if (todo.assigneeId != null) {
+        participantIds.add(todo.assigneeId!);
+      }
     }
 
     return members.where((m) => participantIds.contains(m.id)).toList();
@@ -731,7 +719,7 @@ class _MonthView extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
         ),
-        child: TableCalendar<Event>(
+        child: TableCalendar<TodoItem>(
           firstDay: DateTime.utc(2020, 1, 1),
           lastDay: DateTime.utc(2030, 12, 31),
           focusedDay: selectedDate,
@@ -742,46 +730,23 @@ class _MonthView extends StatelessWidget {
           },
           onFormatChanged: onFormatChanged,
           eventLoader: (day) {
-            // 이벤트 필터링
-            final dayEvents = events.where((event) {
-              return event.startAt.isBefore(day.add(const Duration(days: 1))) &&
-                  event.endAt.isAfter(day);
+            final targetDate = DateTime(day.year, day.month, day.day);
+            // 해당 날짜의 Todo 필터링
+            return todos.where((todo) {
+              if (todo.dueDate == null && todo.startTime == null) return false;
+
+              if (todo.hasTime && todo.startTime != null) {
+                // 시간 있음: 시간 범위 비교
+                final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+                return todo.startTime!.isBefore(day.add(const Duration(days: 1))) &&
+                    endTime.isAfter(day);
+              } else if (todo.dueDate != null) {
+                // 미정: 날짜만 비교 (해당 날짜에만 표시)
+                final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+                return todoDate.isAtSameMomentAs(targetDate);
+              }
+              return false;
             }).toList();
-
-            // Todo를 Event로 변환 (해당 날짜의 Todo만)
-            final dayTodos = todos.where((todo) {
-              if (todo.dueDate == null) return false;
-              final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-              final targetDate = DateTime(day.year, day.month, day.day);
-              return todoDate == targetDate;
-            }).map((todo) {
-              final startAt = todo.hasTime && todo.startTime != null
-                  ? todo.startTime!
-                  : DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day, 9, 0);
-              final endAt = todo.hasTime && todo.endTime != null
-                  ? todo.endTime!
-                  : startAt.add(const Duration(hours: 1));
-
-              return Event(
-                id: 'todo_${todo.id}',
-                familyId: todo.familyId,
-                title: todo.title,
-                description: todo.note,
-                startAt: startAt,
-                endAt: endAt,
-                isAllDay: !todo.hasTime,
-                participants: todo.assigneeId != null ? [todo.assigneeId!] : [],
-                createdBy: todo.createdBy,
-                createdAt: todo.createdAt,
-                color: '#9AD0EC',
-                recurrenceType: RecurrenceType.none,
-                excludeHolidays: false,
-                isPersonal: false,
-              );
-            }).toList();
-
-            // 이벤트와 Todo 합치기
-            return [...dayEvents, ...dayTodos];
           },
           locale: 'ko_KR',
           rowHeight: rowHeight,
@@ -860,9 +825,12 @@ class _MonthView extends StatelessWidget {
   }
 
   Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday) {
-    final dayEvents = events.where((event) {
-      return event.startAt.isBefore(day.add(const Duration(days: 1))) &&
-          event.endAt.isAfter(day);
+    final dayTodos = todos.where((todo) {
+      if (todo.dueDate == null && todo.startTime == null) return false;
+      final todoStart = todo.startTime ?? todo.dueDate!;
+      final todoEnd = todo.endTime ?? todoStart;
+      return todoStart.isBefore(day.add(const Duration(days: 1))) &&
+          todoEnd.isAfter(day);
     }).toList();
     final participants = _getParticipantsForDay(day);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
@@ -923,8 +891,8 @@ class _MonthView extends StatelessWidget {
                 child: _buildParticipantAvatars(participants, isSelected),
               ),
             )
-          else if (dayEvents.isNotEmpty)
-            // 이벤트는 있지만 참여자가 없을 때 점 표시
+          else if (dayTodos.isNotEmpty)
+            // 일정은 있지만 참여자가 없을 때 점 표시
             Container(
               width: 6,
               height: 6,

@@ -3,7 +3,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/todo_provider.dart';
-import '../../shared/providers/event_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 
 /// Gemini AI 서비스 Provider
@@ -15,14 +14,14 @@ final geminiServiceProvider = Provider<GeminiService>((ref) {
 final aiSummaryProvider = FutureProvider<String>((ref) async {
   final geminiService = ref.read(geminiServiceProvider);
   final todos = ref.watch(todosProvider).value ?? [];
-  final events = ref.watch(eventsProvider).value ?? [];
+  final upcomingTodos = ref.watch(smartUpcomingTodosProvider);
   final currentMember = ref.watch(smartCurrentMemberProvider);
   final memberName = currentMember?.name ?? '사용자';
 
   return geminiService.generateDailySummary(
     memberName: memberName,
     todos: todos,
-    upcomingEventsCount: events.length,
+    upcomingTodosCount: upcomingTodos.length,
   );
 });
 
@@ -57,11 +56,11 @@ class GeminiService {
   Future<String> generateDailySummary({
     required String memberName,
     required List<TodoItem> todos,
-    required int upcomingEventsCount,
+    required int upcomingTodosCount,
   }) async {
     // API 키가 없으면 기본 메시지 반환
     if (!hasApiKey) {
-      return _generateLocalSummary(memberName, todos, upcomingEventsCount);
+      return _generateLocalSummary(memberName, todos, upcomingTodosCount);
     }
 
     try {
@@ -83,15 +82,15 @@ class GeminiService {
 - 오늘 할일: ${todayTodos.length}개
 - 전체 미완료 할일: ${pendingTodos.length}개
 - 완료한 할일: ${completedTodos.length}개
-- 다가오는 일정: $upcomingEventsCount개
+- 다가오는 일정: $upcomingTodosCount개
 
 간결하고 친근하게 작성해주세요.
 ''';
 
       final response = await model.generateContent([Content.text(prompt)]);
-      return response.text ?? _generateLocalSummary(memberName, todos, upcomingEventsCount);
+      return response.text ?? _generateLocalSummary(memberName, todos, upcomingTodosCount);
     } catch (e) {
-      return _generateLocalSummary(memberName, todos, upcomingEventsCount);
+      return _generateLocalSummary(memberName, todos, upcomingTodosCount);
     }
   }
 
@@ -129,7 +128,7 @@ $memberName님의 이번 주 활동을 요약해주세요.
   }
 
   /// 로컬 요약 생성 (API 키 없을 때 사용)
-  String _generateLocalSummary(String memberName, List<TodoItem> todos, int eventsCount) {
+  String _generateLocalSummary(String memberName, List<TodoItem> todos, int upcomingTodosCount) {
     final pendingCount = todos.where((t) => !t.isCompleted).length;
     final completedCount = todos.where((t) => t.isCompleted).length;
 

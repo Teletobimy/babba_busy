@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/models/event.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
 
@@ -164,10 +164,10 @@ class _TimeGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 주간 이벤트 가져오기
-    final allEvents = <DateTime, List<Event>>{};
+    // 주간 Todo 가져오기
+    final allTodos = <DateTime, List<TodoItem>>{};
     for (final day in days) {
-      allEvents[day] = ref.watch(smartEventsForDateProvider(day));
+      allTodos[day] = ref.watch(smartTodosForDateProvider(day));
     }
 
     return Container(
@@ -192,8 +192,8 @@ class _TimeGrid extends ConsumerWidget {
                       '${hour.toString().padLeft(2, '0')}:00',
                       style: TextStyle(
                         fontSize: 10,
-                        color: isDark 
-                            ? AppColors.textSecondaryDark 
+                        color: isDark
+                            ? AppColors.textSecondaryDark
                             : AppColors.textSecondaryLight,
                       ),
                     ),
@@ -201,13 +201,15 @@ class _TimeGrid extends ConsumerWidget {
                 }),
               ),
             ),
-            // 각 날짜별 이벤트 열
+            // 각 날짜별 할일 열
             ...days.map((day) {
-              final events = allEvents[day] ?? [];
-              final isSelected = day.year == selectedDay.year && 
-                                 day.month == selectedDay.month && 
+              final todos = allTodos[day] ?? [];
+              // 시간 있는 할일만 필터링
+              final timedTodos = todos.where((t) => t.hasTime && t.startTime != null).toList();
+              final isSelected = day.year == selectedDay.year &&
+                                 day.month == selectedDay.month &&
                                  day.day == selectedDay.day;
-              
+
               return Expanded(
                 child: GestureDetector(
                   onTap: () => onDaySelected(day),
@@ -215,14 +217,14 @@ class _TimeGrid extends ConsumerWidget {
                     decoration: BoxDecoration(
                       border: Border(
                         left: BorderSide(
-                          color: (isDark 
-                              ? AppColors.textSecondaryDark 
+                          color: (isDark
+                              ? AppColors.textSecondaryDark
                               : AppColors.textSecondaryLight)
                               .withValues(alpha: 0.2),
                           width: 0.5,
                         ),
                       ),
-                      color: isSelected 
+                      color: isSelected
                           ? AppColors.calendarColor.withValues(alpha: 0.05)
                           : Colors.transparent,
                     ),
@@ -236,8 +238,8 @@ class _TimeGrid extends ConsumerWidget {
                               decoration: BoxDecoration(
                                 border: Border(
                                   top: BorderSide(
-                                    color: (isDark 
-                                        ? AppColors.textSecondaryDark 
+                                    color: (isDark
+                                        ? AppColors.textSecondaryDark
                                         : AppColors.textSecondaryLight)
                                         .withValues(alpha: 0.1),
                                     width: 0.5,
@@ -247,10 +249,10 @@ class _TimeGrid extends ConsumerWidget {
                             );
                           }),
                         ),
-                        // 이벤트 블록
-                        ...events.where((e) => !e.isAllDay).map((event) {
-                          return _EventBlock(
-                            event: event,
+                        // 할일 블록
+                        ...timedTodos.map((todo) {
+                          return _TodoBlock(
+                            todo: todo,
                             isDark: isDark,
                           );
                         }),
@@ -267,28 +269,29 @@ class _TimeGrid extends ConsumerWidget {
   }
 }
 
-class _EventBlock extends StatelessWidget {
-  final Event event;
+class _TodoBlock extends StatelessWidget {
+  final TodoItem todo;
   final bool isDark;
 
-  const _EventBlock({
-    required this.event,
+  const _TodoBlock({
+    required this.todo,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
-    final startHour = event.startAt.hour + event.startAt.minute / 60;
-    final endHour = event.endAt.hour + event.endAt.minute / 60;
+    if (todo.startTime == null) return const SizedBox.shrink();
+
+    final startHour = todo.startTime!.hour + todo.startTime!.minute / 60;
+    final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+    final endHour = endTime.hour + endTime.minute / 60;
     final duration = endHour - startHour;
-    
+
     // 최소 30분 (0.5시간) 높이 보장
     final height = (duration < 0.5 ? 0.5 : duration) * 60;
     final top = startHour * 60;
 
-    final eventColor = event.color != null 
-        ? _parseColor(event.color!)
-        : AppColors.calendarColor;
+    final todoColor = _getEventTypeColor(todo.eventType);
 
     return Positioned(
       top: top,
@@ -297,7 +300,7 @@ class _EventBlock extends StatelessWidget {
       height: height,
       child: Container(
         decoration: BoxDecoration(
-          color: eventColor.withValues(alpha: 0.8),
+          color: todoColor.withValues(alpha: 0.8),
           borderRadius: BorderRadius.circular(4),
         ),
         padding: const EdgeInsets.all(4),
@@ -305,7 +308,7 @@ class _EventBlock extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              event.title,
+              todo.title,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 10,
@@ -316,7 +319,7 @@ class _EventBlock extends StatelessWidget {
             ),
             if (height > 35)
               Text(
-                event.formattedTime,
+                DateFormat('HH:mm').format(todo.startTime!),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 9,
@@ -328,12 +331,14 @@ class _EventBlock extends StatelessWidget {
     );
   }
 
-  Color _parseColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.calendarColor;
+  Color _getEventTypeColor(TodoEventType eventType) {
+    switch (eventType) {
+      case TodoEventType.event:
+        return AppColors.calendarColor;
+      case TodoEventType.todo:
+        return AppColors.todoColor;
+      case TodoEventType.personal:
+        return AppColors.primaryLight;
     }
   }
 }

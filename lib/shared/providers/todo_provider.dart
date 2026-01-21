@@ -7,12 +7,83 @@ import 'auth_provider.dart';
 import 'group_provider.dart';
 import 'holiday_provider.dart';
 
-/// 현재 그룹의 Todo 목록
+// ============================================================================
+// Phase 2: 사용자 중심 Todo Provider 계층
+// ============================================================================
+
+/// 내 모든 Todo (users/{userId}/todos)
+final userTodosProvider = StreamProvider<List<TodoItem>>((ref) {
+  final user = ref.watch(currentUserProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (user == null || firestore == null) return Stream.value([]);
+
+  return firestore
+      .collection('users')
+      .doc(user.uid)
+      .collection('todos')
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((snapshot) =>
+          snapshot.docs.map((doc) => TodoItem.fromFirestore(doc)).toList());
+});
+
+/// 현재 그룹에 공유된 다른 멤버들의 Todo (CollectionGroup 쿼리)
+final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
+  final membership = ref.watch(currentMembershipProvider);
+  final user = ref.watch(currentUserProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (membership == null || user == null || firestore == null) {
+    return Stream.value([]);
+  }
+
+  // 현재 그룹에 공유된 todos 중 내 것이 아닌 것
+  return firestore
+      .collectionGroup('todos')
+      .where('sharedGroups', arrayContains: membership.groupId)
+      .where('visibility', isEqualTo: 'shared')
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => TodoItem.fromFirestore(doc))
+          .where((todo) => todo.ownerId != user.uid) // 내 것 제외
+          .toList());
+});
+
+/// 현재 그룹에서 볼 수 있는 모든 Todo (내 것 + 공유된 것)
+final currentGroupTodosProvider = Provider<List<TodoItem>>((ref) {
+  final userTodos = ref.watch(userTodosProvider).value ?? [];
+  final sharedTodos = ref.watch(sharedTodosProvider).value ?? [];
+  final membership = ref.watch(currentMembershipProvider);
+
+  if (membership == null) return [];
+
+  // 내 todo 중 현재 그룹에 공유된 것 또는 개인 todo
+  final myTodosForGroup = userTodos.where((todo) {
+    // 개인 todo는 항상 표시
+    if (todo.visibility == TodoVisibility.private) return true;
+    // 공유 todo는 현재 그룹에 공유된 경우만 표시
+    return todo.sharedGroups.contains(membership.groupId);
+  }).toList();
+
+  // 내 것 + 다른 멤버의 공유 todo 합치기
+  final allTodos = [...myTodosForGroup, ...sharedTodos];
+
+  // 시간순 정렬
+  allTodos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return allTodos;
+});
+
+// ============================================================================
+// 하위 호환성: 기존 todosProvider 유지 (기존 그룹 레벨 쿼리 + 새 사용자 레벨 통합)
+// ============================================================================
+
+/// 현재 그룹의 Todo 목록 (하위 호환성)
+/// Phase 2 완료 전까지는 기존 그룹 레벨 쿼리도 함께 사용
 final todosProvider = StreamProvider<List<TodoItem>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
   if (membership == null || firestore == null) return Stream.value([]);
 
+  // 기존 그룹 레벨 쿼리 (마이그레이션 완료 전까지 유지)
   return firestore
       .collection('families')
       .doc(membership.groupId)
@@ -311,12 +382,13 @@ class TodoService {
   String? get _groupId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
-  CollectionReference? get _todosCollection {
-    if (_groupId == null || _firestore == null) return null;
-    return _firestore!.collection('families').doc(_groupId).collection('todos');
+  // Phase 2: 사용자 레벨 컬렉션 (users/{userId}/todos)
+  CollectionReference? get _userTodosCollection {
+    if (_userId == null || _firestore == null) return null;
+    return _firestore!.collection('users').doc(_userId).collection('todos');
   }
 
-  /// 할일 추가
+  /// 할일 추가 (Phase 2: 사용자 레벨 저장)
   Future<void> addTodo({
     required String title,
     String? note,
@@ -327,7 +399,7 @@ class TodoService {
     DateTime? startTime,
     DateTime? endTime,
     bool hasTime = false,
-    EventType eventType = EventType.todo,
+    TodoEventType eventType = TodoEventType.todo,
     List<String> participants = const [],
     String? location,
     String? calendarGroupId,
@@ -337,15 +409,27 @@ class TodoService {
     List<int>? recurrenceDays,
     DateTime? recurrenceEndDate,
     bool excludeHolidays = false,
+    // Phase 2 필드
+    TodoVisibility visibility = TodoVisibility.shared,
+    List<String>? sharedGroups,
   }) async {
-    final todosRef = _todosCollection;
-    if (todosRef == null || _userId == null) return;
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null || _userId == null) return;
 
-    await todosRef.add({
+    // sharedGroups가 없으면 현재 그룹으로 기본 설정
+    final effectiveSharedGroups = sharedGroups ??
+        (_groupId != null ? [_groupId!] : <String>[]);
+
+    await userTodosRef.add({
+      // Phase 2 필드
+      'ownerId': _userId,
+      'sharedGroups': effectiveSharedGroups,
+      'visibility': visibility.value,
+      // 기존 필드 (하위 호환성)
       'familyId': _groupId,
       'title': title,
       'note': note,
-      'assigneeId': assigneeId,
+      'assigneeId': assigneeId ?? _userId, // 기본값: 나
       'isCompleted': false,
       'dueDate': dueDate != null ? Timestamp.fromDate(dueDate) : null,
       'repeatType': repeatType,
@@ -358,7 +442,7 @@ class TodoService {
       'hasTime': hasTime,
       'completedAt': null,
       // Event 통합 필드
-      'participants': participants,
+      'participants': participants.isEmpty ? [_userId] : participants,
       'location': location,
       'calendarGroupId': calendarGroupId,
       'isPersonal': isPersonal,
@@ -374,17 +458,17 @@ class TodoService {
     });
   }
 
-  /// 할일 완료 상태 토글
+  /// 할일 완료 상태 토글 (Phase 2: 사용자 레벨)
   Future<void> toggleTodo(String todoId, bool isCompleted) async {
-    final todosRef = _todosCollection;
-    if (todosRef == null) return;
-    await todosRef.doc(todoId).update({
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null) return;
+    await userTodosRef.doc(todoId).update({
       'isCompleted': isCompleted,
       'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
     });
   }
 
-  /// 할일 수정
+  /// 할일 수정 (Phase 2: 사용자 레벨)
   Future<void> updateTodo(String todoId, {
     String? title,
     String? note,
@@ -395,7 +479,7 @@ class TodoService {
     DateTime? startTime,
     DateTime? endTime,
     bool? hasTime,
-    EventType? eventType,
+    TodoEventType? eventType,
     List<String>? participants,
     String? location,
     String? calendarGroupId,
@@ -405,9 +489,12 @@ class TodoService {
     List<int>? recurrenceDays,
     DateTime? recurrenceEndDate,
     bool? excludeHolidays,
+    // Phase 2 필드
+    TodoVisibility? visibility,
+    List<String>? sharedGroups,
   }) async {
-    final todosRef = _todosCollection;
-    if (todosRef == null) return;
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null) return;
 
     final updates = <String, dynamic>{};
     if (title != null) updates['title'] = title;
@@ -436,16 +523,37 @@ class TodoService {
       updates['recurrenceEndDate'] = Timestamp.fromDate(recurrenceEndDate);
     }
     if (excludeHolidays != null) updates['excludeHolidays'] = excludeHolidays;
+    // Phase 2 필드
+    if (visibility != null) updates['visibility'] = visibility.value;
+    if (sharedGroups != null) updates['sharedGroups'] = sharedGroups;
 
     if (updates.isNotEmpty) {
-      await todosRef.doc(todoId).update(updates);
+      await userTodosRef.doc(todoId).update(updates);
     }
   }
 
-  /// 할일 삭제
+  /// 할일 삭제 (Phase 2: 사용자 레벨)
   Future<void> deleteTodo(String todoId) async {
-    final todosRef = _todosCollection;
-    if (todosRef == null) return;
-    await todosRef.doc(todoId).delete();
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null) return;
+    await userTodosRef.doc(todoId).delete();
+  }
+
+  /// 공유 그룹 업데이트 (Phase 2)
+  Future<void> updateSharedGroups(String todoId, List<String> sharedGroups) async {
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null) return;
+    await userTodosRef.doc(todoId).update({
+      'sharedGroups': sharedGroups,
+    });
+  }
+
+  /// 공개 범위 변경 (Phase 2)
+  Future<void> updateVisibility(String todoId, TodoVisibility visibility) async {
+    final userTodosRef = _userTodosCollection;
+    if (userTodosRef == null) return;
+    await userTodosRef.doc(todoId).update({
+      'visibility': visibility.value,
+    });
   }
 }

@@ -6,6 +6,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
+import '../../../shared/providers/group_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/recurrence.dart';
@@ -32,7 +33,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   bool _hasTime = false;
   bool _isLoading = false;
   bool _showNoteField = false;
-  EventType _eventType = EventType.todo;
+  TodoEventType _eventType = TodoEventType.todo;
 
   // Event 통합 필드
   final List<String> _selectedParticipants = [];
@@ -43,6 +44,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   bool _excludeHolidays = false;
   String? _selectedColor;
 
+  // Phase 2: 공개 범위 및 공유 그룹
+  TodoVisibility _visibility = TodoVisibility.shared;
+  final List<String> _sharedGroups = [];
+
   @override
   void initState() {
     super.initState();
@@ -51,14 +56,21 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       _dueDate = widget.initialDate;
     }
 
-    // 수정 모드가 아닌 경우에만 현재 사용자 기본 선택
+    // 수정 모드가 아닌 경우에만 현재 사용자/그룹 기본 선택
     if (widget.todoId == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final currentMember = ref.read(smartCurrentMemberProvider);
-        if (currentMember != null && mounted) {
+        final currentMembership = ref.read(currentMembershipProvider);
+        if (mounted) {
           setState(() {
-            _selectedParticipants.add(currentMember.id);
-            _selectedAssigneeId = currentMember.id;
+            if (currentMember != null) {
+              _selectedParticipants.add(currentMember.id);
+              _selectedAssigneeId = currentMember.id;
+            }
+            // Phase 2: 현재 그룹을 기본 공유 그룹으로 설정
+            if (currentMembership != null) {
+              _sharedGroups.add(currentMembership.groupId);
+            }
           });
         }
       });
@@ -106,6 +118,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       _recurrenceEndDate = todo.recurrenceEndDate;
       _excludeHolidays = todo.excludeHolidays;
       _selectedColor = todo.color;
+      // Phase 2 필드
+      _visibility = todo.visibility;
+      _sharedGroups.clear();
+      _sharedGroups.addAll(todo.sharedGroups);
     });
   }
 
@@ -175,6 +191,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           recurrenceEndDate: _recurrenceEndDate,
           excludeHolidays: _excludeHolidays,
           color: _selectedColor,
+          // Phase 2 필드
+          visibility: _visibility,
+          sharedGroups: _sharedGroups,
         );
       } else {
         // 추가 모드
@@ -194,6 +213,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           recurrenceEndDate: _recurrenceEndDate,
           excludeHolidays: _excludeHolidays,
           color: _selectedColor,
+          // Phase 2 필드
+          visibility: _visibility,
+          sharedGroups: _sharedGroups,
         );
       }
       if (mounted) {
@@ -289,6 +311,219 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     return label;
   }
 
+  /// Phase 2: 공개 범위 선택 위젯
+  Widget _buildVisibilitySection(BuildContext context, bool isDark) {
+    final memberships = ref.watch(userMembershipsProvider).value ?? [];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '공개 범위',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+        ),
+        const SizedBox(height: AppTheme.spacingS),
+        // 나만 보기 / 그룹 공유 토글
+        Row(
+          children: [
+            // 나만 보기
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _visibility = TodoVisibility.private;
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _visibility == TodoVisibility.private
+                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                        : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(AppTheme.radiusSmall),
+                    ),
+                    border: Border.all(
+                      color: _visibility == TodoVisibility.private
+                          ? AppColors.primaryLight
+                          : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Iconsax.lock,
+                        size: 16,
+                        color: _visibility == TodoVisibility.private
+                            ? AppColors.primaryLight
+                            : (isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '나만 보기',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: _visibility == TodoVisibility.private
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: _visibility == TodoVisibility.private
+                              ? AppColors.primaryLight
+                              : (isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // 그룹 공유
+            Expanded(
+              child: GestureDetector(
+                onTap: () => setState(() {
+                  _visibility = TodoVisibility.shared;
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    color: _visibility == TodoVisibility.shared
+                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                        : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(AppTheme.radiusSmall),
+                    ),
+                    border: Border.all(
+                      color: _visibility == TodoVisibility.shared
+                          ? AppColors.primaryLight
+                          : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Iconsax.people,
+                        size: 16,
+                        color: _visibility == TodoVisibility.shared
+                            ? AppColors.primaryLight
+                            : (isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '그룹 공유',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: _visibility == TodoVisibility.shared
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: _visibility == TodoVisibility.shared
+                              ? AppColors.primaryLight
+                              : (isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        // 그룹 공유 시 그룹 선택 표시
+        if (_visibility == TodoVisibility.shared && memberships.length > 1) ...[
+          const SizedBox(height: AppTheme.spacingS),
+          Text(
+            '공유할 그룹',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: memberships.map((membership) {
+              final isSelected = _sharedGroups.contains(membership.groupId);
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    if (isSelected) {
+                      // 최소 1개 그룹은 선택되어야 함
+                      if (_sharedGroups.length > 1) {
+                        _sharedGroups.remove(membership.groupId);
+                      }
+                    } else {
+                      _sharedGroups.add(membership.groupId);
+                    }
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSelected)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 4),
+                          child: Icon(
+                            Icons.check,
+                            size: 14,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
+                      Text(
+                        membership.groupName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected
+                              ? AppColors.primaryLight
+                              : (isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final members = ref.watch(smartMembersProvider);
@@ -354,7 +589,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
 
             // 타입 선택
             Row(
-              children: EventType.values.map((type) {
+              children: TodoEventType.values.map((type) {
                 final isSelected = _eventType == type;
                 return Expanded(
                   child: Padding(
@@ -517,6 +752,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                 ],
               ),
             ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // Phase 2: 공개 범위 선택
+            _buildVisibilitySection(context, isDark),
             const SizedBox(height: AppTheme.spacingM),
 
             // 참여자 선택 (다중 선택)

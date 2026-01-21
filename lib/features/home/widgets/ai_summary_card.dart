@@ -19,11 +19,11 @@ class AiSummaryCard extends ConsumerWidget {
     
     // Smart Provider 사용
     final todos = ref.watch(smartTodosProvider);
-    final upcomingEvents = ref.watch(smartUpcomingEventsProvider);
-    
+    final upcomingTodos = ref.watch(smartUpcomingTodosProvider);
+
     final pendingCount = todos.where((t) => !t.isCompleted).length;
     final completedToday = todos.where((t) => t.isCompleted).length;
-    final eventsCount = upcomingEvents.length;
+    final upcomingCount = upcomingTodos.length;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -69,7 +69,7 @@ class AiSummaryCard extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          '할 일 $pendingCount개 남음 • 다가오는 일정 $eventsCount개',
+                          '할 일 $pendingCount개 남음 • 다가오는 일정 $upcomingCount개',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 12,
@@ -109,7 +109,7 @@ class AiSummaryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _generateSummary(pendingCount, completedToday, eventsCount),
+                      _generateSummary(pendingCount, completedToday, upcomingCount),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.95),
                         fontSize: 13,
@@ -135,7 +135,7 @@ class AiSummaryCard extends ConsumerWidget {
                         _StatChip(
                           icon: Iconsax.calendar_1,
                           label: '일정',
-                          value: '$eventsCount',
+                          value: '$upcomingCount',
                         ),
                       ],
                     ),
