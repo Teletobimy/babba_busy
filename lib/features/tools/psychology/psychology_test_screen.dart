@@ -209,6 +209,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       return _buildTestScreen();
     }
 
+    // 결과 화면도 자체 Scaffold를 가짐
+    if (_isComplete) {
+      return _buildResultScreen();
+    }
+
     return Scaffold(
       backgroundColor: AppColors.grayScale[50],
       appBar: AppBar(
@@ -220,9 +225,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           ? _buildLoadingView()
           : _error != null
               ? _buildErrorView()
-              : _isComplete
-                  ? _buildResultScreen()
-                  : _buildAnalysisProgress(),
+              : _buildAnalysisProgress(),
     );
   }
 
