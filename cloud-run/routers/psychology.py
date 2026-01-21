@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from pydantic import BaseModel
 from datetime import datetime
 import uuid
 from typing import Optional
@@ -13,6 +14,19 @@ from models import (
 from services import FirestoreCache
 from agents.psychology_agents import PsychologyPMAgent, TestType, PSYCHOLOGY_TESTS
 from dependencies import get_current_user
+
+
+# Request 모델
+class StartTestRequest(BaseModel):
+    user_id: str
+    test_type: str
+
+
+class AnswerRequest(BaseModel):
+    user_id: str
+    session_id: str
+    question_id: str
+    answer_index: int
 
 router = APIRouter(prefix="/api/psychology", tags=["Psychology"])
 
@@ -47,12 +61,14 @@ async def get_test_info(test_type: str):
 
 @router.post("/start")
 async def start_psychology_test(
-    user_id: str,
-    test_type: str,
+    request: StartTestRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """심리검사 시작"""
     try:
+        user_id = request.user_id
+        test_type = request.test_type
+
         # 권한 확인
         if current_user["uid"] != user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
@@ -109,14 +125,16 @@ async def start_psychology_test(
 
 @router.post("/answer")
 async def submit_psychology_answer(
-    user_id: str,
-    session_id: str,
-    question_id: str,
-    answer_index: int,
+    request: AnswerRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """심리검사 답변 제출"""
     try:
+        user_id = request.user_id
+        session_id = request.session_id
+        question_id = request.question_id
+        answer_index = request.answer_index
+
         # 권한 확인
         if current_user["uid"] != user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")

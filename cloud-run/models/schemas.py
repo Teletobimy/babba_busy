@@ -100,11 +100,13 @@ class BusinessChatResponse(BaseModel):
 
 class PsychologyTestType(str, Enum):
     """심리검사 유형"""
+    BIG5 = "big5"
+    ATTACHMENT = "attachment"
     MBTI = "mbti"
+    LOVE_LANGUAGE = "love_language"
     STRESS = "stress"
     ANXIETY = "anxiety"
     DEPRESSION = "depression"
-    SELF_ESTEEM = "self_esteem"
 
 
 class PsychologyStartRequest(BaseModel):
