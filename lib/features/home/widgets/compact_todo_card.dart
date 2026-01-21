@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
 
 /// 메인 화면용 컴팩트 할일 카드 (접고 펼 수 있음)
@@ -31,8 +32,18 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
   bool _isExpanded = false;
   bool _showCompletionEffect = false;
 
+  /// 현재 사용자가 이 할일을 완료할 수 있는지 확인
+  bool _canComplete() {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return false;
+    return widget.todo.canComplete(currentUser.uid);
+  }
+
   Future<void> _toggleComplete() async {
     if (_isCompleting) return;
+
+    // 권한 체크
+    if (!_canComplete()) return;
 
     final wasCompleted = widget.todo.isCompleted;
 
@@ -49,6 +60,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
       await ref.read(todoServiceProvider).toggleTodo(
         widget.todo.id,
         !widget.todo.isCompleted,
+        ownerId: widget.todo.ownerId,
       );
     } finally {
       if (mounted) {
@@ -95,9 +107,9 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                     width: 4,
                     color: memberColor,
                   ),
-                  // 체크박스
+                  // 체크박스 (완료 권한이 있는 경우에만 활성화)
                   GestureDetector(
-                    onTap: _toggleComplete,
+                    onTap: _canComplete() ? _toggleComplete : null,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -116,10 +128,15 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                           border: Border.all(
                             color: (widget.todo.isCompleted || _showCompletionEffect)
                                 ? memberColor
-                                : (isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight)
-                                    .withValues(alpha: 0.5),
+                                : _canComplete()
+                                    ? (isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight)
+                                        .withValues(alpha: 0.5)
+                                    : (isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight)
+                                        .withValues(alpha: 0.2),
                             width: 2,
                           ),
                         ),

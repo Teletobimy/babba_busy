@@ -459,10 +459,25 @@ class TodoService {
   }
 
   /// 할일 완료 상태 토글 (Phase 2: 사용자 레벨)
-  Future<void> toggleTodo(String todoId, bool isCompleted) async {
-    final userTodosRef = _userTodosCollection;
-    if (userTodosRef == null) return;
-    await userTodosRef.doc(todoId).update({
+  /// [ownerId]가 제공되면 해당 소유자의 컬렉션에서 업데이트
+  /// 제공되지 않으면 현재 사용자의 컬렉션에서 업데이트
+  Future<void> toggleTodo(
+    String todoId,
+    bool isCompleted, {
+    String? ownerId,
+  }) async {
+    if (_firestore == null) return;
+
+    // 소유자 ID가 있으면 해당 사용자의 컬렉션, 없으면 현재 사용자
+    final targetUserId = ownerId ?? _userId;
+    if (targetUserId == null) return;
+
+    final todosRef = _firestore!
+        .collection('users')
+        .doc(targetUserId)
+        .collection('todos');
+
+    await todosRef.doc(todoId).update({
       'isCompleted': isCompleted,
       'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
     });

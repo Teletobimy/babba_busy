@@ -159,6 +159,20 @@ class TodoItem {
   /// 반복 인스턴스인지 (원본이 아닌 가상 복사본)
   bool get isRecurringInstance => parentTodoId != null;
 
+  /// 특정 사용자가 이 할일을 완료할 수 있는지 확인
+  /// - 소유자(ownerId) 또는 생성자(createdBy)
+  /// - 담당자(assigneeId)
+  /// - 참여자(participants)에 포함된 경우
+  bool canComplete(String userId) {
+    // 소유자 또는 생성자
+    if (ownerId == userId || createdBy == userId) return true;
+    // 담당자
+    if (assigneeId == userId) return true;
+    // 참여자
+    if (participants.contains(userId)) return true;
+    return false;
+  }
+
   factory TodoItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final assigneeId = data['assigneeId'] as String?;

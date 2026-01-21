@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
 import 'add_todo_sheet.dart';
 
@@ -32,18 +33,31 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
   Future<void> _toggleComplete() async {
     if (_isCompleting) return;
 
+    // 권한 체크
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return;
+    if (!widget.todo.canComplete(currentUser.uid)) return;
+
     setState(() => _isCompleting = true);
 
     try {
       await ref.read(todoServiceProvider).toggleTodo(
         widget.todo.id,
         !widget.todo.isCompleted,
+        ownerId: widget.todo.ownerId,
       );
     } finally {
       if (mounted) {
         setState(() => _isCompleting = false);
       }
     }
+  }
+
+  /// 현재 사용자가 이 할일을 완료할 수 있는지 확인
+  bool _canComplete() {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return false;
+    return widget.todo.canComplete(currentUser.uid);
   }
 
   @override
@@ -116,9 +130,9 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                   width: 4,
                   color: memberColor,
                 ),
-                // 체크박스
+                // 체크박스 (완료 권한이 있는 경우에만 활성화)
                 GestureDetector(
-                  onTap: _toggleComplete,
+                  onTap: _canComplete() ? _toggleComplete : null,
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
                     padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -134,10 +148,15 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                         border: Border.all(
                           color: widget.todo.isCompleted
                               ? memberColor
-                              : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                                      .withValues(alpha: 0.5),
+                              : _canComplete()
+                                  ? (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                          .withValues(alpha: 0.5)
+                                  : (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                          .withValues(alpha: 0.2),
                           width: 2,
                         ),
                       ),

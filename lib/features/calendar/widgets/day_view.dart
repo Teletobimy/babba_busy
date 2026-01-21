@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
 
 /// 일간 뷰 위젯
 class DayView extends ConsumerWidget {
@@ -426,10 +427,21 @@ class _DayTodoBlock extends ConsumerWidget {
     );
   }
 
+  /// 현재 사용자가 이 할일을 완료할 수 있는지 확인
+  bool _canComplete(WidgetRef ref) {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return false;
+    return todo.canComplete(currentUser.uid);
+  }
+
   Future<void> _toggleComplete(WidgetRef ref) async {
+    // 권한 체크
+    if (!_canComplete(ref)) return;
+
     await ref.read(todoServiceProvider).toggleTodo(
       todo.id,
       !todo.isCompleted,
+      ownerId: todo.ownerId,
     );
   }
 }
@@ -510,8 +522,17 @@ class _UndecidedTodoItem extends ConsumerWidget {
     required this.isDark,
   });
 
+  /// 현재 사용자가 이 할일을 완료할 수 있는지 확인
+  bool _canComplete(WidgetRef ref) {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return false;
+    return todo.canComplete(currentUser.uid);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final canComplete = _canComplete(ref);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -524,21 +545,29 @@ class _UndecidedTodoItem extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // 체크박스
+          // 체크박스 (완료 권한이 있는 경우에만 활성화)
           GestureDetector(
-            onTap: () async {
-              await ref.read(todoServiceProvider).toggleTodo(
-                todo.id,
-                !todo.isCompleted,
-              );
-            },
+            onTap: canComplete
+                ? () async {
+                    await ref.read(todoServiceProvider).toggleTodo(
+                      todo.id,
+                      !todo.isCompleted,
+                      ownerId: todo.ownerId,
+                    );
+                  }
+                : null,
             child: Container(
               width: 20,
               height: 20,
               decoration: BoxDecoration(
                 color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
                 borderRadius: BorderRadius.circular(5),
-                border: Border.all(color: AppColors.coral[500]!, width: 2),
+                border: Border.all(
+                  color: canComplete
+                      ? AppColors.coral[500]!
+                      : AppColors.coral[500]!.withValues(alpha: 0.3),
+                  width: 2,
+                ),
               ),
               child: todo.isCompleted
                   ? const Icon(Icons.check, size: 12, color: Colors.white)
