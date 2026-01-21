@@ -47,3 +47,4 @@ gcloud builds submit --config cloudbuild.yaml
 | `GCP_PROJECT_ID` | GCP 프로젝트 ID | ***REMOVED_PROJECT_ID*** |
 | `GEMINI_API_KEY` | Gemini API 키 | (필수) |
 | `GEMINI_MODEL` | Gemini 모델 이름 | gemini-2.5-flash-lite-preview-09-2025 |
+
