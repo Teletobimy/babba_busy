@@ -117,13 +117,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 Text(
-                  'Family Hub',
+                  'BABBA',
                   style: Theme.of(context).textTheme.headlineLarge,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppTheme.spacingS),
                 Text(
-                  '가족과 함께하는 일상',
+                  '바쁜 일상을 함께',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: isDark 
                         ? AppColors.textSecondaryDark 

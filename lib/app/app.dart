@@ -18,7 +18,7 @@ class FamilyHubApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'Family Hub',
+      title: 'BABBA',
       debugShowCheckedModeBanner: false,
       
       // 테마 설정
