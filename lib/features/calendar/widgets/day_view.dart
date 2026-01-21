@@ -546,6 +546,7 @@ class _UndecidedTodoItem extends ConsumerWidget {
       child: Row(
         children: [
           // 체크박스 (완료 권한이 있는 경우에만 활성화)
+          // 터치 타겟 최소 44x44px 보장
           GestureDetector(
             onTap: canComplete
                 ? () async {
@@ -556,25 +557,28 @@ class _UndecidedTodoItem extends ConsumerWidget {
                     );
                   }
                 : null,
-            child: Container(
-              width: 20,
-              height: 20,
-              decoration: BoxDecoration(
-                color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
-                borderRadius: BorderRadius.circular(5),
-                border: Border.all(
-                  color: canComplete
-                      ? AppColors.coral[500]!
-                      : AppColors.coral[500]!.withValues(alpha: 0.3),
-                  width: 2,
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(
+                    color: canComplete
+                        ? AppColors.coral[500]!
+                        : AppColors.coral[500]!.withValues(alpha: 0.3),
+                    width: 2,
+                  ),
                 ),
+                child: todo.isCompleted
+                    ? const Icon(Icons.check, size: 12, color: Colors.white)
+                    : null,
               ),
-              child: todo.isCompleted
-                  ? const Icon(Icons.check, size: 12, color: Colors.white)
-                  : null,
             ),
           ),
-          const SizedBox(width: 10),
 
           // 제목
           Expanded(

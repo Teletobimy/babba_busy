@@ -108,13 +108,14 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                     color: memberColor,
                   ),
                   // 체크박스 (완료 권한이 있는 경우에만 활성화)
+                  // 터치 타겟 최소 44x44px 보장
                   GestureDetector(
                     onTap: _canComplete() ? _toggleComplete : null,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacingS,
-                        vertical: AppTheme.spacingS,
+                        horizontal: AppTheme.spacingM,
+                        vertical: AppTheme.spacingM,
                       ),
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
