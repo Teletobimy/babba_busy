@@ -18,7 +18,7 @@ class AiApiService {
   // Cloud Run API URL
   static const String _baseUrl = String.fromEnvironment(
     'AI_API_URL',
-    defaultValue: 'https://***REMOVED_CLOUD_RUN_URL***',
+    defaultValue: 'https://babba-ai-api-cykf2jfgmq-du.a.run.app',
   );
 
   /// 데모 모드 여부 확인

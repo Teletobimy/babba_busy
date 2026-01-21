@@ -23,6 +23,7 @@ app.add_middleware(
     allow_origins=[
         "https://***REMOVED_WEB_DOMAIN***",
         "https://***REMOVED_AUTH_DOMAIN***",
+        "https://babba.ai.kr",
         "http://localhost:*",
     ],
     allow_credentials=True,
