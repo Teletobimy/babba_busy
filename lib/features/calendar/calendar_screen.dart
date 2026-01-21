@@ -10,6 +10,8 @@ import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/holiday_provider.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/models/holiday.dart';
+import '../../shared/models/family_member.dart';
+import '../../shared/widgets/member_avatar.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/week_view.dart';
 import 'widgets/day_view.dart';
@@ -32,6 +34,9 @@ final calendarViewModeProvider = StateProvider<CalendarViewMode>((ref) => Calend
 
 /// 캘린더 포맷 Provider (TableCalendar용)
 final calendarFormatProvider = StateProvider<CalendarFormat>((ref) => CalendarFormat.month);
+
+/// 캘린더 멤버 필터
+final calendarMemberFilterProvider = StateProvider<String?>((ref) => null);
 
 class CalendarScreen extends ConsumerWidget {
   const CalendarScreen({super.key});
@@ -117,7 +122,7 @@ class CalendarScreen extends ConsumerWidget {
     CalendarFormat calendarFormat,
     List<TodoItem> todos,
     List<TodoItem> selectedTodos,
-    List members,
+    List<FamilyMember> members,
     bool isDark,
   ) {
     // 현재 보이는 연도의 공휴일 가져오기
@@ -644,12 +649,12 @@ class _ViewModeButton extends StatelessWidget {
 }
 
 /// 월간 뷰 - 달력만 표시 (일정 목록 제거)
-class _MonthView extends StatelessWidget {
+class _MonthView extends ConsumerWidget {
   final DateTime selectedDate;
   final CalendarFormat calendarFormat;
   final List<TodoItem> todos;
   final List<TodoItem> selectedTodos;
-  final List<dynamic> members;
+  final List<FamilyMember> members;
   final List<Holiday> holidays;
   final bool isDark;
   final Function(DateTime) onDaySelected;
@@ -679,173 +684,177 @@ class _MonthView extends StatelessWidget {
     return null;
   }
 
-  // 해당 날짜의 참여자들 가져오기
-  List<dynamic> _getParticipantsForDay(DateTime day) {
-    final dayTodos = todos.where((todo) {
-      if (todo.dueDate == null && todo.startTime == null) return false;
-      final todoStart = todo.startTime ?? todo.dueDate!;
-      final todoEnd = todo.endTime ?? todoStart;
-      return todoStart.isBefore(day.add(const Duration(days: 1))) &&
-          todoEnd.isAfter(day);
-    }).toList();
-
-    final participantIds = <String>{};
-    for (final todo in dayTodos) {
-      participantIds.addAll(todo.participants);
-      if (todo.assigneeId != null) {
-        participantIds.add(todo.assigneeId!);
-      }
-    }
-
-    return members.where((m) => participantIds.contains(m.id)).toList();
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMemberId = ref.watch(calendarMemberFilterProvider);
+
     // 화면 높이에 맞춰 rowHeight 계산
     final screenHeight = MediaQuery.of(context).size.height;
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final safeAreaBottom = MediaQuery.of(context).padding.bottom;
-    // 헤더(약 80) + 요일행(50) + 달력헤더(60) + 하단 여백 계산
-    final availableHeight = screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 100;
-    final rowHeight = (availableHeight / 6).clamp(70.0, 100.0);
+    // 헤더(약 80) + 요일행(50) + 달력헤더(60) + 멤버필터(60) + 하단 여백 계산
+    final availableHeight = screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
+    final rowHeight = (availableHeight / 6).clamp(65.0, 95.0);
+
+    // 선택된 멤버에 따라 Todo 필터링
+    final filteredTodos = selectedMemberId == null
+        ? todos
+        : todos.where((todo) => todo.assigneeId == selectedMemberId).toList();
 
     return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
-        child: Container(
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
-        ),
-        child: TableCalendar<TodoItem>(
-          firstDay: DateTime.utc(2020, 1, 1),
-          lastDay: DateTime.utc(2030, 12, 31),
-          focusedDay: selectedDate,
-          calendarFormat: calendarFormat,
-          selectedDayPredicate: (day) => isSameDay(selectedDate, day),
-          onDaySelected: (selectedDay, focusedDay) {
-            onDaySelected(selectedDay);
-          },
-          onFormatChanged: onFormatChanged,
-          eventLoader: (day) {
-            final targetDate = DateTime(day.year, day.month, day.day);
-            // 해당 날짜의 Todo 필터링
-            return todos.where((todo) {
-              if (todo.dueDate == null && todo.startTime == null) return false;
+      child: Column(
+        children: [
+          // 멤버 필터 아바타 행
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+            child: MemberAvatarList(
+              members: members,
+              selectedMemberId: selectedMemberId,
+              onMemberSelected: (id) {
+                ref.read(calendarMemberFilterProvider.notifier).state = id;
+              },
+              size: 40,
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          // 캘린더
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
+              ),
+              child: TableCalendar<TodoItem>(
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: selectedDate,
+                calendarFormat: calendarFormat,
+                selectedDayPredicate: (day) => isSameDay(selectedDate, day),
+                onDaySelected: (selectedDay, focusedDay) {
+                  onDaySelected(selectedDay);
+                },
+                onFormatChanged: onFormatChanged,
+                eventLoader: (day) {
+                  final targetDate = DateTime(day.year, day.month, day.day);
+                  // 해당 날짜의 Todo 필터링
+                  return filteredTodos.where((todo) {
+                    if (todo.dueDate == null && todo.startTime == null) return false;
 
-              if (todo.hasTime && todo.startTime != null) {
-                // 시간 있음: 시간 범위 비교
-                final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
-                return todo.startTime!.isBefore(day.add(const Duration(days: 1))) &&
-                    endTime.isAfter(day);
-              } else if (todo.dueDate != null) {
-                // 미정: 날짜만 비교 (해당 날짜에만 표시)
-                final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-                return todoDate.isAtSameMomentAs(targetDate);
-              }
-              return false;
-            }).toList();
-          },
-          locale: 'ko_KR',
-          rowHeight: rowHeight,
-          headerStyle: HeaderStyle(
-            formatButtonVisible: false,
-            titleCentered: true,
-            titleTextStyle: Theme.of(context).textTheme.titleMedium!.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-            headerPadding: const EdgeInsets.symmetric(vertical: 16),
-            leftChevronIcon: Icon(
-              Iconsax.arrow_left_2,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-            ),
-            rightChevronIcon: Icon(
-              Iconsax.arrow_right_3,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-            ),
+                    if (todo.hasTime && todo.startTime != null) {
+                      // 시간 있음: 시간 범위 비교
+                      final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+                      return todo.startTime!.isBefore(day.add(const Duration(days: 1))) &&
+                          endTime.isAfter(day);
+                    } else if (todo.dueDate != null) {
+                      // 미정: 날짜만 비교 (해당 날짜에만 표시)
+                      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+                      return todoDate.isAtSameMomentAs(targetDate);
+                    }
+                    return false;
+                  }).toList();
+                },
+                locale: 'ko_KR',
+                rowHeight: rowHeight,
+                headerStyle: HeaderStyle(
+                  formatButtonVisible: false,
+                  titleCentered: true,
+                  titleTextStyle: Theme.of(context).textTheme.titleMedium!.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  headerPadding: const EdgeInsets.symmetric(vertical: 16),
+                  leftChevronIcon: Icon(
+                    Iconsax.arrow_left_2,
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  ),
+                  rightChevronIcon: Icon(
+                    Iconsax.arrow_right_3,
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  ),
+                ),
+                daysOfWeekHeight: 40,
+                daysOfWeekStyle: DaysOfWeekStyle(
+                  weekdayStyle: TextStyle(
+                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  weekendStyle: TextStyle(
+                    color: AppColors.errorLight.withValues(alpha: 0.8),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                calendarStyle: CalendarStyle(
+                  outsideDaysVisible: false,
+                  cellMargin: const EdgeInsets.all(2),
+                  todayDecoration: BoxDecoration(
+                    color: AppColors.calendarColor.withValues(alpha: 0.3),
+                    shape: BoxShape.circle,
+                  ),
+                  todayTextStyle: TextStyle(
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  selectedDecoration: const BoxDecoration(
+                    color: AppColors.calendarColor,
+                    shape: BoxShape.circle,
+                  ),
+                  selectedTextStyle: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  defaultTextStyle: TextStyle(
+                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  ),
+                  weekendTextStyle: TextStyle(
+                    color: AppColors.errorLight.withValues(alpha: 0.8),
+                  ),
+                  markersMaxCount: 0, // 기본 마커 숨기고 커스텀 빌더 사용
+                ),
+                calendarBuilders: CalendarBuilders(
+                  // 커스텀 날짜 셀 빌더 (아바타 포함)
+                  defaultBuilder: (context, day, focusedDay) {
+                    return _buildDayCell(context, day, false, false, filteredTodos);
+                  },
+                  selectedBuilder: (context, day, focusedDay) {
+                    return _buildDayCell(context, day, true, false, filteredTodos);
+                  },
+                  todayBuilder: (context, day, focusedDay) {
+                    final isSelected = isSameDay(selectedDate, day);
+                    return _buildDayCell(context, day, isSelected, true, filteredTodos);
+                  },
+                ),
+              ),
+            ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
           ),
-          daysOfWeekHeight: 40,
-          daysOfWeekStyle: DaysOfWeekStyle(
-            weekdayStyle: TextStyle(
-              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-            weekendStyle: TextStyle(
-              color: AppColors.errorLight.withValues(alpha: 0.8),
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          calendarStyle: CalendarStyle(
-            outsideDaysVisible: false,
-            cellMargin: const EdgeInsets.all(2),
-            todayDecoration: BoxDecoration(
-              color: AppColors.calendarColor.withValues(alpha: 0.3),
-              shape: BoxShape.circle,
-            ),
-            todayTextStyle: TextStyle(
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-              fontWeight: FontWeight.w600,
-            ),
-            selectedDecoration: const BoxDecoration(
-              color: AppColors.calendarColor,
-              shape: BoxShape.circle,
-            ),
-            selectedTextStyle: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-            defaultTextStyle: TextStyle(
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-            ),
-            weekendTextStyle: TextStyle(
-              color: AppColors.errorLight.withValues(alpha: 0.8),
-            ),
-            markersMaxCount: 0, // 기본 마커 숨기고 커스텀 빌더 사용
-          ),
-          calendarBuilders: CalendarBuilders(
-            // 커스텀 날짜 셀 빌더 (아바타 포함)
-            defaultBuilder: (context, day, focusedDay) {
-              return _buildDayCell(context, day, false, false);
-            },
-            selectedBuilder: (context, day, focusedDay) {
-              return _buildDayCell(context, day, true, false);
-            },
-            todayBuilder: (context, day, focusedDay) {
-              final isSelected = isSameDay(selectedDate, day);
-              return _buildDayCell(context, day, isSelected, true);
-            },
-          ),
-        ),
-      ).animate().fadeIn(duration: 400.ms, delay: 100.ms),
-    ));
+        ],
+      ),
+    );
   }
 
-  Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday) {
-    final dayTodos = todos.where((todo) {
+  Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday, List<TodoItem> filteredTodos) {
+    final dayTodos = filteredTodos.where((todo) {
       if (todo.dueDate == null && todo.startTime == null) return false;
       final todoStart = todo.startTime ?? todo.dueDate!;
       final todoEnd = todo.endTime ?? todoStart;
       return todoStart.isBefore(day.add(const Duration(days: 1))) &&
           todoEnd.isAfter(day);
     }).toList();
-    final participants = _getParticipantsForDay(day);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
     final holiday = _getHolidayForDay(day);
     final isHoliday = holiday != null;
 
     return Container(
-      margin: const EdgeInsets.all(2),
+      margin: const EdgeInsets.all(1),
       decoration: BoxDecoration(
         color: isSelected
             ? AppColors.calendarColor
             : isToday
                 ? AppColors.calendarColor.withValues(alpha: 0.15)
                 : null,
-        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         border: isToday && !isSelected
             ? Border.all(color: AppColors.calendarColor, width: 1.5)
             : null,
@@ -883,22 +892,12 @@ class _MonthView extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-          // 참여자 아바타들
-          if (participants.isNotEmpty)
+          // 멤버별 색상 점 표시
+          if (dayTodos.isNotEmpty)
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _buildParticipantAvatars(participants, isSelected),
-              ),
-            )
-          else if (dayTodos.isNotEmpty)
-            // 일정은 있지만 참여자가 없을 때 점 표시
-            Container(
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.white : AppColors.calendarColor,
-                shape: BoxShape.circle,
+                child: _buildMemberDots(dayTodos, isSelected),
               ),
             ),
         ],
@@ -923,67 +922,35 @@ class _MonthView extends StatelessWidget {
     return name.length > 4 ? name.substring(0, 4) : name;
   }
 
-  Widget _buildParticipantAvatars(List<dynamic> participants, bool isSelected) {
-    const maxShow = 3;
-    final showCount = participants.length > maxShow ? maxShow : participants.length;
-    final remaining = participants.length - maxShow;
+  /// 멤버별 색상 점 표시
+  Widget _buildMemberDots(List<TodoItem> dayTodos, bool isSelected) {
+    // 멤버별 Todo 개수 집계
+    final memberCounts = <String, int>{};
+    for (final todo in dayTodos) {
+      final assignee = todo.assigneeId ?? 'unknown';
+      memberCounts[assignee] = (memberCounts[assignee] ?? 0) + 1;
+    }
 
     return Wrap(
       alignment: WrapAlignment.center,
       spacing: 2,
       runSpacing: 2,
-      children: [
-        ...participants.take(showCount).map((member) {
-          final color = _parseColor(member.color);
-          return Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: isSelected ? 0.9 : 0.8),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? Colors.white.withValues(alpha: 0.5) : Colors.white,
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                member.name.isNotEmpty ? member.name[0] : '?',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          );
-        }),
-        if (remaining > 0)
-          Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? Colors.white.withValues(alpha: 0.3)
-                  : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? Colors.white.withValues(alpha: 0.5) : AppColors.calendarColor,
-                width: 1,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                '+$remaining',
-                style: TextStyle(
-                  fontSize: 8,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : AppColors.calendarColor,
-                ),
-              ),
-            ),
+      children: memberCounts.entries.take(4).map((entry) {
+        final member = members.cast<dynamic>().firstWhere(
+          (m) => m.id == entry.key,
+          orElse: () => null,
+        );
+        final color = member != null ? _parseColor(member.color) : AppColors.calendarColor;
+
+        return Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : color,
+            shape: BoxShape.circle,
           ),
-      ],
+        );
+      }).toList(),
     );
   }
 

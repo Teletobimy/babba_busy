@@ -64,6 +64,14 @@ class HomeScreen extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
+                        // 프로필 아바타
+                        if (currentMember != null)
+                          MemberAvatar(
+                            member: currentMember,
+                            size: 48,
+                          ).animate().fadeIn(duration: 300.ms),
+                        if (currentMember != null)
+                          const SizedBox(width: AppTheme.spacingM),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

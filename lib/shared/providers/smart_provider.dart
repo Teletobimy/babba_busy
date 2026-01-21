@@ -272,6 +272,7 @@ final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
   final weekLater = today.add(const Duration(days: 7));
 
   return todos.where((todo) {
+    if (todo.isCompleted) return false; // 완료 항목 제외
     if (todo.dueDate == null && todo.startTime == null) return false;
     final todoDate = todo.startTime ?? todo.dueDate!;
     return todoDate.isAfter(now) && todoDate.isBefore(weekLater);
