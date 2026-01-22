@@ -184,7 +184,6 @@ class CalendarScreen extends ConsumerWidget {
   }
 
   void _showTodosPopup(BuildContext context, WidgetRef ref, DateTime date, List members) {
-    final todos = ref.read(smartTodosForDateProvider(date));
     final holiday = ref.read(holidayForDateProvider(date));
 
     showModalBottomSheet(
@@ -196,7 +195,6 @@ class CalendarScreen extends ConsumerWidget {
       enableDrag: true,
       builder: (context) => _TodosPopup(
         date: date,
-        todos: todos,
         members: members,
         holiday: holiday,
         onAddTodo: () {
@@ -211,14 +209,12 @@ class CalendarScreen extends ConsumerWidget {
 /// 할일 팝업 (날짜 클릭시 표시)
 class _TodosPopup extends ConsumerWidget {
   final DateTime date;
-  final List<TodoItem> todos;
   final List members;
   final Holiday? holiday;
   final VoidCallback onAddTodo;
 
   const _TodosPopup({
     required this.date,
-    required this.todos,
     required this.members,
     this.holiday,
     required this.onAddTodo,
@@ -229,6 +225,9 @@ class _TodosPopup extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final now = DateTime.now();
     final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+
+    // ✅ 모달 내부에서 provider watch - 실시간 업데이트!
+    final todos = ref.watch(smartTodosForDateProvider(date));
 
     return Container(
       constraints: BoxConstraints(

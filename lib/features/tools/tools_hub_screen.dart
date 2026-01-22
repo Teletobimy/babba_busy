@@ -683,10 +683,38 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // 초기 로드 시 스크롤
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+  }
+
+  @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_ChatContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 메시지가 추가되면 스크롤
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+    });
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
   }
 
   void _sendMessage() {
@@ -698,15 +726,9 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
 
     _messageController.clear();
 
-    // 스크롤을 맨 아래로
+    // 헬퍼 메서드 사용
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
+      _scrollToBottom();
     });
   }
 

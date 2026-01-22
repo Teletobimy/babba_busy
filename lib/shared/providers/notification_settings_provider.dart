@@ -94,5 +94,29 @@ final fcmTokenSaverProvider = FutureProvider.autoDispose<void>((ref) async {
   if (user == null) return;
 
   final notificationService = ref.read(notificationServiceProvider);
-  await notificationService.saveTokenToFirestore(user.uid);
+
+  try {
+    debugPrint('🔔 FCM 초기화 시작: ${user.uid}');
+
+    // 1. 알림 권한 요청
+    final hasPermission = await notificationService.requestPermission();
+    if (!hasPermission) {
+      debugPrint('⚠️ 사용자가 알림 권한을 거부했습니다');
+      return;
+    }
+
+    debugPrint('✅ 알림 권한 획득');
+
+    // 2. 알림 서비스 초기화
+    await notificationService.initialize();
+
+    // 3. FCM 토큰 저장
+    await notificationService.saveTokenToFirestore(user.uid);
+
+    debugPrint('✅ FCM 토큰 저장 완료: ${user.uid}');
+  } catch (e, stack) {
+    debugPrint('❌ FCM 토큰 저장 중 에러: $e');
+    debugPrint('Stack trace: $stack');
+    // 에러를 throw하지 않고 로그만 남김 (로그인은 계속 진행되어야 함)
+  }
 });
