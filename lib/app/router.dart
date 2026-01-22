@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../shared/providers/auth_provider.dart';
 import '../shared/providers/group_provider.dart';
+import '../services/firebase/notification_service.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/signup_screen.dart';
 import '../features/auth/onboarding_screen.dart';
@@ -16,6 +17,9 @@ import '../features/tools/psychology/psychology_test_screen.dart';
 import '../features/tools/psychology/psychology_history_screen.dart';
 import '../features/settings/settings_screen.dart';
 import 'main_shell.dart';
+
+/// Navigator Key for notifications
+final rootNavigatorKey = GlobalKey<NavigatorState>();
 
 /// 라우터 리다이렉션 관리를 위한 Notifier
 class RouterNotifier extends ChangeNotifier {
@@ -79,7 +83,18 @@ final routerNotifierProvider = Provider<RouterNotifier>((ref) {
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
 
+  // NotificationService에 Navigator Key 전달
+  Future.microtask(() {
+    try {
+      final notificationService = ref.read(notificationServiceProvider);
+      notificationService.setNavigatorKey(rootNavigatorKey);
+    } catch (e) {
+      debugPrint('Error setting navigator key: $e');
+    }
+  });
+
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
     refreshListenable: notifier,
     redirect: notifier.redirect,

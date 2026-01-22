@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from datetime import datetime
 import uuid
 from typing import Optional
+import json
+import asyncio
 
 from models import (
     PsychologyStartResponse,
@@ -27,6 +30,12 @@ class AnswerRequest(BaseModel):
     session_id: str
     question_id: str
     answer_index: int
+
+
+class AnalyzeStreamRequest(BaseModel):
+    user_id: str
+    session_id: str
+
 
 router = APIRouter(prefix="/api/psychology", tags=["Psychology"])
 
@@ -262,16 +271,15 @@ async def get_psychology_result(
 
 @router.post("/analyze/stream")
 async def analyze_psychology_stream(
-    user_id: str,
-    session_id: str,
+    request: AnalyzeStreamRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """심리검사 분석 (스트리밍 - 멀티 에이전트 진행 상황)"""
-    if current_user["uid"] != user_id:
+    if current_user["uid"] != request.user_id:
         raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
     # 세션 조회
-    session = await FirestoreCache.get_psychology_session(user_id, session_id)
+    session = await FirestoreCache.get_psychology_session(request.user_id, request.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
 
@@ -284,48 +292,79 @@ async def analyze_psychology_stream(
     scores = psychology_pm.calculate_scores(test_type, answers)
 
     async def generate():
-        progress_queue = asyncio.Queue()
-
-        async def on_progress(step: str, status: str):
-            await progress_queue.put({"step": step, "status": status})
-
-        # 분석 태스크 시작
-        task = asyncio.create_task(
-            psychology_pm.run(
-                test_type=test_type,
-                scores=scores,
-                on_progress=on_progress,
-            )
-        )
-
-        # 진행 상황 스트리밍
-        while not task.done() or not progress_queue.empty():
-            try:
-                progress = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
-                yield f"data: {json.dumps(progress)}\n\n"
-            except asyncio.TimeoutError:
-                continue
-            except Exception as e:
-                print(f"Stream progress error: {e}")
-                break
-
-        # 최종 결과
         try:
-            result = await task
-            
-            # 세션에 결과 저장
-            session["scores"] = scores
-            session["analysis_result"] = result["final_report"]
-            session["agent_reports"] = result["agent_reports"]
-            session["completed_at"] = datetime.utcnow()
-            
-            await FirestoreCache.set_psychology_session(user_id, session_id, session)
-            
-            yield f"data: {json.dumps({'type': 'result', 'data': result['final_report']})}\n\n"
-            yield "data: [DONE]\n\n"
+            progress_queue = asyncio.Queue()
+            timeout_count = 0
+            max_timeout = 300  # 5분
+
+            async def on_progress(step: str, status: str):
+                await progress_queue.put({"step": step, "status": status})
+
+            # 분석 태스크 시작
+            task = asyncio.create_task(
+                psychology_pm.run(
+                    test_type=test_type,
+                    scores=scores,
+                    on_progress=on_progress,
+                )
+            )
+
+            # 진행 상황 스트리밍
+            while not task.done() or not progress_queue.empty():
+                try:
+                    progress = await asyncio.wait_for(progress_queue.get(), timeout=0.1)
+
+                    # JSON 직렬화 검증
+                    try:
+                        json.dumps(progress)
+                        yield f"data: {json.dumps(progress)}\n\n"
+                    except (TypeError, ValueError) as e:
+                        print(f"JSON serialization error: {e}")
+                        yield f"data: {json.dumps({'type': 'error', 'message': 'Invalid progress data'})}\n\n"
+
+                    timeout_count = 0  # 성공 시 타임아웃 카운트 리셋
+                except asyncio.TimeoutError:
+                    timeout_count += 1
+                    if timeout_count > max_timeout:
+                        task.cancel()
+                        yield f"data: {json.dumps({'type': 'error', 'message': 'Analysis timeout'})}\n\n"
+                        return
+                    continue
+                except Exception as e:
+                    print(f"Stream progress error: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+                    break
+
+            # 최종 결과
+            try:
+                result = await task
+
+                # 세션에 결과 저장
+                session["scores"] = scores
+                session["analysis_result"] = result["final_report"]
+                session["agent_reports"] = result["agent_reports"]
+                session["completed_at"] = datetime.utcnow()
+
+                await FirestoreCache.set_psychology_session(request.user_id, request.session_id, session)
+
+                # JSON 직렬화 검증
+                try:
+                    json.dumps({'type': 'result', 'data': result['final_report']})
+                    yield f"data: {json.dumps({'type': 'result', 'data': result['final_report']})}\n\n"
+                except (TypeError, ValueError) as e:
+                    print(f"Result JSON serialization error: {e}")
+                    yield f"data: {json.dumps({'type': 'error', 'message': 'Invalid result data'})}\n\n"
+
+                yield "data: [DONE]\n\n"
+            except asyncio.CancelledError:
+                print("Analysis task was cancelled")
+                yield f"data: {json.dumps({'type': 'error', 'message': 'Analysis was cancelled'})}\n\n"
+            except Exception as e:
+                print(f"Analysis task failed: {e}")
+                yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
         except Exception as e:
-            print(f"Analysis task failed: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            print(f"Stream generation error: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Internal server error'})}\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

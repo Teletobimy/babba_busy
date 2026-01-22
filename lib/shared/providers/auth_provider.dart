@@ -1,11 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/family_member.dart';
 import '../models/family.dart';
 import '../models/user.dart';
 import '../models/membership.dart';
+import '../../services/firebase/notification_service.dart';
 
 /// Firebase Auth 인스턴스
 final firebaseAuthProvider = Provider<firebase.FirebaseAuth?>((ref) {
@@ -177,6 +178,35 @@ class AuthService {
 
   /// 로그아웃
   Future<void> signOut() async {
+    final user = _auth?.currentUser;
+
+    // 로그아웃 전 FCM 토큰 제거
+    if (user != null) {
+      try {
+        final notificationService = _ref.read(notificationServiceProvider);
+        await notificationService.removeTokenFromFirestore(user.uid);
+
+        // 모든 그룹 토픽 구독 해제
+        final memberships = await _firestore
+            ?.collection('memberships')
+            .where('userId', isEqualTo: user.uid)
+            .get();
+
+        if (memberships != null) {
+          final familyIds = memberships.docs
+              .map((doc) => doc.data()['groupId'] as String)
+              .toList();
+
+          for (final familyId in familyIds) {
+            await notificationService.unsubscribeFromFamily(familyId);
+          }
+        }
+      } catch (e) {
+        debugPrint('FCM 토큰 정리 실패: $e');
+        // 에러가 있어도 로그아웃은 진행
+      }
+    }
+
     await _auth?.signOut();
   }
 

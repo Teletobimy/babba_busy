@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 /// FCM 토큰 Provider
 final fcmTokenProvider = FutureProvider<String?>((ref) async {
@@ -31,6 +35,12 @@ class NotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   bool _isInitialized = false;
+  GlobalKey<NavigatorState>? _navigatorKey;
+
+  /// Navigator Key 설정
+  void setNavigatorKey(GlobalKey<NavigatorState> key) {
+    _navigatorKey = key;
+  }
 
   /// 앱 시작 시 알림 초기화
   Future<void> initialize() async {
@@ -217,15 +227,65 @@ class NotificationService {
   /// 알림 탭 핸들러
   void _onNotificationTap(NotificationResponse response) {
     debugPrint('알림 탭: ${response.payload}');
-    // TODO: 알림 탭 시 해당 화면으로 네비게이션
+    if (response.payload != null) {
+      _handleNotificationNavigation(response.payload!);
+    }
   }
 
   /// 메시지 탭 핸들러 설정
   void _setupMessageTapHandler() {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       debugPrint('백그라운드 알림 탭: ${message.messageId}');
-      // TODO: 알림 탭 시 해당 화면으로 네비게이션
+      final data = message.data;
+      _handleNotificationNavigation(data);
     });
+  }
+
+  /// 알림 네비게이션 처리
+  void _handleNotificationNavigation(dynamic payload) {
+    if (_navigatorKey?.currentContext == null) {
+      debugPrint('Navigator context not available');
+      return;
+    }
+
+    final context = _navigatorKey!.currentContext!;
+
+    try {
+      // payload가 String이면 JSON 파싱, 아니면 Map으로 사용
+      final Map<String, dynamic> data = payload is String
+          ? jsonDecode(payload) as Map<String, dynamic>
+          : payload as Map<String, dynamic>;
+
+      final type = data['type'] as String?;
+      final route = data['route'] as String?;
+
+      // route가 지정되어 있으면 해당 경로로 이동
+      if (route != null) {
+        context.go(route);
+        return;
+      }
+
+      // 타입별 기본 라우트
+      switch (type) {
+        case 'todo':
+        case 'event':
+          context.go('/home');
+          break;
+        case 'chat':
+          // 추후 채팅 화면 구현 시
+          context.go('/home');
+          break;
+        case 'business_review':
+          context.go('/tools/business');
+          break;
+        default:
+          context.go('/home');
+      }
+    } catch (e) {
+      debugPrint('Error handling notification navigation: $e');
+      // 에러 시 홈으로 이동
+      context.go('/home');
+    }
   }
 
   /// 토큰 갱신 리스너 설정

@@ -392,18 +392,31 @@ class AiApiService {
     required String sessionId,
   }) async* {
     final token = await _getAuthToken();
-    final url =
-        '$_baseUrl/api/psychology/analyze/stream?user_id=$userId&session_id=$sessionId';
+    final url = '$_baseUrl/api/psychology/analyze/stream';
 
     final client = http.Client();
-    final request = http.Request('POST', Uri.parse(url));
-    if (token != null) {
-      request.headers['Authorization'] = 'Bearer $token';
-    }
-    request.headers['Accept'] = 'text/event-stream';
-
     try {
-      final response = await client.send(request);
+      final request = http.Request('POST', Uri.parse(url));
+
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      request.headers['Content-Type'] = 'application/json';
+      request.headers['Accept'] = 'text/event-stream';
+
+      // 쿼리 파라미터 대신 request body 사용
+      request.body = jsonEncode({
+        'user_id': userId,
+        'session_id': sessionId,
+      });
+
+      final response = await client.send(request).timeout(
+        const Duration(minutes: 6),
+        onTimeout: () {
+          throw AiApiException('분석 요청 시간이 초과되었습니다');
+        },
+      );
+
       if (response.statusCode != 200) {
         throw AiApiException('분석 스트리밍 시작 실패: ${response.statusCode}');
       }
