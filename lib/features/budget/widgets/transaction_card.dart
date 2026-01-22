@@ -40,7 +40,7 @@ class TransactionCard extends ConsumerWidget {
         ),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog(
+        final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('거래 삭제'),
@@ -57,9 +57,22 @@ class TransactionCard extends ConsumerWidget {
             ],
           ),
         );
-      },
-      onDismissed: (direction) {
-        ref.read(budgetServiceProvider).deleteTransaction(transaction.id);
+
+        if (confirmed == true) {
+          try {
+            await ref.read(budgetServiceProvider).deleteTransaction(transaction.id);
+            return true;
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('삭제 실패: $e')),
+              );
+            }
+            return false;
+          }
+        }
+
+        return false;
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: AppTheme.spacingS),

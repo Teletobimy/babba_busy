@@ -83,7 +83,7 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
         ),
       ),
       confirmDismiss: (direction) async {
-        return await showDialog(
+        final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text('할일 삭제'),
@@ -100,9 +100,22 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
             ],
           ),
         );
-      },
-      onDismissed: (direction) {
-        ref.read(todoServiceProvider).deleteTodo(widget.todo.id);
+
+        if (confirmed == true) {
+          try {
+            await ref.read(todoServiceProvider).deleteTodo(widget.todo.id);
+            return true;
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('삭제 실패: $e')),
+              );
+            }
+            return false;
+          }
+        }
+
+        return false;
       },
       child: GestureDetector(
         onTap: () {

@@ -525,9 +525,20 @@ class _TodosPopup extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context);
               final todoService = ref.read(todoServiceProvider);
-              await todoService.deleteTodo(todoId);
+              try {
+                await todoService.deleteTodo(todoId);
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('삭제 실패: $e')),
+                  );
+                }
+              }
             },
             child: Text('삭제', style: TextStyle(color: AppColors.errorLight)),
           ),
