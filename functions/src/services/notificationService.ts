@@ -41,24 +41,29 @@ export async function sendNotification(
         continue;
       }
 
-      // 2. 알림 설정 확인
+      // 2. 알림 설정 확인 (기본값: true)
       const notificationSettings = userData.notificationSettings || {};
-      if (!notificationSettings.enabled) {
+      const enabled = notificationSettings.enabled !== false; // undefined는 true로 처리
+      if (!enabled) {
         console.log(`Notifications disabled for user ${userId}`);
         continue;
       }
 
-      // 3. 타입별 설정 확인
+      // 3. 타입별 설정 확인 (기본값: true)
       const notifType = payload.data.type;
-      if (notifType === "chat" && !notificationSettings.chatEnabled) {
+      const chatEnabled = notificationSettings.chatEnabled !== false;
+      const todoEnabled = notificationSettings.todoEnabled !== false;
+      const eventEnabled = notificationSettings.eventEnabled !== false;
+
+      if (notifType === "chat" && !chatEnabled) {
         console.log(`Chat notifications disabled for user ${userId}`);
         continue;
       }
-      if (notifType === "todo" && !notificationSettings.todoEnabled) {
+      if (notifType === "todo" && !todoEnabled) {
         console.log(`Todo notifications disabled for user ${userId}`);
         continue;
       }
-      if (notifType === "event" && !notificationSettings.eventEnabled) {
+      if (notifType === "event" && !eventEnabled) {
         console.log(`Event notifications disabled for user ${userId}`);
         continue;
       }
