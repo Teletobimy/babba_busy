@@ -93,7 +93,10 @@ export async function sendNotification(
         },
       });
 
-      console.log(`Sent notification to user ${userId}: ${response.successCount} succeeded, ${response.failureCount} failed`);
+      console.log(
+        `Sent notification to user ${userId}: ` +
+        `${response.successCount} succeeded, ${response.failureCount} failed`
+      );
 
       // 5. 실패한 토큰 제거
       if (response.failureCount > 0) {

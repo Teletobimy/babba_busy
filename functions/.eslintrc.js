@@ -19,6 +19,7 @@ module.exports = {
   },
   ignorePatterns: [
     "/lib/**/*",
+    ".eslintrc.js",
   ],
   plugins: [
     "@typescript-eslint",
@@ -30,5 +31,7 @@ module.exports = {
     "indent": ["error", 2],
     "max-len": ["error", {"code": 120}],
     "object-curly-spacing": ["error", "always"],
+    "valid-jsdoc": 0,
+    "require-jsdoc": 0,
   },
 };
