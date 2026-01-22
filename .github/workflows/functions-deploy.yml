@@ -48,10 +48,12 @@ jobs:
       - name: Authenticate to Firebase
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > $HOME/gcloud-key.json
-          export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcloud-key.json
+          gcloud auth activate-service-account --key-file=$HOME/gcloud-key.json
           firebase use ***REMOVED_PROJECT_ID***
 
       - name: Deploy Functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcloud-key.json
         run: |
-          export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcloud-key.json
+          cp $HOME/gcloud-key.json ${{ github.workspace }}/gcloud-key.json
           firebase deploy --only functions --force --json
