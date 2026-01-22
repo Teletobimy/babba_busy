@@ -733,8 +733,8 @@ class _MonthView extends ConsumerWidget {
                 boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
               ),
               child: TableCalendar<TodoItem>(
-                firstDay: DateTime.utc(2020, 1, 1),
-                lastDay: DateTime.utc(2030, 12, 31),
+                firstDay: DateTime(2020, 1, 1),
+                lastDay: DateTime(2030, 12, 31),
                 focusedDay: selectedDate,
                 calendarFormat: calendarFormat,
                 selectedDayPredicate: (day) => isSameDay(selectedDate, day),
@@ -743,23 +743,8 @@ class _MonthView extends ConsumerWidget {
                 },
                 onFormatChanged: onFormatChanged,
                 eventLoader: (day) {
-                  final targetDate = DateTime(day.year, day.month, day.day);
                   // 해당 날짜의 Todo 필터링
-                  return filteredTodos.where((todo) {
-                    if (todo.dueDate == null && todo.startTime == null) return false;
-
-                    if (todo.hasTime && todo.startTime != null) {
-                      // 시간 있음: 시간 범위 비교
-                      final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
-                      return todo.startTime!.isBefore(day.add(const Duration(days: 1))) &&
-                          endTime.isAfter(day);
-                    } else if (todo.dueDate != null) {
-                      // 미정: 날짜만 비교 (해당 날짜에만 표시)
-                      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-                      return todoDate.isAtSameMomentAs(targetDate);
-                    }
-                    return false;
-                  }).toList();
+                  return filteredTodos.where((todo) => _isTodoOnDate(todo, day)).toList();
                 },
                 locale: 'ko_KR',
                 rowHeight: rowHeight,
@@ -840,14 +825,26 @@ class _MonthView extends ConsumerWidget {
     );
   }
 
+  /// 해당 날짜에 todo가 있는지 확인하는 공통 함수
+  bool _isTodoOnDate(TodoItem todo, DateTime day) {
+    if (todo.dueDate == null && todo.startTime == null) return false;
+
+    if (todo.hasTime && todo.startTime != null) {
+      // 시간 있음: 시간 범위 비교
+      final dayEnd = day.add(const Duration(days: 1));
+      final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+      return todo.startTime!.isBefore(dayEnd) && endTime.isAfter(day);
+    } else if (todo.dueDate != null) {
+      // 시간 미정: 날짜만 비교 (정규화)
+      final targetDate = DateTime(day.year, day.month, day.day);
+      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+      return todoDate.isAtSameMomentAs(targetDate);
+    }
+    return false;
+  }
+
   Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday, List<TodoItem> filteredTodos) {
-    final dayTodos = filteredTodos.where((todo) {
-      if (todo.dueDate == null && todo.startTime == null) return false;
-      final todoStart = todo.startTime ?? todo.dueDate!;
-      final todoEnd = todo.endTime ?? todoStart;
-      return todoStart.isBefore(day.add(const Duration(days: 1))) &&
-          todoEnd.isAfter(day);
-    }).toList();
+    final dayTodos = filteredTodos.where((todo) => _isTodoOnDate(todo, day)).toList();
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
     final holiday = _getHolidayForDay(day);
     final isHoliday = holiday != null;
