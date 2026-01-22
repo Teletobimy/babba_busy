@@ -27,9 +27,8 @@ final userTodosProvider = StreamProvider<List<TodoItem>>((ref) {
           snapshot.docs.map((doc) => TodoItem.fromFirestore(doc)).toList());
 });
 
-/// 현재 그룹에 공유된 다른 멤버들의 Todo
-/// 레거시 쿼리: families/{groupId}/todos에서 가져옴
-/// Phase 2의 collectionGroup 쿼리는 Firestore 인덱스/보안 규칙 설정 후 추가 예정
+/// 현재 그룹에 공유된 다른 멤버들의 Todo (CollectionGroup 쿼리)
+/// Firestore 인덱스 필요: todos 컬렉션 그룹에 (sharedGroups, visibility) 복합 인덱스
 final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final user = ref.watch(currentUserProvider);
@@ -38,16 +37,15 @@ final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
     return Stream.value([]);
   }
 
-  // 레거시 쿼리: 그룹 레벨 컬렉션에서 다른 사람의 todo 가져오기
+  // CollectionGroup 쿼리: users/{userId}/todos에서 현재 그룹에 공유된 todos 가져오기
   return firestore
-      .collection('families')
-      .doc(membership.groupId)
-      .collection('todos')
-      .orderBy('createdAt', descending: true)
+      .collectionGroup('todos')
+      .where('sharedGroups', arrayContains: membership.groupId)
+      .where('visibility', isEqualTo: 'shared')
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => TodoItem.fromFirestore(doc))
-          .where((todo) => todo.createdBy != user.uid) // 내 것 제외
+          .where((todo) => todo.ownerId != user.uid) // 내 것 제외
           .toList());
 });
 
@@ -458,20 +456,8 @@ class TodoService {
       'excludeHolidays': excludeHolidays,
     };
 
-    // Phase 2: 사용자 레벨 저장
+    // users/{userId}/todos에 저장 (CollectionGroup 쿼리로 다른 사용자가 조회)
     await userTodosRef.add(todoData);
-
-    // 그룹 공유 시 레거시 경로에도 저장 (하위 호환성)
-    // families/{groupId}/todos에 저장해야 다른 사용자가 sharedTodosProvider로 볼 수 있음
-    if (visibility == TodoVisibility.shared && effectiveSharedGroups.isNotEmpty) {
-      for (final groupId in effectiveSharedGroups) {
-        await _firestore!
-            .collection('families')
-            .doc(groupId)
-            .collection('todos')
-            .add(todoData);
-      }
-    }
   }
 
   /// 할일 완료 상태 토글 (Phase 2: 사용자 레벨)
