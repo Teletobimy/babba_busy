@@ -23,7 +23,7 @@ class Membership {
     required this.role,
     this.avatarUrl,
     required this.joinedAt,
-    this.sharedEventTypes = const ['event'], // 기본값: 이벤트만 공유
+    this.sharedEventTypes = const ['todo', 'personal', 'event'], // 기본값: 모든 타입 공유
   });
 
   factory Membership.fromFirestore(DocumentSnapshot doc) {
@@ -38,7 +38,7 @@ class Membership {
       role: data['role'] ?? 'member',
       avatarUrl: data['avatarUrl'],
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      sharedEventTypes: List<String>.from(data['sharedEventTypes'] ?? ['event']),
+      sharedEventTypes: List<String>.from(data['sharedEventTypes'] ?? ['todo', 'personal', 'event']),
     );
   }
 

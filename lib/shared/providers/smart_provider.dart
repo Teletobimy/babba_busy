@@ -247,8 +247,8 @@ final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref
     // 작성자의 membership 조회
     final creatorMembership = membershipByUserId[todo.createdBy];
 
-    // membership을 찾을 수 없으면 기본값으로 event만 공유
-    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['event'];
+    // membership을 찾을 수 없으면 기본값으로 모든 타입 공유
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'personal', 'event'];
 
     // 작성자가 해당 타입을 공유하도록 설정했는지 확인
     return sharedTypes.contains(todo.eventType.value);
