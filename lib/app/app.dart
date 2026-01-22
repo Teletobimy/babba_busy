@@ -19,7 +19,13 @@ class FamilyHubApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     // FCM 토큰 자동 저장 (로그인 시)
-    ref.watch(fcmTokenSaverProvider);
+    final tokenSaver = ref.watch(fcmTokenSaverProvider);
+    tokenSaver.whenOrNull(
+      error: (error, stack) {
+        debugPrint('❌ FCM 토큰 저장 에러: $error');
+        debugPrint('Stack trace: $stack');
+      },
+    );
 
     return MaterialApp.router(
       title: 'BABBA',
