@@ -696,10 +696,16 @@ class _MonthView extends ConsumerWidget {
     final availableHeight = screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
     final rowHeight = (availableHeight / 6).clamp(65.0, 95.0);
 
+    // 반복 확장된 월간 데이터 사용 (점 표시용)
+    final expandedTodos = ref.watch(expandedTodosForMonthProvider((
+      year: selectedDate.year,
+      month: selectedDate.month,
+    )));
+
     // 선택된 멤버에 따라 Todo 필터링
     final filteredTodos = selectedMemberId == null
-        ? todos
-        : todos.where((todo) => todo.assigneeId == selectedMemberId).toList();
+        ? expandedTodos
+        : expandedTodos.where((todo) => todo.assigneeId == selectedMemberId).toList();
 
     return SingleChildScrollView(
       child: Column(
