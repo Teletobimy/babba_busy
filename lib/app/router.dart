@@ -15,11 +15,7 @@ import '../features/tools/psychology/psychology_hub_screen.dart';
 import '../features/tools/psychology/psychology_test_screen.dart';
 import '../features/tools/psychology/psychology_history_screen.dart';
 import '../features/settings/settings_screen.dart';
-import '../main.dart' show firebaseInitialized;
 import 'main_shell.dart';
-
-/// 데모 모드 Provider (Firebase 연결 여부에 따라 자동 설정)
-final demoModeProvider = StateProvider<bool>((ref) => !firebaseInitialized);
 
 /// 라우터 리다이렉션 관리를 위한 Notifier
 class RouterNotifier extends ChangeNotifier {
@@ -30,17 +26,12 @@ class RouterNotifier extends ChangeNotifier {
     _ref.listen(authStateProvider, (_, __) => notifyListeners());
     _ref.listen(userMembershipsProvider, (_, __) => notifyListeners());
     _ref.listen(onboardingCompletedProvider, (_, __) => notifyListeners());
-    _ref.listen(demoModeProvider, (_, __) => notifyListeners());
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
     final authState = _ref.read(authStateProvider);
     final memberships = _ref.read(userMembershipsProvider);
-    final demoMode = _ref.read(demoModeProvider);
     final onboardingCompleted = _ref.read(onboardingCompletedProvider);
-
-    // 데모 모드에서는 리다이렉트 없이 바로 홈으로
-    if (demoMode) return null;
 
     final isLoggedIn = authState.valueOrNull != null;
     final isAuthRoute = state.matchedLocation.startsWith('/auth');

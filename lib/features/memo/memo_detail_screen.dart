@@ -5,10 +5,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/models/memo.dart';
 import '../../shared/models/memo_category.dart';
-import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/memo_provider.dart';
+import '../../shared/providers/smart_provider.dart';
 import '../../services/gemini/gemini_service.dart';
-import '../../app/router.dart';
 
 /// 메모 상세/편집 화면
 class MemoDetailScreen extends ConsumerStatefulWidget {
@@ -75,20 +74,6 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
 
     setState(() => _isLoading = true);
 
-    final demoMode = ref.read(demoModeProvider);
-    if (demoMode) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('데모 모드에서는 메모가 저장되지 않습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
     try {
       final memoService = ref.read(memoServiceProvider);
 
@@ -154,20 +139,6 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
 
     if (confirmed != true) return;
 
-    final demoMode = ref.read(demoModeProvider);
-    if (demoMode) {
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('데모 모드에서는 삭제되지 않습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
     try {
       await ref.read(memoServiceProvider).deleteMemo(widget.memo!.id);
       if (mounted) {
@@ -211,13 +182,10 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
 
         // 기존 메모인 경우 분석 결과 저장
         if (!_isNewMemo) {
-          final demoMode = ref.read(demoModeProvider);
-          if (!demoMode) {
-            await ref.read(memoServiceProvider).saveAiAnalysis(
-                  widget.memo!.id,
-                  analysis,
-                );
-          }
+          await ref.read(memoServiceProvider).saveAiAnalysis(
+                widget.memo!.id,
+                analysis,
+              );
         }
       } else {
         if (mounted) {

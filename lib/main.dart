@@ -11,9 +11,6 @@ import 'firebase_options.dart';
 import 'shared/providers/group_provider.dart';
 import 'services/firebase/notification_service.dart';
 
-/// Firebase 초기화 성공 여부
-bool firebaseInitialized = false;
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -50,7 +47,6 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    firebaseInitialized = true;
     debugPrint('Firebase 초기화 성공!');
 
     // FCM 백그라운드 핸들러 등록
@@ -64,7 +60,6 @@ void main() async {
     await notificationService.requestPermission();
   } catch (e) {
     debugPrint('Firebase 초기화 실패: $e');
-    debugPrint('데모 모드로 실행합니다.');
   }
 
   runApp(

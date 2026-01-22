@@ -60,44 +60,49 @@ class HomeScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 인사말 + 날짜
+                    // 프로필 아바타 + 그룹 선택기 (최상단)
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // 프로필 아바타
                         if (currentMember != null)
                           MemberAvatar(
                             member: currentMember,
                             size: 48,
                           ).animate().fadeIn(duration: 300.ms),
-                        if (currentMember != null)
-                          const SizedBox(width: AppTheme.spacingM),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '$greeting, ${currentMember?.name ?? '사용자'}님',
-                                style: Theme.of(context).textTheme.headlineSmall,
-                              ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.1),
-                              const SizedBox(height: 4),
-                              Text(
-                                DateFormat('M월 d일 EEEE', 'ko_KR').format(now),
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? AppColors.textSecondaryDark
-                                      : AppColors.textSecondaryLight,
-                                ),
-                              ).animate().fadeIn(duration: 300.ms, delay: 100.ms),
-                            ],
-                          ),
-                        ),
+                        const Spacer(),
                         // 그룹 선택기
                         const GroupSelector()
                             .animate()
-                            .fadeIn(duration: 300.ms, delay: 200.ms),
+                            .fadeIn(duration: 300.ms, delay: 100.ms),
                       ],
                     ),
+                    const SizedBox(height: AppTheme.spacingM),
+                    // 인사말 (별도 줄)
+                    Text(
+                      greeting,
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ).animate().fadeIn(duration: 300.ms, delay: 150.ms),
+                    const SizedBox(height: 2),
+                    // 사용자 이름 (강조)
+                    Text(
+                      '${currentMember?.name ?? '사용자'}님',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideX(begin: -0.05),
+                    const SizedBox(height: 4),
+                    // 날짜
+                    Text(
+                      DateFormat('M월 d일 EEEE', 'ko_KR').format(now),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ).animate().fadeIn(duration: 300.ms, delay: 250.ms),
                   ],
                 ),
               ),

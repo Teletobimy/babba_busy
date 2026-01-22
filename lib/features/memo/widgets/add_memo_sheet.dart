@@ -5,7 +5,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/memo_provider.dart';
-import '../../../app/router.dart';
 
 /// 빠른 메모 추가 바텀시트
 class AddMemoSheet extends ConsumerStatefulWidget {
@@ -41,21 +40,6 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
     final content = _contentController.text.trim();
 
     setState(() => _isLoading = true);
-
-    final demoMode = ref.read(demoModeProvider);
-    if (demoMode) {
-      // 데모 모드에서는 저장하지 않음
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('데모 모드에서는 메모가 저장되지 않습니다'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
 
     try {
       await ref.read(memoServiceProvider).addMemo(

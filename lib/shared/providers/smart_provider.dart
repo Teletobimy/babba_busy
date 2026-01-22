@@ -8,9 +8,7 @@ import '../models/calendar_group.dart';
 import '../models/chat_message.dart';
 import '../models/memo.dart';
 import '../models/memo_category.dart';
-import '../../app/router.dart';
 import 'auth_provider.dart';
-import 'demo_provider.dart';
 import 'todo_provider.dart';
 import 'memory_provider.dart';
 import 'budget_provider.dart';
@@ -20,29 +18,23 @@ import 'calendar_group_provider.dart';
 import 'memo_provider.dart';
 
 /// ========================================
-/// 스마트 Provider - 데모/실제 데이터 자동 선택
+/// 스마트 Provider - 실제 데이터 사용
 /// ========================================
 
-/// 현재 사용자 (데모/실제)
+/// 현재 사용자
 final smartCurrentMemberProvider = Provider<FamilyMember?>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) {
-    final members = ref.watch(demoMembersProvider);
-    return members.isNotEmpty ? members.first : null;
-  }
-  
   final membership = ref.watch(currentMembershipProvider);
   final user = ref.watch(currentUserProvider); // Firebase Auth User
   final userData = ref.watch(currentUserDataProvider).value; // Firestore User Document
-  
+
   if (membership == null) return null;
-  
+
   // 이름 우선순위: 1. 멤버십 닉네임, 2. Firestore 사용자 이름, 3. Google/Firebase 이름, 4. 기본값
   String displayName = membership.name;
   if (displayName.isEmpty) {
     displayName = userData?.name ?? user?.displayName ?? '사용자';
   }
-  
+
   return FamilyMember(
     id: membership.userId,
     familyId: membership.groupId,
@@ -55,18 +47,13 @@ final smartCurrentMemberProvider = Provider<FamilyMember?>((ref) {
   );
 });
 
-/// 현재 가족 (데모/실제)
+/// 현재 가족
 final smartCurrentFamilyProvider = Provider<FamilyGroup?>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoFamilyProvider);
   return ref.watch(currentGroupProvider).value;
 });
 
-/// 가족 구성원 목록 (데모/실제)
+/// 가족 구성원 목록
 final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoMembersProvider);
-
   final memberships = ref.watch(groupMembershipsProvider).value ?? [];
   // 사용자 정보 가져오기 (이상적으로는 별도 Provider로 조인해야 함)
   // 여기서는 Membership 정보만으로 FamilyMember 구성
@@ -82,10 +69,8 @@ final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
   )).toList();
 });
 
-/// 할일 목록 (데모/실제)
+/// 할일 목록
 final smartTodosProvider = Provider<List<TodoItem>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoTodosProvider);
   return ref.watch(todosProvider).value ?? [];
 });
 
@@ -152,22 +137,8 @@ final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>
 
 /// 특정 날짜의 시간 미정 할일 (Day View용)
 final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
-  final demoMode = ref.watch(demoModeProvider);
   final targetDate = DateTime(date.year, date.month, date.day);
 
-  if (demoMode) {
-    final todos = ref.watch(demoTodosProvider);
-    return todos.where((todo) {
-      // 시간 미정: hasTime=false && startTime=null
-      if (todo.hasTime || todo.startTime != null) return false;
-      if (todo.dueDate == null) return false;
-
-      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-      return todoDate.isAtSameMomentAs(targetDate);
-    }).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
-  }
-
-  // 실제 모드
   final todos = ref.watch(todosProvider).value ?? [];
   return todos.where((todo) {
     if (todo.hasTime || todo.startTime != null) return false;
@@ -185,10 +156,8 @@ final smartMemberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, 
   return todos.where((todo) => todo.assigneeId == memberId).toList();
 });
 
-/// 캘린더 그룹 목록 (데모/실제)
+/// 캘린더 그룹 목록
 final smartCalendarGroupsProvider = Provider<List<CalendarGroup>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoCalendarGroupsProvider);
   return ref.watch(calendarGroupsProvider).value ?? [];
 });
 
@@ -216,22 +185,8 @@ final filteredTodosProvider = Provider<List<TodoItem>>((ref) {
 
 /// 특정 날짜의 할일 (필터 적용, 반복 확장 포함)
 final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
-  final demoMode = ref.watch(demoModeProvider);
-  final startOfDay = DateTime(date.year, date.month, date.day);
-
-  // Todo 가져오기 (반복 확장 포함)
-  List<TodoItem> todos;
-  if (demoMode) {
-    // 데모 모드: 기본 todos 사용
-    todos = ref.watch(demoTodosProvider).where((todo) {
-      if (todo.dueDate == null) return false;
-      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-      return todoDate.isAtSameMomentAs(startOfDay);
-    }).toList();
-  } else {
-    // 실제 모드: 반복 확장된 todos 사용
-    todos = ref.watch(todosForDateProvider(date));
-  }
+  // 실제 모드: 반복 확장된 todos 사용
+  List<TodoItem> todos = ref.watch(todosForDateProvider(date));
 
   // 각 Todo 작성자의 공유 설정에 따라 필터링
   // "이 그룹에 공유할 일정 타입" 설정은 작성자 본인이 다른 사람에게 보여줄지 결정
@@ -304,10 +259,8 @@ final smartThisWeekTodosProvider = Provider<List<TodoItem>>((ref) {
     });
 });
 
-/// 추억 목록 (데모/실제)
+/// 추억 목록
 final smartMemoriesProvider = Provider<List<Memory>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoMemoriesProvider);
   return ref.watch(memoriesProvider).value ?? [];
 });
 
@@ -318,10 +271,8 @@ final smartMemoriesByCategoryProvider = Provider.family<List<Memory>, String?>((
   return memories.where((m) => m.category == category).toList();
 });
 
-/// 거래 목록 (데모/실제)
+/// 거래 목록
 final smartTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoTransactionsProvider);
   return ref.watch(transactionsProvider).value ?? [];
 });
 
@@ -351,7 +302,7 @@ final smartMonthSummaryProvider = Provider<MonthSummary>((ref) {
       totalIncome += t.amount;
     } else {
       totalExpense += t.amount;
-      categoryExpenses[t.category] = 
+      categoryExpenses[t.category] =
           (categoryExpenses[t.category] ?? 0) + t.amount;
     }
   }
@@ -374,17 +325,13 @@ final smartRecurringTransactionsProvider = Provider<List<BudgetTransaction>>((re
 /// 채팅 관련 스마트 Provider
 /// ========================================
 
-/// 채팅 메시지 목록 (데모/실제)
+/// 채팅 메시지 목록
 final smartChatMessagesProvider = Provider<List<ChatMessage>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoChatMessagesProvider);
   return ref.watch(chatMessagesProvider).value ?? [];
 });
 
-/// 현재 사용자 ID (데모/실제)
+/// 현재 사용자 ID
 final smartCurrentUserIdProvider = Provider<String>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return 'member1'; // 데모 모드에서는 '엄마'로 고정
   return ref.watch(currentUserProvider)?.uid ?? '';
 });
 
@@ -407,17 +354,13 @@ final smartLastChatMessageProvider = Provider<ChatMessage?>((ref) {
 /// 메모 관련 스마트 Provider
 /// ========================================
 
-/// 메모 목록 (데모/실제)
+/// 메모 목록
 final smartMemosProvider = Provider<List<Memo>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoMemosProvider);
   return ref.watch(memosProvider).value ?? [];
 });
 
-/// 메모 카테고리 목록 (데모/실제)
+/// 메모 카테고리 목록
 final smartMemoCategoriesProvider = Provider<List<MemoCategory>>((ref) {
-  final demoMode = ref.watch(demoModeProvider);
-  if (demoMode) return ref.watch(demoMemoCategoriesProvider);
   return ref.watch(memoCategoriesProvider).value ?? [];
 });
 

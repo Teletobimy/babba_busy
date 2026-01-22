@@ -12,7 +12,6 @@ import '../../shared/widgets/member_avatar.dart';
 import '../auth/widgets/group_setup_dialog.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
-import '../../app/router.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/group_provider.dart';
 
@@ -32,9 +31,6 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final demoMode = ref.watch(demoModeProvider);
-    
-    
     final currentMember = ref.watch(smartCurrentMemberProvider);
     final currentGroup = ref.watch(smartCurrentFamilyProvider);
     final members = ref.watch(smartMembersProvider);
@@ -56,33 +52,6 @@ class SettingsScreen extends ConsumerWidget {
                 ).animate().fadeIn(duration: 300.ms),
               ),
               const SizedBox(height: AppTheme.spacingL),
-
-              // 데모 모드 표시
-              if (demoMode)
-                Container(
-                  padding: const EdgeInsets.all(AppTheme.spacingM),
-                  margin: const EdgeInsets.only(bottom: AppTheme.spacingL),
-                  decoration: BoxDecoration(
-                    color: AppColors.budgetColor.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    border: Border.all(color: AppColors.budgetColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Iconsax.info_circle, color: AppColors.budgetColor, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '데모 모드로 실행 중입니다. Firebase 연동 후 실제 데이터를 사용하세요.',
-                          style: TextStyle(
-                            color: AppColors.budgetColor,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 300.ms),
 
               // 프로필 카드
               if (currentMember != null)
@@ -440,36 +409,34 @@ class SettingsScreen extends ConsumerWidget {
                       title: '도움말',
                       onTap: () {},
                     ),
-                    if (!demoMode) ...[
-                      const Divider(height: 1),
-                      _SettingsTile(
-                        icon: Iconsax.logout,
-                        title: '로그아웃',
-                        titleColor: AppColors.errorLight,
-                        onTap: () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text('로그아웃'),
-                              content: const Text('로그아웃 하시겠습니까?'),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(false),
-                                  child: const Text('취소'),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.of(context).pop(true),
-                                  child: const Text('로그아웃'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirm == true) {
-                            ref.read(authServiceProvider).signOut();
-                          }
-                        },
-                      ),
-                    ],
+                    const Divider(height: 1),
+                    _SettingsTile(
+                      icon: Iconsax.logout,
+                      title: '로그아웃',
+                      titleColor: AppColors.errorLight,
+                      onTap: () async {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('로그아웃'),
+                            content: const Text('로그아웃 하시겠습니까?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(false),
+                                child: const Text('취소'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.of(context).pop(true),
+                                child: const Text('로그아웃'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          ref.read(authServiceProvider).signOut();
+                        }
+                      },
+                    ),
                   ],
                 ),
               ).animate().fadeIn(duration: 300.ms, delay: 400.ms).slideY(begin: 0.1),

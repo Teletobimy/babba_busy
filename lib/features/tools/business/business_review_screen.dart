@@ -7,7 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
 import '../../../services/ai/business_agent_service.dart';
 import '../../../shared/providers/auth_provider.dart';
-import '../../../app/router.dart';
 import '../../../shared/providers/business_review_provider.dart';
 import '../../../shared/models/business_review.dart';
 
@@ -86,11 +85,10 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
     try {
       final user = ref.read(currentUserProvider);
-      final isDemo = ref.read(demoModeProvider);
 
-      if (user == null && !isDemo) throw Exception('로그인이 필요합니다');
-      
-      final userId = user?.uid ?? 'demo_user';
+      if (user == null) throw Exception('로그인이 필요합니다');
+
+      final userId = user.uid;
 
       final agentService = BusinessAgentService();
       BusinessAnalysisResult? finalResult;
@@ -115,9 +113,6 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           _result = finalResult;
           _isAnalyzing = false;
         });
-
-        // 데모 모드이면 저장은 건너뜀
-        if (isDemo && user == null) return;
 
         // 자동 저장
         final reviewService = ref.read(businessReviewServiceProvider);

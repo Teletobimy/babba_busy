@@ -7,7 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/psychology_result_provider.dart';
-import '../../../app/router.dart';
 
 /// 심리검사 진행 화면
 class PsychologyTestScreen extends ConsumerStatefulWidget {
@@ -52,11 +51,10 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   Future<void> _startTest() async {
     try {
       final user = ref.read(currentUserProvider);
-      final isDemo = ref.read(demoModeProvider);
-      
-      if (user == null && !isDemo) throw Exception('로그인이 필요합니다');
-      
-      final userId = user?.uid ?? 'demo_user';
+
+      if (user == null) throw Exception('로그인이 필요합니다');
+
+      final userId = user.uid;
 
       final aiService = ref.read(aiApiServiceProvider);
       final result = await aiService.startPsychologyTest(
@@ -111,14 +109,13 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
     try {
       final user = ref.read(currentUserProvider);
-      final isDemo = ref.read(demoModeProvider);
-      
-      if (user == null && !isDemo) throw Exception('로그인이 필요합니다');
-      
-      final userId = user?.uid ?? 'demo_user';
+
+      if (user == null) throw Exception('로그인이 필요합니다');
+
+      final userId = user.uid;
 
       final aiService = ref.read(aiApiServiceProvider);
-      
+
       // 답변 리스트에 추가 (로컬 저장용)
       _answers.add(answerIndex);
 
@@ -157,9 +154,8 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
     try {
       final user = ref.read(currentUserProvider);
-      final isDemo = ref.read(demoModeProvider);
-      if (user == null && !isDemo) throw Exception('로그인이 필요합니다');
-      final userId = user?.uid ?? 'demo_user';
+      if (user == null) throw Exception('로그인이 필요합니다');
+      final userId = user.uid;
 
       final aiService = ref.read(aiApiServiceProvider);
       final stream = aiService.analyzePsychologyStream(

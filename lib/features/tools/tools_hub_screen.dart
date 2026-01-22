@@ -5,7 +5,6 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
-import '../../app/router.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/memory_provider.dart';
@@ -694,20 +693,8 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
-    // Smart Provider를 통해 데모/실제 모드에 따라 처리
-    final demoMode = ref.read(demoModeProvider);
-    if (demoMode) {
-      // 데모 모드에서는 로컬에서만 처리 (실제 저장 안함)
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('데모 모드에서는 메시지가 저장되지 않습니다'),
-          duration: Duration(seconds: 2),
-        ),
-      );
-    } else {
-      // 실제 모드에서는 Firebase에 저장
-      ref.read(chatServiceProvider).sendMessage(content: text);
-    }
+    // Firebase에 메시지 저장
+    ref.read(chatServiceProvider).sendMessage(content: text);
 
     _messageController.clear();
 
