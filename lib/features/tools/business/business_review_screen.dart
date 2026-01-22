@@ -98,6 +98,15 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
         industry: _selectedIndustry,
         budget: _selectedBudget,
       )) {
+        // 에러 상태 처리
+        if (progress.status == 'error') {
+          setState(() {
+            _error = progress.result?.toString() ?? '분석 중 오류가 발생했습니다';
+            _isAnalyzing = false;
+          });
+          return;
+        }
+
         setState(() {
           _analysisProgress[progress.agentName] = progress.status;
         });

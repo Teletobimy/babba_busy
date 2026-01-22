@@ -21,8 +21,10 @@ void main() async {
   try {
     await dotenv.load(fileName: '.env');
     debugPrint('✅ 환경변수 로드 성공!');
+    final apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
+    debugPrint('GEMINI_API_KEY 설정: ${apiKey.isNotEmpty} (${apiKey.length}자)');
   } catch (e) {
-    debugPrint('ℹ️ .env 파일 없음 (프로덕션 모드)');
+    debugPrint('ℹ️ .env 파일 없음 (프로덕션 모드): $e');
   }
 
   // 시스템 UI 설정

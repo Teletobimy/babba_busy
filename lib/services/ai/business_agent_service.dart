@@ -24,7 +24,8 @@ class BusinessAgentService {
   }) async* {
     final effectiveApiKey = apiKey ?? _apiKey;
     if (effectiveApiKey.isEmpty) {
-      throw Exception('Gemini API 키가 설정되지 않았습니다');
+      yield AgentProgress('시스템', 'error', 'Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 설정해주세요.');
+      return;
     }
 
     final model = GenerativeModel(
