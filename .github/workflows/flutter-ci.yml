@@ -124,7 +124,7 @@ jobs:
         run: dart run flutter_launcher_icons
 
       - name: Build Web (PWA)
-        run: flutter build web --release --no-tree-shake-icons
+        run: flutter build web --release --no-tree-shake-icons --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
       - name: Create version.json
         run: |
