@@ -145,11 +145,13 @@ jobs:
           channelId: live
 
       - name: Commit version bump
+        continue-on-error: true
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add pubspec.yaml
           git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
+          git pull --rebase origin main
           git push
 
   # Android APK 빌드
