@@ -105,7 +105,18 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                   // 색상 바
                   Container(
                     width: 4,
-                    color: memberColor,
+                    decoration: BoxDecoration(
+                      gradient: widget.todo.eventType == TodoEventType.event
+                          ? LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [memberColor.withValues(alpha: 0.6), memberColor],
+                            )
+                          : null,
+                      color: widget.todo.eventType == TodoEventType.event
+                          ? null
+                          : memberColor.withValues(alpha: widget.todo.eventType == TodoEventType.todo ? 0.8 : 1.0),
+                    ),
                   ),
                   // 체크박스 (완료 권한이 있는 경우에만 활성화)
                   // 터치 타겟 최소 44x44px 보장
@@ -171,10 +182,37 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                       ? AppColors.textPrimaryDark
                                       : AppColors.textPrimaryLight),
                             ),
-                        child: Text(
-                          widget.todo.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                widget.todo.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (widget.todo.eventType != TodoEventType.todo)
+                              Container(
+                                margin: const EdgeInsets.only(left: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: widget.todo.eventType == TodoEventType.personal
+                                      ? AppColors.primaryLight.withValues(alpha: 0.15)
+                                      : AppColors.calendarColor.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  widget.todo.eventType.label,
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    color: widget.todo.eventType == TodoEventType.personal
+                                        ? AppColors.primaryLight
+                                        : AppColors.calendarColor,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),
@@ -268,33 +306,22 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
               ],
             ),
           ],
-          if (widget.todo.dueDate != null) ...[
+          if (widget.todo.dueDate != null || widget.todo.startTime != null) ...[
             if (widget.todo.note != null && widget.todo.note!.isNotEmpty)
               const SizedBox(height: 6),
             Row(
               children: [
                 Icon(
-                  Iconsax.calendar_1,
+                  widget.todo.hasTime ? Iconsax.clock : Iconsax.calendar_1,
                   size: 14,
-                  color: _isDueToday(widget.todo.dueDate!)
-                      ? AppColors.primaryLight
-                      : (isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight),
+                  color: _getDateColor(isDark),
                 ),
                 const SizedBox(width: 6),
-                Text(
-                  _formatDueDate(widget.todo.dueDate!),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: _isDueToday(widget.todo.dueDate!)
-                            ? AppColors.primaryLight
-                            : (isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight),
-                        fontWeight: _isDueToday(widget.todo.dueDate!)
-                            ? FontWeight.w600
-                            : null,
-                      ),
+                Expanded(
+                  child: Text(
+                    _formatDateTime(),
+                    style: _getDateTextStyle(context, isDark),
+                  ),
                 ),
               ],
             ),
@@ -335,5 +362,35 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
     if (difference < 0) return '${-difference}일 지남';
     if (difference <= 7) return '$difference일 남음';
     return DateFormat('M월 d일까지').format(date);
+  }
+
+  String _formatDateTime() {
+    if (widget.todo.hasTime && widget.todo.startTime != null) {
+      final start = DateFormat('M월 d일 a h:mm', 'ko_KR').format(widget.todo.startTime!);
+      if (widget.todo.endTime != null) {
+        final end = DateFormat('a h:mm', 'ko_KR').format(widget.todo.endTime!);
+        return '$start - $end';
+      }
+      return start;
+    } else if (widget.todo.dueDate != null) {
+      return _formatDueDate(widget.todo.dueDate!);
+    }
+    return '';
+  }
+
+  Color _getDateColor(bool isDark) {
+    if (widget.todo.dueDate != null && _isDueToday(widget.todo.dueDate!)) {
+      return AppColors.primaryLight;
+    }
+    return isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+  }
+
+  TextStyle? _getDateTextStyle(BuildContext context, bool isDark) {
+    return Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: _getDateColor(isDark),
+      fontWeight: (widget.todo.dueDate != null && _isDueToday(widget.todo.dueDate!))
+          ? FontWeight.w600
+          : null,
+    );
   }
 }

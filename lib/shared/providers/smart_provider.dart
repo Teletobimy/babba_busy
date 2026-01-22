@@ -16,6 +16,7 @@ import 'group_provider.dart';
 import 'chat_provider.dart';
 import 'calendar_group_provider.dart';
 import 'memo_provider.dart';
+import 'calendar_filter_provider.dart';
 
 /// ========================================
 /// 스마트 Provider - 실제 데이터 사용
@@ -216,6 +217,12 @@ final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref
     return aTime.compareTo(bTime);
   });
 
+  // 완료 항목 필터 적용
+  final showCompleted = ref.watch(showCompletedInCalendarProvider);
+  if (!showCompleted) {
+    todos = todos.where((t) => !t.isCompleted).toList();
+  }
+
   return todos;
 });
 
@@ -228,6 +235,44 @@ final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
 
   return todos.where((todo) {
     if (todo.isCompleted) return false; // 완료 항목 제외
+    if (todo.dueDate == null && todo.startTime == null) return false;
+    final todoDate = todo.startTime ?? todo.dueDate!;
+    return todoDate.isAfter(now) && todoDate.isBefore(weekLater);
+  }).toList()
+    ..sort((a, b) {
+      final aTime = a.startTime ?? a.dueDate ?? a.createdAt;
+      final bTime = b.startTime ?? b.dueDate ?? b.createdAt;
+      return aTime.compareTo(bTime);
+    });
+});
+
+/// 다가오는 할일 (7일 이내, 반복 확장 포함, 필터 적용)
+final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final weekLater = today.add(const Duration(days: 7));
+
+  // Get expanded todos for current month (includes recurring expansion)
+  final expandedTodos = ref.watch(expandedTodosForMonthProvider((
+    year: now.year,
+    month: now.month,
+  )));
+
+  // Apply calendar group filter
+  final selectedGroups = ref.watch(selectedCalendarGroupsProvider);
+  List<TodoItem> todos;
+  if (selectedGroups.isEmpty) {
+    todos = expandedTodos;
+  } else {
+    todos = expandedTodos.where((todo) {
+      final groupId = todo.calendarGroupId ?? 'cal_family';
+      return selectedGroups.contains(groupId);
+    }).toList();
+  }
+
+  // Filter to upcoming only
+  return todos.where((todo) {
+    if (todo.isCompleted) return false;
     if (todo.dueDate == null && todo.startTime == null) return false;
     final todoDate = todo.startTime ?? todo.dueDate!;
     return todoDate.isAfter(now) && todoDate.isBefore(weekLater);

@@ -1,11 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/todo_item.dart';
 import '../models/recurrence.dart';
 import '../models/holiday.dart';
+import '../utils/date_utils.dart' as date_utils;
 import 'auth_provider.dart';
 import 'group_provider.dart';
 import 'holiday_provider.dart';
+import 'calendar_filter_provider.dart';
 
 // ============================================================================
 // Phase 2: 사용자 중심 Todo Provider 계층
@@ -163,13 +166,32 @@ final todayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
 
 /// 특정 월의 확장된 todos (반복 인스턴스 포함)
 final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, ({int year, int month})>((ref, params) {
-  final todos = ref.watch(todosProvider).value ?? [];
+  var todos = ref.watch(todosProvider).value ?? [];
   final holidays = ref.watch(allHolidaysForYearProvider(params.year));
 
   final startOfMonth = DateTime(params.year, params.month, 1);
   final endOfMonth = DateTime(params.year, params.month + 1, 0, 23, 59, 59);
 
-  return _expandRecurringTodos(todos, startOfMonth, endOfMonth, holidays);
+  todos = _expandRecurringTodos(todos, startOfMonth, endOfMonth, holidays);
+
+  // Apply shared event types filter
+  final memberships = ref.watch(groupMembershipsProvider).valueOrNull ?? [];
+  final membershipByUserId = {for (var m in memberships) m.userId: m};
+
+  todos = todos.where((todo) {
+    if (todo.createdBy.isEmpty) return true;
+    final creatorMembership = membershipByUserId[todo.createdBy];
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'personal', 'event'];
+    return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
+  // Apply completed filter
+  final showCompleted = ref.watch(showCompletedInCalendarProvider);
+  if (!showCompleted) {
+    todos = todos.where((t) => !t.isCompleted).toList();
+  }
+
+  return todos;
 });
 
 /// 특정 날짜의 todos (반복 인스턴스 포함)
@@ -186,7 +208,7 @@ final todosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, dat
       return todo.startTime!.isBefore(endOfDay) &&
              (todo.endTime ?? todo.startTime!).isAfter(startOfDay);
     } else if (todo.dueDate != null) {
-      final dueDay = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+      final dueDay = date_utils.normalizeDate(todo.dueDate!);
       return dueDay.isAtSameMomentAs(startOfDay);
     }
     return false;
@@ -211,7 +233,10 @@ List<TodoItem> _expandRecurringTodos(
           result.add(todo);
         }
       } else if (todo.dueDate != null) {
-        if (todo.dueDate!.isBefore(rangeEnd) && todo.dueDate!.isAfter(rangeStart.subtract(const Duration(days: 1)))) {
+        final normalizedDue = date_utils.normalizeDate(todo.dueDate!);
+        final normalizedStart = date_utils.normalizeDate(rangeStart);
+        final normalizedEnd = date_utils.normalizeDate(rangeEnd);
+        if (!normalizedDue.isAfter(normalizedEnd) && !normalizedDue.isBefore(normalizedStart)) {
           result.add(todo);
         }
       } else {
@@ -279,7 +304,7 @@ List<TodoItem> _generateRecurringInstances(
 
       if (shouldAdd) {
         instances.add(todo.copyWith(
-          id: '${todo.id}_${currentDate.millisecondsSinceEpoch}',
+          id: '${todo.id}_${currentDate.year}${currentDate.month.toString().padLeft(2, '0')}${currentDate.day.toString().padLeft(2, '0')}',
           startTime: todo.startTime != null ? currentDate : null,
           endTime: todo.startTime != null ? instanceEndTime : null,
           dueDate: currentDate,
@@ -293,6 +318,10 @@ List<TodoItem> _generateRecurringInstances(
     if (nextDate == currentDate) break; // 무한 루프 방지
     currentDate = nextDate;
     count++;
+  }
+
+  if (count >= maxInstances) {
+    debugPrint('⚠️ Recurring todo "${todo.title}" exceeded max instances ($maxInstances)');
   }
 
   return instances;
@@ -551,6 +580,11 @@ class TodoService {
 
   /// 할일 삭제 (Phase 2: 사용자 레벨)
   Future<void> deleteTodo(String todoId) async {
+    // Prevent deletion of recurring instances
+    if (todoId.contains('_')) {
+      debugPrint('⚠️ Cannot delete recurring instance: $todoId');
+      return;
+    }
     final userTodosRef = _userTodosCollection;
     if (userTodosRef == null) return;
     await userTodosRef.doc(todoId).delete();

@@ -8,10 +8,12 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/holiday_provider.dart';
+import '../../shared/providers/calendar_filter_provider.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/models/holiday.dart';
 import '../../shared/models/family_member.dart';
 import '../../shared/widgets/member_avatar.dart';
+import '../../shared/utils/date_utils.dart' as date_utils;
 import 'widgets/todo_card.dart';
 import 'widgets/week_view.dart';
 import 'widgets/day_view.dart';
@@ -69,6 +71,19 @@ class CalendarScreen extends ConsumerWidget {
                     children: [
                       // 캘린더 필터 버튼
                       const CalendarFilterButton(),
+                      // 완료 항목 토글 버튼
+                      IconButton(
+                        icon: Icon(
+                          ref.watch(showCompletedInCalendarProvider)
+                              ? Iconsax.tick_circle
+                              : Iconsax.tick_circle5,
+                        ),
+                        onPressed: () {
+                          ref.read(showCompletedInCalendarProvider.notifier).state =
+                              !ref.read(showCompletedInCalendarProvider);
+                        },
+                        tooltip: '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
+                      ),
                       // 뷰 모드 전환 버튼
                       _ViewModeButton(
                         currentMode: viewMode,
@@ -837,18 +852,18 @@ class _MonthView extends ConsumerWidget {
 
   /// 해당 날짜에 todo가 있는지 확인하는 공통 함수
   bool _isTodoOnDate(TodoItem todo, DateTime day) {
+    final normalizedDay = date_utils.normalizeDate(day);
+
     if (todo.dueDate == null && todo.startTime == null) return false;
 
     if (todo.hasTime && todo.startTime != null) {
-      // 시간 있음: 시간 범위 비교
-      final dayEnd = day.add(const Duration(days: 1));
-      final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
-      return todo.startTime!.isBefore(dayEnd) && endTime.isAfter(day);
+      // 시간 있음: 날짜 범위 체크 (정규화)
+      final startDate = date_utils.normalizeDate(todo.startTime!);
+      final endDate = date_utils.normalizeDate(todo.endTime ?? todo.startTime!);
+      return !normalizedDay.isBefore(startDate) && !normalizedDay.isAfter(endDate);
     } else if (todo.dueDate != null) {
-      // 시간 미정: 날짜만 비교 (정규화)
-      final targetDate = DateTime(day.year, day.month, day.day);
-      final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
-      return todoDate.isAtSameMomentAs(targetDate);
+      // 시간 미정: 날짜만 비교
+      return date_utils.normalizeDate(todo.dueDate!).isAtSameMomentAs(normalizedDay);
     }
     return false;
   }
@@ -937,9 +952,16 @@ class _MonthView extends ConsumerWidget {
 
   /// 멤버별 색상 점 표시
   Widget _buildMemberDots(List<TodoItem> dayTodos, bool isSelected) {
+    // 멀티데이 이벤트 중복 제거
+    final uniqueTodos = <String, TodoItem>{};
+    for (final todo in dayTodos) {
+      final key = todo.parentTodoId ?? todo.id;
+      uniqueTodos[key] = todo;
+    }
+
     // 멤버별 Todo 개수 집계
     final memberCounts = <String, int>{};
-    for (final todo in dayTodos) {
+    for (final todo in uniqueTodos.values) {
       final assignee = todo.assigneeId ?? 'unknown';
       memberCounts[assignee] = (memberCounts[assignee] ?? 0) + 1;
     }
@@ -973,8 +995,13 @@ class _MonthView extends ConsumerWidget {
     }
     try {
       final hex = colorHex.replaceAll('#', '');
+      if (hex.length != 6) {
+        debugPrint('⚠️ Invalid color format: $colorHex (expected 6 hex digits)');
+        return AppColors.memberColors[0];
+      }
       return Color(int.parse('FF$hex', radix: 16));
     } catch (e) {
+      debugPrint('❌ Color parsing error for "$colorHex": $e');
       return AppColors.memberColors[0];
     }
   }

@@ -20,9 +20,10 @@ class AiSummaryCard extends ConsumerWidget {
     // Smart Provider 사용
     final todos = ref.watch(smartTodosProvider);
     final upcomingTodos = ref.watch(smartUpcomingTodosProvider);
+    final todayCompleted = ref.watch(smartTodayCompletedTodosProvider);
 
     final pendingCount = todos.where((t) => !t.isCompleted).length;
-    final completedToday = todos.where((t) => t.isCompleted).length;
+    final completedToday = todayCompleted.length;
     final upcomingCount = upcomingTodos.length;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

@@ -14,8 +14,8 @@ class UpcomingEventsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Smart Provider 사용
-    final todos = ref.watch(smartUpcomingTodosProvider);
+    // Smart Provider 사용 (반복 확장 포함)
+    final todos = ref.watch(smartUpcomingExpandedTodosProvider);
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 

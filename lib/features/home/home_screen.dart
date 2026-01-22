@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
+import '../../shared/providers/group_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../todo/widgets/add_todo_sheet.dart';
@@ -28,14 +30,21 @@ class HomeScreen extends ConsumerWidget {
     // Smart Provider 사용 - 데모/실제 데이터 자동 선택
     final currentMember = ref.watch(smartCurrentMemberProvider);
     final members = ref.watch(smartMembersProvider);
-    
+
+    // Reset member filter when group changes
+    ref.listen(currentMembershipProvider, (previous, next) {
+      if (previous?.groupId != next?.groupId) {
+        ref.read(selectedMemberFilterProvider.notifier).state = null;
+      }
+    });
+
     final selectedMemberId = ref.watch(selectedMemberFilterProvider);
     
     // 필터된 할일
     final allTodos = ref.watch(smartTodosProvider);
-    final todos = selectedMemberId == null 
-        ? allTodos 
-        : allTodos.where((t) => t.assigneeId == selectedMemberId).toList();
+    final todos = selectedMemberId == null
+        ? allTodos
+        : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
     
     final pendingTodos = todos.where((t) => !t.isCompleted).toList();
     final completedTodos = todos.where((t) => t.isCompleted).toList()
@@ -49,10 +58,18 @@ class HomeScreen extends ConsumerWidget {
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
 
+    // Check loading state
+    final todosAsync = ref.watch(smartTodosProvider);
+
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
+            // Loading indicator
+            if (todosAsync.isEmpty && allTodos.isEmpty)
+              const SliverToBoxAdapter(
+                child: LinearProgressIndicator(),
+              ),
             // 헤더
             SliverToBoxAdapter(
               child: Padding(
@@ -191,7 +208,7 @@ class HomeScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
                   child: TextButton(
                     onPressed: () {
-                      // TODO: 할일 전체보기 화면으로 이동
+                      context.go('/todos');
                     },
                     child: Text('${pendingTodos.length - 10}개 더보기'),
                   ),
@@ -336,7 +353,7 @@ class _CompletedSection extends StatelessWidget {
           secondChild: Column(
             children: [
               const SizedBox(height: AppTheme.spacingXS),
-              ...completedTodos.take(5).map((todo) {
+              ...completedTodos.map((todo) {
                 final member = _findMember(members, todo.assigneeId);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingXS),
