@@ -290,6 +290,102 @@ class AiApiService {
     }
   }
 
+  /// 메모 분석
+  Future<MemoAnalysisResult> analyzeMemo({
+    required String userId,
+    required String content,
+    String? categoryName,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/memo/analyze'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'content': content,
+          if (categoryName != null) 'category_name': categoryName,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return MemoAnalysisResult(
+          analysis: data['analysis'] ?? '',
+          cached: data['cached'] ?? false,
+        );
+      } else {
+        final errorData = jsonDecode(response.body);
+        throw AiApiException(errorData['detail'] ?? '분석 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 사업 아이디어 분석 스트리밍 (7개 에이전트 진행 상황)
+  Stream<AgentProgress> analyzeBusinessStream({
+    required String userId,
+    required String idea,
+    String? industry,
+    String? targetMarket,
+    String? budget,
+  }) async* {
+    final token = await _getAuthToken();
+    final url = '$_baseUrl/api/business/analyze/stream';
+
+    final client = http.Client();
+    final request = http.Request('POST', Uri.parse(url));
+    if (token != null) {
+      request.headers['Authorization'] = 'Bearer $token';
+    }
+    request.headers['Content-Type'] = 'application/json';
+    request.headers['Accept'] = 'text/event-stream';
+    request.body = jsonEncode({
+      'user_id': userId,
+      'idea': idea,
+      if (industry != null) 'industry': industry,
+      if (targetMarket != null) 'target_market': targetMarket,
+      if (budget != null) 'budget': budget,
+    });
+
+    try {
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        throw AiApiException('분석 스트리밍 시작 실패: ${response.statusCode}');
+      }
+
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (line.trim().isEmpty) continue;
+        if (line.startsWith('data: ')) {
+          final dataStr = line.substring(6).trim();
+          if (dataStr == '[DONE]') break;
+
+          try {
+            final data = jsonDecode(dataStr);
+            if (data['type'] == 'result') {
+              yield AgentProgress('final_report', 'completed', data['data']);
+            } else if (data['type'] == 'error') {
+              throw AiApiException(data['message']);
+            } else if (data['step'] != null) {
+              yield AgentProgress(data['step'], data['status'], null);
+            }
+          } catch (e) {
+            print('JSON parse error in business stream: $dataStr, error: $e');
+          }
+        }
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('분석 중 오류 발생: $e');
+    } finally {
+      client.close();
+    }
+  }
+
   /// 심리검사 분석 스트리밍 (멀티 에이전트 진행 상황)
   Stream<AgentProgress> analyzePsychologyStream({
     required String userId,
@@ -349,6 +445,17 @@ class AiApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// 메모 분석 결과
+class MemoAnalysisResult {
+  final String analysis;
+  final bool cached;
+
+  MemoAnalysisResult({
+    required this.analysis,
+    this.cached = false,
+  });
 }
 
 /// AI 요약 결과

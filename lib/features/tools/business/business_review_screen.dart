@@ -5,7 +5,6 @@ import 'package:iconsax/iconsax.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
-import '../../../services/ai/business_agent_service.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/business_review_provider.dart';
 import '../../../shared/models/business_review.dart';
@@ -55,6 +54,15 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     super.dispose();
   }
 
+  // Cloud Run 스텝 이름을 UI 에이전트 이름으로 매핑
+  static const Map<String, String> _stepToAgentName = {
+    'market_research': '시장조사 전문가',
+    'competitor_analysis': '경쟁사 분석가',
+    'product_planning': '제품 기획자',
+    'financial_analysis': '재무 분석가',
+    'final_report': '종합 전략 컨설턴트',
+  };
+
   Future<void> _startAnalysis() async {
     // P1: 입력 검증 시각적 피드백
     final text = _ideaController.text.trim();
@@ -73,10 +81,8 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
       _analysisProgress = {
         '시장조사 전문가': 'pending',
         '경쟁사 분석가': 'pending',
-        '재무 분석가': 'pending',
-        '법률/규제 전문가': 'pending',
-        '마케팅 전략가': 'pending',
         '제품 기획자': 'pending',
+        '재무 분석가': 'pending',
         '종합 전략 컨설턴트': 'pending',
       };
       _result = null;
@@ -90,30 +96,40 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
       final userId = user.uid;
 
-      final agentService = BusinessAgentService();
+      final aiApiService = ref.read(aiApiServiceProvider);
       BusinessAnalysisResult? finalResult;
 
-      await for (final progress in agentService.analyzeWithAgents(
-        businessIdea: _ideaController.text.trim(),
+      await for (final progress in aiApiService.analyzeBusinessStream(
+        userId: userId,
+        idea: _ideaController.text.trim(),
         industry: _selectedIndustry,
         budget: _selectedBudget,
       )) {
-        // 에러 상태 처리
-        if (progress.status == 'error') {
-          setState(() {
-            _error = progress.result?.toString() ?? '분석 중 오류가 발생했습니다';
-            _isAnalyzing = false;
-          });
-          return;
-        }
+        // 스텝 이름을 에이전트 이름으로 변환
+        final agentName = _stepToAgentName[progress.agentName] ?? progress.agentName;
 
         setState(() {
-          _analysisProgress[progress.agentName] = progress.status;
+          _analysisProgress[agentName] = progress.status;
         });
 
-        if (progress.agentName == '종합 전략 컨설턴트' &&
-            progress.status == 'completed') {
-          finalResult = progress.result as BusinessAnalysisResult;
+        // 최종 결과 처리
+        if (progress.agentName == 'final_report' && progress.status == 'completed') {
+          final data = progress.result as Map<String, dynamic>?;
+          if (data != null) {
+            final report = data['report'] as Map<String, dynamic>? ?? {};
+            final analysis = data['analysis'] as Map<String, dynamic>? ?? {};
+
+            finalResult = BusinessAnalysisResult(
+              analysis: analysis,
+              summary: report['executive_summary'] ?? analysis['recommendation'] ?? '',
+              score: report['overall_score'] ?? analysis['score'] ?? 50,
+              strengths: List<String>.from(analysis['strengths'] ?? []),
+              weaknesses: List<String>.from(analysis['weaknesses'] ?? []),
+              opportunities: List<String>.from(analysis['opportunities'] ?? []),
+              threats: List<String>.from(analysis['threats'] ?? []),
+              nextSteps: List<String>.from(analysis['next_steps'] ?? []),
+            );
+          }
         }
       }
 
@@ -142,6 +158,11 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
         );
         await reviewService.saveReview(review);
       }
+    } on AiApiException catch (e) {
+      setState(() {
+        _error = e.message;
+        _isAnalyzing = false;
+      });
     } catch (e) {
       setState(() {
         _error = e.toString();
@@ -410,10 +431,8 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     final steps = [
       ('시장조사 전문가', '시장 조사', Iconsax.chart),
       ('경쟁사 분석가', '경쟁사 분석', Iconsax.people),
-      ('재무 분석가', '재무 분석', Iconsax.money),
-      ('법률/규제 전문가', '법률/규제', Iconsax.shield_tick),
-      ('마케팅 전략가', '마케팅 전략', Iconsax.trend_up),
       ('제품 기획자', '제품 기획', Iconsax.box),
+      ('재무 분석가', '재무 분석', Iconsax.money),
       ('종합 전략 컨설턴트', '최종 리포트', Iconsax.document_text),
     ];
 
@@ -432,7 +451,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
       child: Column(
         children: [
           const Text(
-            '🔍 7개 전문 에이전트가 분석 중입니다',
+            '🔍 5개 전문 에이전트가 분석 중입니다',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,

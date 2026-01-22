@@ -7,7 +7,8 @@ import '../../shared/models/memo.dart';
 import '../../shared/models/memo_category.dart';
 import '../../shared/providers/memo_provider.dart';
 import '../../shared/providers/smart_provider.dart';
-import '../../services/gemini/gemini_service.dart';
+import '../../shared/providers/auth_provider.dart';
+import '../../services/ai/ai_api_service.dart';
 
 /// 메모 상세/편집 화면
 class MemoDetailScreen extends ConsumerStatefulWidget {
@@ -165,18 +166,27 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       return;
     }
 
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다')),
+      );
+      return;
+    }
+
     setState(() => _isAnalyzing = true);
 
     try {
-      final geminiService = ref.read(geminiServiceProvider);
-      final analysis = await geminiService.analyzeMemo(
+      final aiApiService = ref.read(aiApiServiceProvider);
+      final result = await aiApiService.analyzeMemo(
+        userId: user.uid,
         content: content,
         categoryName: _selectedCategoryName,
       );
 
-      if (analysis.isNotEmpty) {
+      if (result.analysis.isNotEmpty) {
         setState(() {
-          _aiAnalysis = analysis;
+          _aiAnalysis = result.analysis;
           _hasChanges = true;
         });
 
@@ -184,7 +194,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
         if (!_isNewMemo) {
           await ref.read(memoServiceProvider).saveAiAnalysis(
                 widget.memo!.id,
-                analysis,
+                result.analysis,
               );
         }
       } else {
@@ -193,6 +203,12 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
             const SnackBar(content: Text('AI 분석을 수행할 수 없습니다')),
           );
         }
+      }
+    } on AiApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('분석 실패: $e')),
+        );
       }
     } catch (e) {
       if (mounted) {

@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 import time
 
 from config import get_settings
-from routers import summary_router, business_router, psychology_router
+from routers import summary_router, business_router, psychology_router, memo_router
 
 settings = get_settings()
 
@@ -66,6 +66,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.include_router(summary_router)
 app.include_router(business_router)
 app.include_router(psychology_router)
+app.include_router(memo_router)
 
 
 # 헬스체크
