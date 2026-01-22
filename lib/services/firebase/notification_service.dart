@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -79,7 +78,8 @@ class NotificationService {
 
   /// Android 알림 채널 생성
   Future<void> _createNotificationChannels() async {
-    if (!Platform.isAndroid) return;
+    // 웹이거나 Android가 아니면 스킵
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
 
     final androidPlugin =
         _localNotifications.resolvePlatformSpecificImplementation<
