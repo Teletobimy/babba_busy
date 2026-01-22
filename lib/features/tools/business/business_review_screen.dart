@@ -117,17 +117,26 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           final data = progress.result as Map<String, dynamic>?;
           if (data != null) {
             final report = data['report'] as Map<String, dynamic>? ?? {};
-            final analysis = data['analysis'] as Map<String, dynamic>? ?? {};
+            final swot = report['swot'] as Map<String, dynamic>? ?? {};
+
+            // next_steps 파싱: [{step, action, timeline}] -> [action string]
+            final nextStepsRaw = report['next_steps'] as List<dynamic>? ?? [];
+            final nextSteps = nextStepsRaw.map((item) {
+              if (item is Map<String, dynamic>) {
+                return item['action']?.toString() ?? '';
+              }
+              return item.toString();
+            }).where((s) => s.isNotEmpty).toList();
 
             finalResult = BusinessAnalysisResult(
-              analysis: analysis,
-              summary: report['executive_summary'] ?? analysis['recommendation'] ?? '',
-              score: report['overall_score'] ?? analysis['score'] ?? 50,
-              strengths: List<String>.from(analysis['strengths'] ?? []),
-              weaknesses: List<String>.from(analysis['weaknesses'] ?? []),
-              opportunities: List<String>.from(analysis['opportunities'] ?? []),
-              threats: List<String>.from(analysis['threats'] ?? []),
-              nextSteps: List<String>.from(analysis['next_steps'] ?? []),
+              analysis: data['analysis'] as Map<String, dynamic>? ?? {},
+              summary: report['executive_summary'] ?? '',
+              score: report['overall_score'] ?? 50,
+              strengths: List<String>.from(swot['strengths'] ?? []),
+              weaknesses: List<String>.from(swot['weaknesses'] ?? []),
+              opportunities: List<String>.from(swot['opportunities'] ?? []),
+              threats: List<String>.from(swot['threats'] ?? []),
+              nextSteps: nextSteps.cast<String>(),
             );
           }
         }
