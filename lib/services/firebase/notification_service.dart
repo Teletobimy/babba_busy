@@ -317,22 +317,51 @@ class NotificationService {
   /// FCM 토큰 Firestore에 저장
   Future<void> saveTokenToFirestore(String userId) async {
     try {
+      // 1. FCM 토큰 가져오기
       final token = await getToken();
       if (token == null) {
-        debugPrint('FCM 토큰을 가져올 수 없습니다');
+        debugPrint('❌ FCM 토큰을 가져올 수 없습니다');
         return;
       }
 
+      debugPrint('📱 FCM 토큰 획득: ${token.substring(0, 20)}...');
+
+      // 2. Firestore에서 사용자 문서 조회
       final userRef = _firestore.collection('users').doc(userId);
+      final userDoc = await userRef.get();
 
-      // set with merge를 사용하여 문서가 없어도 생성
-      await userRef.set({
+      // 3. 문서가 없으면 생성
+      if (!userDoc.exists) {
+        debugPrint('📝 사용자 문서 없음. 새로 생성합니다.');
+        await userRef.set({
+          'fcmTokens': [token],
+        }, SetOptions(merge: true));
+        debugPrint('✅ FCM 토큰 저장 완료 (새 문서): $userId');
+        return;
+      }
+
+      // 4. 기존 토큰 목록 확인
+      final data = userDoc.data();
+      final List<String> existingTokens = data != null && data.containsKey('fcmTokens')
+          ? List<String>.from(data['fcmTokens'] ?? [])
+          : [];
+
+      // 5. 이미 토큰이 있으면 스킵
+      if (existingTokens.contains(token)) {
+        debugPrint('ℹ️ FCM 토큰이 이미 등록되어 있습니다: $userId');
+        return;
+      }
+
+      // 6. 토큰이 없으면 추가
+      debugPrint('➕ 새 FCM 토큰 추가 중...');
+      await userRef.update({
         'fcmTokens': FieldValue.arrayUnion([token]),
-      }, SetOptions(merge: true));
+      });
 
-      debugPrint('✅ FCM 토큰 저장 완료: $userId (token: ${token.substring(0, 20)}...)');
+      debugPrint('✅ FCM 토큰 저장 완료: $userId (총 ${existingTokens.length + 1}개 기기)');
     } catch (e) {
       debugPrint('❌ FCM 토큰 저장 실패: $e');
+      rethrow; // 에러를 상위로 전달하여 로깅 가능하게
     }
   }
 
