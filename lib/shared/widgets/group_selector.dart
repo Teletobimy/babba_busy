@@ -139,7 +139,9 @@ class GroupSelector extends ConsumerWidget {
             children: [
               Icon(Iconsax.add_circle, size: 20),
               SizedBox(width: 12),
-              Text('새 그룹 만들기'),
+              Expanded(
+                child: Text('새 그룹 만들기'),
+              ),
             ],
           ),
         ),
@@ -149,7 +151,9 @@ class GroupSelector extends ConsumerWidget {
             children: [
               Icon(Iconsax.key, size: 20),
               SizedBox(width: 12),
-              Text('초대 코드로 참여'),
+              Expanded(
+                child: Text('초대 코드로 참여'),
+              ),
             ],
           ),
         ),
