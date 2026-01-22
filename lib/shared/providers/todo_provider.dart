@@ -27,7 +27,9 @@ final userTodosProvider = StreamProvider<List<TodoItem>>((ref) {
           snapshot.docs.map((doc) => TodoItem.fromFirestore(doc)).toList());
 });
 
-/// 현재 그룹에 공유된 다른 멤버들의 Todo (CollectionGroup 쿼리)
+/// 현재 그룹에 공유된 다른 멤버들의 Todo
+/// 레거시 쿼리: families/{groupId}/todos에서 가져옴
+/// Phase 2의 collectionGroup 쿼리는 Firestore 인덱스/보안 규칙 설정 후 추가 예정
 final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final user = ref.watch(currentUserProvider);
@@ -36,15 +38,16 @@ final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
     return Stream.value([]);
   }
 
-  // 현재 그룹에 공유된 todos 중 내 것이 아닌 것
+  // 레거시 쿼리: 그룹 레벨 컬렉션에서 다른 사람의 todo 가져오기
   return firestore
-      .collectionGroup('todos')
-      .where('sharedGroups', arrayContains: membership.groupId)
-      .where('visibility', isEqualTo: 'shared')
+      .collection('families')
+      .doc(membership.groupId)
+      .collection('todos')
+      .orderBy('createdAt', descending: true)
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => TodoItem.fromFirestore(doc))
-          .where((todo) => todo.ownerId != user.uid) // 내 것 제외
+          .where((todo) => todo.createdBy != user.uid) // 내 것 제외
           .toList());
 });
 
@@ -77,21 +80,19 @@ final currentGroupTodosProvider = Provider<List<TodoItem>>((ref) {
 // ============================================================================
 
 /// 현재 그룹의 Todo 목록 (하위 호환성)
-/// Phase 2 완료 전까지는 기존 그룹 레벨 쿼리도 함께 사용
+/// Phase 2: currentGroupTodosProvider를 사용하여 사용자 중심 구조 지원
 final todosProvider = StreamProvider<List<TodoItem>>((ref) {
-  final membership = ref.watch(currentMembershipProvider);
-  final firestore = ref.watch(firestoreProvider);
-  if (membership == null || firestore == null) return Stream.value([]);
+  // Phase 2: userTodosProvider와 sharedTodosProvider가 변경될 때마다 업데이트
+  final userTodos = ref.watch(userTodosProvider);
+  final sharedTodos = ref.watch(sharedTodosProvider);
 
-  // 기존 그룹 레벨 쿼리 (마이그레이션 완료 전까지 유지)
-  return firestore
-      .collection('families')
-      .doc(membership.groupId)
-      .collection('todos')
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => TodoItem.fromFirestore(doc)).toList());
+  // 두 스트림 중 하나라도 로딩 중이면 이전 값 유지
+  if (userTodos.isLoading || sharedTodos.isLoading) {
+    return Stream.value(ref.read(currentGroupTodosProvider));
+  }
+
+  // currentGroupTodosProvider의 결과를 스트림으로 반환
+  return Stream.value(ref.watch(currentGroupTodosProvider));
 });
 
 /// 오늘의 할일 목록
@@ -420,7 +421,7 @@ class TodoService {
     final effectiveSharedGroups = sharedGroups ??
         (_groupId != null ? [_groupId!] : <String>[]);
 
-    await userTodosRef.add({
+    final todoData = {
       // Phase 2 필드
       'ownerId': _userId,
       'sharedGroups': effectiveSharedGroups,
@@ -455,7 +456,22 @@ class TodoService {
           ? Timestamp.fromDate(recurrenceEndDate)
           : null,
       'excludeHolidays': excludeHolidays,
-    });
+    };
+
+    // Phase 2: 사용자 레벨 저장
+    await userTodosRef.add(todoData);
+
+    // 그룹 공유 시 레거시 경로에도 저장 (하위 호환성)
+    // families/{groupId}/todos에 저장해야 다른 사용자가 sharedTodosProvider로 볼 수 있음
+    if (visibility == TodoVisibility.shared && effectiveSharedGroups.isNotEmpty) {
+      for (final groupId in effectiveSharedGroups) {
+        await _firestore!
+            .collection('families')
+            .doc(groupId)
+            .collection('todos')
+            .add(todoData);
+      }
+    }
   }
 
   /// 할일 완료 상태 토글 (Phase 2: 사용자 레벨)
