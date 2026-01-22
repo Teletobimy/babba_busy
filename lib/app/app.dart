@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
+import '../shared/providers/notification_settings_provider.dart';
 import 'router.dart';
 
 /// 테마 모드 Provider
@@ -16,6 +17,9 @@ class FamilyHubApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+
+    // FCM 토큰 자동 저장 (로그인 시)
+    ref.watch(fcmTokenSaverProvider);
 
     return MaterialApp.router(
       title: 'BABBA',

@@ -83,13 +83,16 @@ final routerNotifierProvider = Provider<RouterNotifier>((ref) {
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
 
-  // NotificationService에 Navigator Key 전달
-  Future.microtask(() {
+  // NotificationService에 Navigator Key 전달 및 초기 메시지 처리
+  Future.microtask(() async {
     try {
       final notificationService = ref.read(notificationServiceProvider);
       notificationService.setNavigatorKey(rootNavigatorKey);
+
+      // 앱 종료 상태에서 알림 탭으로 실행된 경우 자동 네비게이션
+      await notificationService.handleInitialMessage();
     } catch (e) {
-      debugPrint('Error setting navigator key: $e');
+      debugPrint('Error in notification initialization: $e');
     }
   });
 

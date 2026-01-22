@@ -349,6 +349,15 @@ class NotificationService {
     return await _messaging.getInitialMessage();
   }
 
+  /// 초기 메시지 확인 및 네비게이션 처리
+  Future<void> handleInitialMessage() async {
+    final initialMessage = await getInitialMessage();
+    if (initialMessage != null) {
+      debugPrint('Processing initial message: ${initialMessage.data}');
+      _handleNotificationNavigation(initialMessage.data);
+    }
+  }
+
   /// 토픽 구독
   Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
