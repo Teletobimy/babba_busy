@@ -316,32 +316,43 @@ class NotificationService {
 
   /// FCM 토큰 Firestore에 저장
   Future<void> saveTokenToFirestore(String userId) async {
-    final token = await getToken();
-    if (token == null) return;
+    try {
+      final token = await getToken();
+      if (token == null) {
+        debugPrint('FCM 토큰을 가져올 수 없습니다');
+        return;
+      }
 
-    final userRef = _firestore.collection('users').doc(userId);
+      final userRef = _firestore.collection('users').doc(userId);
 
-    // 토큰 배열에 추가 (중복 방지)
-    await userRef.update({
-      'fcmTokens': FieldValue.arrayUnion([token]),
-    });
+      // set with merge를 사용하여 문서가 없어도 생성
+      await userRef.set({
+        'fcmTokens': FieldValue.arrayUnion([token]),
+      }, SetOptions(merge: true));
 
-    debugPrint('FCM 토큰 저장 완료: $userId');
+      debugPrint('✅ FCM 토큰 저장 완료: $userId (token: ${token.substring(0, 20)}...)');
+    } catch (e) {
+      debugPrint('❌ FCM 토큰 저장 실패: $e');
+    }
   }
 
   /// FCM 토큰 Firestore에서 제거 (로그아웃 시)
   Future<void> removeTokenFromFirestore(String userId) async {
-    final token = await getToken();
-    if (token == null) return;
+    try {
+      final token = await getToken();
+      if (token == null) return;
 
-    final userRef = _firestore.collection('users').doc(userId);
+      final userRef = _firestore.collection('users').doc(userId);
 
-    // 토큰 배열에서 제거
-    await userRef.update({
-      'fcmTokens': FieldValue.arrayRemove([token]),
-    });
+      // 토큰 배열에서 제거 (merge를 사용하여 안전하게 처리)
+      await userRef.set({
+        'fcmTokens': FieldValue.arrayRemove([token]),
+      }, SetOptions(merge: true));
 
-    debugPrint('FCM 토큰 제거 완료: $userId');
+      debugPrint('✅ FCM 토큰 제거 완료: $userId');
+    } catch (e) {
+      debugPrint('❌ FCM 토큰 제거 실패: $e');
+    }
   }
 
   /// 앱이 종료된 상태에서 알림 탭으로 앱 열기
