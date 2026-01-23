@@ -18,6 +18,9 @@ function getChannelForType(type: string): string {
     return "babba_todo_channel";
   case "business_review":
     return "babba_business_channel";
+  case "analysis_complete":
+  case "analysis_failed":
+    return "babba_analysis_channel";
   default:
     return "babba_default_channel";
   }

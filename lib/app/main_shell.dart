@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../core/theme/app_colors.dart';
+import '../shared/providers/auth_provider.dart';
 import '../shared/providers/update_provider.dart';
 import '../shared/widgets/update_dialog.dart';
+import '../services/firebase/notification_service.dart';
 
 /// 도구 탭 컬러
 const Color toolsColor = Color(0xFF5B8DEF);
@@ -20,21 +22,52 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  bool _hasCheckedUpdate = false;
+  bool _hasInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    // 첫 프레임 렌더링 후 업데이트 체크
+    // 첫 프레임 렌더링 후 초기화
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkForUpdate();
+      _initialize();
     });
   }
 
-  Future<void> _checkForUpdate() async {
-    if (_hasCheckedUpdate) return;
-    _hasCheckedUpdate = true;
+  Future<void> _initialize() async {
+    if (_hasInitialized) return;
+    _hasInitialized = true;
 
+    // 1. FCM 토큰 저장 확인
+    await _ensureFcmToken();
+
+    // 2. 업데이트 체크
+    await _checkForUpdate();
+  }
+
+  /// FCM 토큰이 저장되어 있는지 확인하고, 없으면 저장
+  Future<void> _ensureFcmToken() async {
+    try {
+      final user = ref.read(currentUserProvider);
+      if (user == null) return;
+
+      final notificationService = NotificationService();
+
+      // 권한 확인 및 요청
+      final hasPermission = await notificationService.requestPermission();
+      if (!hasPermission) {
+        debugPrint('⚠️ 알림 권한 거부됨');
+        return;
+      }
+
+      // 토큰 저장 (내부에서 중복 체크)
+      await notificationService.saveTokenToFirestore(user.uid);
+      debugPrint('✅ FCM 토큰 확인/저장 완료');
+    } catch (e) {
+      debugPrint('❌ FCM 토큰 저장 실패: $e');
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
     final updateInfo = await ref.read(appUpdateProvider.future);
     if (updateInfo != null && updateInfo.updateAvailable && mounted) {
       await UpdateDialog.show(context, updateInfo);
