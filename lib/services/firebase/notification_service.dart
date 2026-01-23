@@ -38,6 +38,12 @@ class NotificationService {
 
   bool _isInitialized = false;
   GlobalKey<NavigatorState>? _navigatorKey;
+  String? _currentUserId;
+
+  /// 현재 사용자 ID 설정 (토큰 갱신 시 자동 저장용)
+  void setCurrentUserId(String? userId) {
+    _currentUserId = userId;
+  }
 
   /// Navigator Key 설정
   void setNavigatorKey(GlobalKey<NavigatorState> key) {
@@ -325,9 +331,18 @@ class NotificationService {
 
   /// 토큰 갱신 리스너 설정
   void _setupTokenRefreshListener() {
-    _messaging.onTokenRefresh.listen((newToken) {
+    _messaging.onTokenRefresh.listen((newToken) async {
       debugPrint('FCM 토큰 갱신: $newToken');
-      // 토큰 저장은 앱에서 userId가 있을 때 처리
+
+      // userId가 설정되어 있으면 자동으로 Firestore에 저장
+      if (_currentUserId != null) {
+        try {
+          await saveTokenToFirestore(_currentUserId!);
+          debugPrint('✅ 갱신된 FCM 토큰 저장 완료');
+        } catch (e) {
+          debugPrint('❌ 갱신된 FCM 토큰 저장 실패: $e');
+        }
+      }
     });
   }
 

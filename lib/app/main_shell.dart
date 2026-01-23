@@ -52,6 +52,9 @@ class _MainShellState extends ConsumerState<MainShell> {
 
       final notificationService = NotificationService();
 
+      // userId 설정 (토큰 갱신 시 자동 저장용)
+      notificationService.setCurrentUserId(user.uid);
+
       // 권한 확인 및 요청
       final hasPermission = await notificationService.requestPermission();
       if (!hasPermission) {

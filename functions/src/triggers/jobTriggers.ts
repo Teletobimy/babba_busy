@@ -31,6 +31,9 @@ export const onAnalysisJobUpdated = functions.firestore
 
       // completed 상태로 변경된 경우
       if (afterStatus === "completed" && beforeStatus !== "completed") {
+        // 먼저 플래그 설정 (중복 알림 방지)
+        await change.after.ref.update({ notificationSent: true });
+
         const { title, body } = MessageTemplates.analysisJobCompleted(jobType);
 
         // 알림 전송
@@ -45,16 +48,14 @@ export const onAnalysisJobUpdated = functions.firestore
           },
         });
 
-        // 알림 전송 완료 표시
-        await change.after.ref.update({
-          notificationSent: true,
-        });
-
         console.log(`Sent completion notification for job ${jobId} to user ${userId}`);
       }
 
       // failed 상태로 변경된 경우
       if (afterStatus === "failed" && beforeStatus !== "failed") {
+        // 먼저 플래그 설정 (중복 알림 방지)
+        await change.after.ref.update({ notificationSent: true });
+
         const { title, body } = MessageTemplates.analysisJobFailed(jobType);
 
         // 알림 전송
@@ -67,11 +68,6 @@ export const onAnalysisJobUpdated = functions.firestore
             jobType,
             route: getRouteForJobType(jobType),
           },
-        });
-
-        // 알림 전송 완료 표시
-        await change.after.ref.update({
-          notificationSent: true,
         });
 
         console.log(`Sent failure notification for job ${jobId} to user ${userId}`);

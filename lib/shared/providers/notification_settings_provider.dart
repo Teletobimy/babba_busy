@@ -89,7 +89,8 @@ class NotificationSettingsService {
 }
 
 /// FCM 토큰 저장 Provider - 로그인 시 토큰 저장
-final fcmTokenSaverProvider = FutureProvider.autoDispose<void>((ref) async {
+/// autoDispose 제거: 토큰 저장 완료 전 dispose 방지
+final fcmTokenSaverProvider = FutureProvider<void>((ref) async {
   final user = ref.watch(currentUserProvider);
   if (user == null) return;
 
