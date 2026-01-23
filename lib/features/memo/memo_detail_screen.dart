@@ -257,28 +257,28 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
-          onPressed: () {
+          onPressed: () async {
             if (_hasChanges) {
-              showDialog<bool>(
+              final confirmed = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
+                builder: (dialogContext) => AlertDialog(
                   title: const Text('변경사항'),
                   content: const Text('저장하지 않은 변경사항이 있습니다. 나가시겠습니까?'),
                   actions: [
                     TextButton(
-                      onPressed: () => Navigator.pop(context, false),
+                      onPressed: () => Navigator.pop(dialogContext, false),
                       child: const Text('취소'),
                     ),
                     TextButton(
-                      onPressed: () {
-                        Navigator.pop(context, true);
-                        Navigator.pop(context);
-                      },
+                      onPressed: () => Navigator.pop(dialogContext, true),
                       child: const Text('나가기'),
                     ),
                   ],
                 ),
               );
+              if (confirmed == true && mounted) {
+                Navigator.pop(context);
+              }
             } else {
               Navigator.pop(context);
             }

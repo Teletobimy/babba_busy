@@ -354,6 +354,8 @@ class NotificationService {
 
   /// 알림 권한 요청
   Future<bool> requestPermission() async {
+    debugPrint('🔔 알림 권한 요청 시작...');
+
     final settings = await _messaging.requestPermission(
       alert: true,
       badge: true,
@@ -361,39 +363,57 @@ class NotificationService {
       provisional: false,
     );
 
-    return settings.authorizationStatus == AuthorizationStatus.authorized ||
+    debugPrint('🔔 알림 권한 상태: ${settings.authorizationStatus}');
+
+    final isGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
+
+    debugPrint('🔔 알림 권한 결과: ${isGranted ? '✅ 허용' : '❌ 거부'}');
+
+    return isGranted;
   }
 
   /// FCM 토큰 가져오기
   Future<String?> getToken() async {
     try {
+      debugPrint('🔑 FCM 토큰 요청 시작 (웹: $kIsWeb)');
+
       if (kIsWeb) {
         // 웹에서는 VAPID 키가 필요 (공개 키이므로 코드에 포함해도 안전)
         // Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
         const vapidKey = '***REMOVED_FCM_VAPID_KEY***';
-        return await _messaging.getToken(vapidKey: vapidKey);
+        debugPrint('🌐 웹 FCM 토큰 요청 (VAPID: ${vapidKey.substring(0, 20)}...)');
+        final token = await _messaging.getToken(vapidKey: vapidKey);
+        debugPrint('🌐 웹 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}');
+        return token;
       }
-      return await _messaging.getToken();
-    } catch (e) {
+
+      final token = await _messaging.getToken();
+      debugPrint('📱 네이티브 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}');
+      return token;
+    } catch (e, stack) {
       debugPrint('❌ FCM 토큰 가져오기 실패: $e');
+      debugPrint('❌ Stack: $stack');
       return null;
     }
   }
 
   /// FCM 토큰 Firestore에 저장
   Future<void> saveTokenToFirestore(String userId) async {
+    debugPrint('💾 saveTokenToFirestore 시작: $userId');
+
     try {
       // 1. FCM 토큰 가져오기
       final token = await getToken();
       if (token == null) {
-        debugPrint('❌ FCM 토큰을 가져올 수 없습니다');
+        debugPrint('❌ FCM 토큰을 가져올 수 없습니다 (userId: $userId)');
         return;
       }
 
-      debugPrint('📱 FCM 토큰 획득: ${token.substring(0, 20)}...');
+      debugPrint('📱 FCM 토큰 획득 성공: ${token.substring(0, 20)}...');
 
       // 2. Firestore에서 사용자 문서 조회
+      debugPrint('📂 Firestore 사용자 문서 조회 중: users/$userId');
       final userRef = _firestore.collection('users').doc(userId);
       final userDoc = await userRef.get();
 
@@ -409,9 +429,13 @@ class NotificationService {
 
       // 4. 기존 토큰 목록 확인
       final data = userDoc.data();
+      debugPrint('📄 기존 사용자 데이터: ${data?.keys.toList()}');
+
       final List<String> existingTokens = data != null && data.containsKey('fcmTokens')
           ? List<String>.from(data['fcmTokens'] ?? [])
           : [];
+
+      debugPrint('📋 기존 토큰 개수: ${existingTokens.length}');
 
       // 5. 이미 토큰이 있으면 스킵
       if (existingTokens.contains(token)) {
@@ -420,14 +444,15 @@ class NotificationService {
       }
 
       // 6. 토큰이 없으면 추가
-      debugPrint('➕ 새 FCM 토큰 추가 중...');
+      debugPrint('➕ 새 FCM 토큰 추가 중... (userId: $userId)');
       await userRef.update({
         'fcmTokens': FieldValue.arrayUnion([token]),
       });
 
-      debugPrint('✅ FCM 토큰 저장 완료: $userId (총 ${existingTokens.length + 1}개 기기)');
-    } catch (e) {
+      debugPrint('✅✅✅ FCM 토큰 저장 완료: $userId (총 ${existingTokens.length + 1}개 기기)');
+    } catch (e, stack) {
       debugPrint('❌ FCM 토큰 저장 실패: $e');
+      debugPrint('❌ Stack: $stack');
       rethrow; // 에러를 상위로 전달하여 로깅 가능하게
     }
   }

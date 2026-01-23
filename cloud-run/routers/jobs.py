@@ -138,6 +138,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
 
         report = result.get("report", {})
         swot = report.get("swot", {})
+        analysis = result.get("analysis", {})
 
         # next_steps 파싱
         next_steps_raw = report.get("next_steps", [])
@@ -149,6 +150,28 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
                     next_steps.append(action)
             elif isinstance(item, str):
                 next_steps.append(item)
+
+        # 시장 조사 데이터 추출
+        market_analysis = analysis.get("market_analysis", {})
+        competitor_analysis = analysis.get("competitor_analysis", {})
+
+        # 경쟁사 이름 목록 추출
+        direct_competitors = competitor_analysis.get("direct_competitors", [])
+        competitor_names = []
+        for comp in direct_competitors:
+            if isinstance(comp, dict) and comp.get("name"):
+                competitor_names.append(comp["name"])
+            elif isinstance(comp, str):
+                competitor_names.append(comp)
+
+        market_research = {
+            "targetMarket": market_analysis.get("market_opportunity"),
+            "marketSize": market_analysis.get("market_size"),
+            "competitors": competitor_names[:5],  # 최대 5개
+            "trends": market_analysis.get("trends", [])[:5],  # 최대 5개
+            "customerSegment": ", ".join(market_analysis.get("target_customers", [])[:3]),
+            "entryBarrier": ", ".join(competitor_analysis.get("entry_barriers", [])[:2]),
+        }
 
         # 결과를 business_reviews 컬렉션에 저장
         review_data = {
@@ -163,6 +186,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
             "opportunities": swot.get("opportunities", []),
             "threats": swot.get("threats", []),
             "nextSteps": next_steps,
+            "marketResearch": market_research,
             "createdAt": datetime.utcnow(),
             "status": "completed",
             "jobId": job_id,

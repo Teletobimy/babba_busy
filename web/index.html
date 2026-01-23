@@ -76,6 +76,7 @@
   <script>
     // Service Worker 업데이트 감지 및 자동 새로고침
     if ('serviceWorker' in navigator) {
+      // 1. Flutter Service Worker 등록 (PWA 캐싱)
       navigator.serviceWorker.register('flutter_service_worker.js').then(function(registration) {
         // 업데이트 체크
         registration.addEventListener('updatefound', function() {
@@ -88,6 +89,15 @@
           });
         });
       });
+
+      // 2. Firebase Messaging Service Worker 등록 (FCM 푸시 알림)
+      navigator.serviceWorker.register('firebase-messaging-sw.js')
+        .then(function(registration) {
+          console.log('[FCM SW] 등록 성공:', registration.scope);
+        })
+        .catch(function(error) {
+          console.error('[FCM SW] 등록 실패:', error);
+        });
 
       // 다른 탭에서 새 SW 활성화 시 새로고침
       navigator.serviceWorker.addEventListener('controllerchange', function() {
