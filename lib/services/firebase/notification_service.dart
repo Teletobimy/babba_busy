@@ -367,7 +367,18 @@ class NotificationService {
 
   /// FCM 토큰 가져오기
   Future<String?> getToken() async {
-    return await _messaging.getToken();
+    try {
+      if (kIsWeb) {
+        // 웹에서는 VAPID 키가 필요 (공개 키이므로 코드에 포함해도 안전)
+        // Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
+        const vapidKey = '***REMOVED_FCM_VAPID_KEY***';
+        return await _messaging.getToken(vapidKey: vapidKey);
+      }
+      return await _messaging.getToken();
+    } catch (e) {
+      debugPrint('❌ FCM 토큰 가져오기 실패: $e');
+      return null;
+    }
   }
 
   /// FCM 토큰 Firestore에 저장
