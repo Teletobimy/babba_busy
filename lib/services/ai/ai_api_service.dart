@@ -374,6 +374,43 @@ class AiApiService {
     }
   }
 
+  /// 심리검사 비동기 분석 요청 (백그라운드 처리)
+  Future<SubmitJobResult> submitPsychologyAnalysis({
+    required String userId,
+    required String sessionId,
+    required String testType,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/jobs/psychology/submit'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'session_id': sessionId,
+          'test_type': testType,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return SubmitJobResult(
+          jobId: data['job_id'],
+          status: data['status'] ?? 'pending',
+          estimatedTimeSeconds: data['estimated_time_seconds'] ?? 180,
+        );
+      } else if (response.statusCode == 400) {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '요청 실패');
+      } else {
+        throw AiApiException('요청 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
   /// 심리검사 결과 조회
   Future<PsychologyResult> getPsychologyResult({
     required String userId,

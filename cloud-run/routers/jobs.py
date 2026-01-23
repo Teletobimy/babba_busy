@@ -5,6 +5,8 @@ import uuid
 from models import (
     SubmitBusinessAnalysisRequest,
     SubmitBusinessAnalysisResponse,
+    SubmitPsychologyAnalysisRequest,
+    SubmitPsychologyAnalysisResponse,
     AnalysisJobResponse,
     AnalysisJobProgress,
     AnalysisJobStatus,
@@ -14,12 +16,14 @@ from models import (
 )
 from services import FirestoreCache
 from agents import BusinessPMAgent
+from agents.psychology_agents import PsychologyPMAgent, TestType
 from dependencies import get_current_user
 
 router = APIRouter(prefix="/api/jobs", tags=["Analysis Jobs"])
 
 # PM 에이전트 싱글톤
 business_pm = BusinessPMAgent()
+psychology_pm = PsychologyPMAgent()
 
 # 사용자당 동시 진행 가능한 작업 수 제한
 MAX_CONCURRENT_JOBS = 1
@@ -384,3 +388,175 @@ async def get_user_pending_jobs(
     except Exception as e:
         print(f"Get user pending jobs error: {e}")
         raise HTTPException(status_code=500, detail="작업 목록 조회 중 오류가 발생했습니다.")
+
+
+async def _process_psychology_analysis(job_id: str, user_id: str, input_data: dict):
+    """백그라운드에서 심리검사 분석 수행"""
+    try:
+        # 상태를 processing으로 변경
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.PROCESSING.value,
+            "startedAt": datetime.utcnow(),
+            "updatedAt": datetime.utcnow(),
+        })
+
+        session_id = input_data.get("sessionId", "")
+        test_type_str = input_data.get("testType", "big5")
+
+        # 세션 조회
+        session = await FirestoreCache.get_psychology_session(user_id, session_id)
+        if not session:
+            raise Exception("세션을 찾을 수 없습니다.")
+
+        test_type = TestType(test_type_str)
+        answers = session.get("answers", [])
+        scores = psychology_pm.calculate_scores(test_type, answers)
+
+        step_names = [
+            "score_calculation",
+            "pattern_analysis",
+            "strength_analysis",
+            "growth_analysis",
+            "final_report",
+        ]
+
+        async def on_progress(step: str, status: str):
+            """진행 상황 업데이트 콜백"""
+            if status == "started":
+                step_index = step_names.index(step) if step in step_names else 0
+                await FirestoreCache.update_analysis_job(job_id, {
+                    "progress": {
+                        "currentStep": step_index + 1,
+                        "totalSteps": 5,
+                        "percentage": (step_index / 5) * 100,
+                        "currentStepName": step,
+                    },
+                    "updatedAt": datetime.utcnow(),
+                })
+            elif status == "completed":
+                step_index = step_names.index(step) if step in step_names else 0
+                await FirestoreCache.update_analysis_job(job_id, {
+                    "progress": {
+                        "currentStep": step_index + 1,
+                        "totalSteps": 5,
+                        "percentage": ((step_index + 1) / 5) * 100,
+                        "currentStepName": step,
+                    },
+                    "updatedAt": datetime.utcnow(),
+                })
+
+        # PM 에이전트 실행
+        result = await psychology_pm.run(
+            test_type=test_type,
+            scores=scores,
+            on_progress=on_progress,
+        )
+
+        # 세션에 결과 저장
+        session["scores"] = scores
+        session["analysis_result"] = result["final_report"]
+        session["agent_reports"] = result.get("agent_reports", {})
+        session["completed_at"] = datetime.utcnow()
+        session["status"] = "completed"
+        session["jobId"] = job_id
+
+        await FirestoreCache.set_psychology_session(user_id, session_id, session)
+
+        # 작업 완료 상태로 업데이트
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.COMPLETED.value,
+            "resultId": session_id,
+            "progress": {
+                "currentStep": 5,
+                "totalSteps": 5,
+                "percentage": 100.0,
+                "currentStepName": "completed",
+            },
+            "completedAt": datetime.utcnow(),
+            "updatedAt": datetime.utcnow(),
+        })
+
+        print(f"Psychology analysis completed for job {job_id}")
+
+    except Exception as e:
+        print(f"Psychology analysis failed for job {job_id}: {e}")
+
+        # 에러 상태로 업데이트
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.FAILED.value,
+            "error": {
+                "code": "analysis_failed",
+                "message": str(e),
+                "retryable": True,
+            },
+            "updatedAt": datetime.utcnow(),
+        })
+
+
+@router.post(
+    "/psychology/submit",
+    response_model=SubmitPsychologyAnalysisResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def submit_psychology_analysis(
+    request: SubmitPsychologyAnalysisRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """심리검사 분석 요청 (비동기)
+
+    검사 완료 후 분석을 백그라운드에서 수행합니다.
+    완료 시 푸시 알림이 전송됩니다.
+    """
+    try:
+        # 권한 확인
+        if current_user["uid"] != request.user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+        # 세션 확인
+        session = await FirestoreCache.get_psychology_session(request.user_id, request.session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
+
+        # 검사 완료 확인
+        if len(session.get("answers", [])) < session.get("total_questions", 0):
+            raise HTTPException(status_code=400, detail="검사가 완료되지 않았습니다.")
+
+        # 입력 데이터 준비
+        input_data = {
+            "sessionId": request.session_id,
+            "testType": request.test_type,
+        }
+
+        # 트랜잭션으로 동시 작업 수 확인 + 작업 생성
+        job_id, message = await _create_analysis_job_atomic(
+            user_id=request.user_id,
+            job_type=AnalysisJobType.PSYCHOLOGY_TEST,
+            input_data=input_data,
+        )
+
+        if job_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{message} 완료 후 다시 시도해주세요."
+            )
+
+        # 백그라운드에서 분석 시작
+        background_tasks.add_task(
+            _process_psychology_analysis,
+            job_id,
+            request.user_id,
+            input_data,
+        )
+
+        return SubmitPsychologyAnalysisResponse(
+            job_id=job_id,
+            status=AnalysisJobStatus.PENDING,
+            estimated_time_seconds=60,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Submit psychology analysis error: {e}")
+        raise HTTPException(status_code=500, detail="분석 요청 중 오류가 발생했습니다.")

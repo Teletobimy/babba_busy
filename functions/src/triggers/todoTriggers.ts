@@ -47,6 +47,7 @@ export const onTodoCreated = functions.firestore
           todoId: snapshot.id,
           route: "/home",
         },
+        tag: `todo_${familyId}`,
       });
 
       console.log(`Sent todo creation notification to ${targetUserIds.length} users`);
@@ -88,6 +89,7 @@ export const onTodoUpdated = functions.firestore
               todoId: change.after.id,
               route: "/home",
             },
+            tag: `todo_complete_${familyId}`,
           });
 
           console.log(`Sent todo completion notification to creator ${creatorId}`);
@@ -136,6 +138,7 @@ export const onEventCreated = functions.firestore
           eventId: snapshot.id,
           route: "/home",
         },
+        tag: `event_${familyId}`,
       });
 
       console.log(`Sent event creation notification to ${targetUserIds.length} participants`);

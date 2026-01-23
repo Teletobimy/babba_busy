@@ -875,14 +875,14 @@ class _MonthView extends ConsumerWidget {
     final isHoliday = holiday != null;
 
     return Container(
-      margin: const EdgeInsets.all(1),
+      margin: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: isSelected
             ? AppColors.calendarColor
             : isToday
                 ? AppColors.calendarColor.withValues(alpha: 0.15)
                 : null,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        borderRadius: BorderRadius.circular(8),
         border: isToday && !isSelected
             ? Border.all(color: AppColors.calendarColor, width: 1.5)
             : null,
@@ -920,7 +920,7 @@ class _MonthView extends ConsumerWidget {
                 textAlign: TextAlign.center,
               ),
             ),
-          // 멤버별 색상 점 표시
+          // 멤버별 색상 점 + 개수 표시
           if (dayTodos.isNotEmpty)
             Expanded(
               child: Padding(
@@ -950,7 +950,7 @@ class _MonthView extends ConsumerWidget {
     return name.length > 4 ? name.substring(0, 4) : name;
   }
 
-  /// 멤버별 색상 점 표시
+  /// 멤버별 색상 점 + 개수 표시
   Widget _buildMemberDots(List<TodoItem> dayTodos, bool isSelected) {
     // 멀티데이 이벤트 중복 제거
     final uniqueTodos = <String, TodoItem>{};
@@ -975,13 +975,36 @@ class _MonthView extends ConsumerWidget {
           (m) => m.id == entry.key,
           orElse: () => null,
         );
-        final color = member != null ? _parseColor(member.color) : AppColors.calendarColor;
+        final memberColor = member != null ? _parseColor(member.color) : AppColors.calendarColor;
+        final count = entry.value;
+
+        // count > 1이면 숫자 배지, 아니면 점만 표시
+        if (count > 1) {
+          return Container(
+            constraints: const BoxConstraints(minWidth: 14, minHeight: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: isSelected ? Colors.white : memberColor,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Center(
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                  color: isSelected ? memberColor : Colors.white,
+                ),
+              ),
+            ),
+          );
+        }
 
         return Container(
           width: 6,
           height: 6,
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : color,
+            color: isSelected ? Colors.white : memberColor,
             shape: BoxShape.circle,
           ),
         );

@@ -9,10 +9,7 @@ export { onChatMessageCreated } from "./triggers/chatTriggers";
 // Todo/Event 트리거
 export { onTodoCreated, onTodoUpdated, onEventCreated } from "./triggers/todoTriggers";
 
-// Business Review 트리거
-export { onBusinessReviewCompleted } from "./triggers/businessTriggers";
-
-// Analysis Job 트리거
+// Analysis Job 트리거 (비동기 분석 완료/실패 알림)
 export {
   onAnalysisJobUpdated,
   onAnalysisJobCreated,

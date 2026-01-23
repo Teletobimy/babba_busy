@@ -8,7 +8,7 @@ import '../../../../shared/models/analysis_job.dart';
 import '../../../../shared/providers/analysis_job_provider.dart';
 
 /// 분석 요청 접수 확인 화면
-class RequestAcceptedScreen extends ConsumerWidget {
+class RequestAcceptedScreen extends ConsumerStatefulWidget {
   final String jobId;
   final int estimatedTimeSeconds;
   final VoidCallback? onWaitHere;
@@ -21,9 +21,35 @@ class RequestAcceptedScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RequestAcceptedScreen> createState() => _RequestAcceptedScreenState();
+}
+
+class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
+  bool _hasNavigated = false;
+
+  @override
+  Widget build(BuildContext context) {
     // 작업 상태 실시간 감시
-    final jobAsync = ref.watch(analysisJobProvider(jobId));
+    final jobAsync = ref.watch(analysisJobProvider(widget.jobId));
+
+    // 완료 시 자동 네비게이션
+    ref.listen<AsyncValue<AnalysisJob?>>(
+      analysisJobProvider(widget.jobId),
+      (previous, next) {
+        if (_hasNavigated) return;
+
+        next.whenData((job) {
+          if (job != null && job.status == AnalysisJobStatus.completed) {
+            _hasNavigated = true;
+            // 완료 시 이력 화면으로 자동 이동
+            final route = job.jobType == AnalysisJobType.psychologyTest
+                ? '/tools/psychology/history'
+                : '/tools/business/history';
+            context.go(route);
+          }
+        });
+      },
+    );
 
     return Scaffold(
       backgroundColor: AppColors.grayScale[50],
@@ -95,7 +121,7 @@ class RequestAcceptedScreen extends ConsumerWidget {
                     Icon(Iconsax.clock, size: 16, color: AppColors.coral[600]),
                     const SizedBox(width: 6),
                     Text(
-                      '예상 소요 시간: 약 ${_formatTime(estimatedTimeSeconds)}',
+                      '예상 소요 시간: 약 ${_formatTime(widget.estimatedTimeSeconds)}',
                       style: TextStyle(
                         color: AppColors.coral[700],
                         fontSize: 13,
@@ -117,7 +143,7 @@ class RequestAcceptedScreen extends ConsumerWidget {
                 loading: () => _buildProgressCard(
                   context,
                   AnalysisJob(
-                    id: jobId,
+                    id: widget.jobId,
                     userId: '',
                     jobType: AnalysisJobType.businessReview,
                     status: AnalysisJobStatus.pending,
@@ -168,9 +194,9 @@ class RequestAcceptedScreen extends ConsumerWidget {
               const SizedBox(height: 12),
 
               // 여기서 기다리기 옵션
-              if (onWaitHere != null)
+              if (widget.onWaitHere != null)
                 TextButton(
-                  onPressed: onWaitHere,
+                  onPressed: widget.onWaitHere,
                   child: Text(
                     '여기서 결과 기다리기',
                     style: TextStyle(

@@ -57,6 +57,7 @@ export const onAnalysisJobUpdated = functions.firestore
             jobType,
             route: getRouteForJobType(jobType),
           },
+          tag: `analysis_${jobType}_${userId}`,
         });
 
         console.log(`Sent completion notification for job ${jobId} to user ${userId}`);
@@ -89,6 +90,7 @@ export const onAnalysisJobUpdated = functions.firestore
             jobType,
             route: getRouteForJobType(jobType),
           },
+          tag: `analysis_${jobType}_${userId}`,
         });
 
         console.log(`Sent failure notification for job ${jobId} to user ${userId}`);

@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/psychology_result_provider.dart';
+import '../business/widgets/request_accepted_screen.dart';
 
 /// 심리검사 진행 화면
 class PsychologyTestScreen extends ConsumerStatefulWidget {
@@ -41,6 +42,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   // 멀티 에이전트 분석 상태
   final Map<String, String> _agentProgress = {};
   bool _isAnalyzing = false;
+
+  // 비동기 분석 상태
+  String? _submittedJobId;
+  int _estimatedTimeSeconds = 180;
+  bool _showAnalysisChoice = false; // 분석 방식 선택 다이얼로그 표시 여부
 
   @override
   void initState() {
@@ -127,8 +133,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       );
 
       if (result.isComplete) {
-        // 검사 완료 - 결과 가져오기
-        await _getResult();
+        // 검사 완료 - 분석 방식 선택 다이얼로그 표시
+        setState(() {
+          _showAnalysisChoice = true;
+          _isSubmitting = false;
+        });
       } else {
         setState(() {
           _currentIndex++;
@@ -198,8 +207,67 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
     }
   }
 
+  /// 비동기 분석 요청 (백그라운드 처리)
+  Future<void> _submitAsyncAnalysis() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null || _sessionId == null) return;
+
+    setState(() {
+      _showAnalysisChoice = false;
+      _isSubmitting = true;
+    });
+
+    try {
+      final aiService = ref.read(aiApiServiceProvider);
+      final result = await aiService.submitPsychologyAnalysis(
+        userId: user.uid,
+        sessionId: _sessionId!,
+        testType: widget.testType,
+      );
+
+      setState(() {
+        _isSubmitting = false;
+        _submittedJobId = result.jobId;
+        _estimatedTimeSeconds = result.estimatedTimeSeconds;
+      });
+    } on AiApiException catch (e) {
+      setState(() {
+        _error = e.message;
+        _isSubmitting = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  /// 동기 분석으로 전환
+  void _switchToSyncMode() {
+    setState(() {
+      _showAnalysisChoice = false;
+      _submittedJobId = null;
+    });
+    _getResult();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // 비동기 분석 요청 완료 시 접수 확인 화면 표시
+    if (_submittedJobId != null) {
+      return RequestAcceptedScreen(
+        jobId: _submittedJobId!,
+        estimatedTimeSeconds: _estimatedTimeSeconds,
+        onWaitHere: _switchToSyncMode,
+      );
+    }
+
+    // 분석 방식 선택 화면
+    if (_showAnalysisChoice) {
+      return _buildAnalysisChoiceScreen();
+    }
+
     // 테스트 진행 중일 때는 _buildTestScreen()이 자체 Scaffold를 가짐 (PopScope 포함)
     if (!_isLoading && _error == null && !_isComplete && !_isAnalyzing) {
       return _buildTestScreen();
@@ -271,7 +339,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () => context.pop(),
+                  onPressed: () => context.go('/tools/psychology'),
                   icon: const Icon(Iconsax.arrow_left),
                   label: const Text('돌아가기'),
                 ),
@@ -294,6 +362,256 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnalysisChoiceScreen() {
+    return Scaffold(
+      backgroundColor: AppColors.grayScale[50],
+      appBar: AppBar(
+        title: Text(_getTestName(widget.testType)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+      ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const Spacer(),
+              // 완료 아이콘
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: AppColors.sage[100],
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Iconsax.tick_circle5,
+                  size: 60,
+                  color: AppColors.sage[600],
+                ),
+              ).animate().scale(
+                begin: const Offset(0.5, 0.5),
+                end: const Offset(1.0, 1.0),
+                duration: 400.ms,
+                curve: Curves.elasticOut,
+              ),
+              const SizedBox(height: 32),
+
+              // 메인 텍스트
+              Text(
+                '검사가 완료되었어요!',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(delay: 200.ms),
+              const SizedBox(height: 12),
+
+              // 서브 텍스트
+              Text(
+                '결과를 어떻게 받으시겠어요?',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.grayScale[600],
+                ),
+                textAlign: TextAlign.center,
+              ).animate().fadeIn(delay: 300.ms),
+
+              const SizedBox(height: 8),
+
+              // 예상 시간 안내
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.coral[50],
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Iconsax.clock, size: 16, color: AppColors.coral[600]),
+                    const SizedBox(width: 6),
+                    Text(
+                      '분석 예상 시간: 약 3분',
+                      style: TextStyle(
+                        color: AppColors.coral[700],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().fadeIn(delay: 400.ms),
+
+              const Spacer(),
+
+              // 선택지 카드들
+              // 알림으로 결과 받기
+              _buildChoiceCard(
+                icon: Iconsax.notification,
+                iconColor: AppColors.coral[500]!,
+                title: '알림으로 결과 받기',
+                subtitle: '앱을 종료해도 분석이 계속됩니다',
+                isRecommended: true,
+                onTap: _submitAsyncAnalysis,
+              ).animate().fadeIn(delay: 500.ms).slideY(begin: 0.2),
+
+              const SizedBox(height: 12),
+
+              // 여기서 기다리기
+              _buildChoiceCard(
+                icon: Iconsax.timer_1,
+                iconColor: AppColors.lavender[500]!,
+                title: '여기서 기다리기',
+                subtitle: '화면을 유지하며 실시간 진행 상황을 확인합니다',
+                isRecommended: false,
+                onTap: () {
+                  setState(() => _showAnalysisChoice = false);
+                  _getResult();
+                },
+              ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2),
+
+              const SizedBox(height: 20),
+
+              // 에러 메시지
+              if (_error != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChoiceCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required bool isRecommended,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: _isSubmitting ? null : onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: isRecommended
+                ? Border.all(color: AppColors.coral[300]!, width: 2)
+                : Border.all(color: AppColors.grayScale[200]!),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (isRecommended) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.coral[500],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Text(
+                              '추천',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.grayScale[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_isSubmitting && isRecommended)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
+                  ),
+                )
+              else
+                Icon(
+                  Iconsax.arrow_right_3,
+                  color: AppColors.grayScale[400],
+                  size: 20,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -602,7 +920,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              context.pop();
+              context.go('/tools/psychology');
             },
             child: const Text('종료'),
           ),
@@ -761,7 +1079,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => context.pop(),
+                    onPressed: () => context.go('/tools/psychology'),
                     icon: const Icon(Iconsax.arrow_left),
                     label: const Text('돌아가기'),
                     style: OutlinedButton.styleFrom(

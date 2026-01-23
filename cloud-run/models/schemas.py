@@ -239,6 +239,21 @@ class CancelJobResponse(BaseModel):
     message: str
 
 
+class SubmitPsychologyAnalysisRequest(BaseModel):
+    """심리검사 비동기 분석 요청"""
+    user_id: str
+    session_id: str
+    test_type: str
+
+
+class SubmitPsychologyAnalysisResponse(BaseModel):
+    """심리검사 비동기 분석 응답"""
+    success: bool = True
+    job_id: str
+    status: AnalysisJobStatus = AnalysisJobStatus.PENDING
+    estimated_time_seconds: int = 60  # 약 1분
+
+
 class ProcessJobRequest(BaseModel):
     """내부 작업 처리 요청 (Cloud Tasks에서 호출)"""
     job_id: str

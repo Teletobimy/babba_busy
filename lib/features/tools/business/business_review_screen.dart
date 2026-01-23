@@ -309,7 +309,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
         if (!didPop && _isAnalyzing) {
           final shouldPop = await _showExitConfirmDialog();
           if (shouldPop && context.mounted) {
-            context.pop();
+            context.go('/tools');
           }
         }
       },
@@ -325,7 +325,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   onPressed: () async {
                     final shouldPop = await _showExitConfirmDialog();
                     if (shouldPop && context.mounted) {
-                      context.pop();
+                      context.go('/tools');
                     }
                   },
                 )
