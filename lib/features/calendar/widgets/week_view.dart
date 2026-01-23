@@ -337,7 +337,7 @@ class _TodoBlock extends StatelessWidget {
         return AppColors.calendarColor;
       case TodoEventType.todo:
         return AppColors.todoColor;
-      case TodoEventType.personal:
+      case TodoEventType.schedule:
         return AppColors.primaryLight;
     }
   }

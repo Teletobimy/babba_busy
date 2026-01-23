@@ -23,7 +23,7 @@ class Membership {
     required this.role,
     this.avatarUrl,
     required this.joinedAt,
-    this.sharedEventTypes = const ['todo', 'personal', 'event'], // 기본값: 모든 타입 공유
+    this.sharedEventTypes = const ['todo', 'schedule', 'event'], // 기본값: 모든 타입 공유
   });
 
   factory Membership.fromFirestore(DocumentSnapshot doc) {
@@ -38,8 +38,17 @@ class Membership {
       role: data['role'] ?? 'member',
       avatarUrl: data['avatarUrl'],
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      sharedEventTypes: List<String>.from(data['sharedEventTypes'] ?? ['todo', 'personal', 'event']),
+      sharedEventTypes: _normalizeSharedEventTypes(data['sharedEventTypes']),
     );
+  }
+
+  /// 하위 호환성: 'personal' -> 'schedule' 변환
+  static List<String> _normalizeSharedEventTypes(dynamic types) {
+    final list = types != null
+        ? List<String>.from(types)
+        : ['todo', 'schedule', 'event'];
+    // 'personal' -> 'schedule' 변환
+    return list.map((t) => t == 'personal' ? 'schedule' : t).toList();
   }
 
   Map<String, dynamic> toFirestore() {

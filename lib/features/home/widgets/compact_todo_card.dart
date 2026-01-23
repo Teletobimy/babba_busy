@@ -196,7 +196,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                 margin: const EdgeInsets.only(left: 4),
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: widget.todo.eventType == TodoEventType.personal
+                                  color: widget.todo.eventType == TodoEventType.schedule
                                       ? AppColors.primaryLight.withValues(alpha: 0.15)
                                       : AppColors.calendarColor.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
@@ -205,7 +205,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                   widget.todo.eventType.label,
                                   style: TextStyle(
                                     fontSize: 9,
-                                    color: widget.todo.eventType == TodoEventType.personal
+                                    color: widget.todo.eventType == TodoEventType.schedule
                                         ? AppColors.primaryLight
                                         : AppColors.calendarColor,
                                     fontWeight: FontWeight.w500,

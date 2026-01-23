@@ -37,7 +37,7 @@ export const onChatMessageCreated = functions.firestore
         return;
       }
 
-      // 알림 전송
+      // 알림 전송 (tag로 같은 채팅방 알림 덮어쓰기)
       const { title, body } = MessageTemplates.chatMessage(senderName, messageText);
       await sendNotification(memberIds, {
         title,
@@ -48,6 +48,7 @@ export const onChatMessageCreated = functions.firestore
           messageId: snapshot.id,
           route: "/chat",
         },
+        tag: `chat_${familyId}`, // PWA: 같은 채팅방 알림은 최신 것으로 덮어씀
       });
 
       console.log(`Sent chat notification to ${memberIds.length} members in family ${familyId}`);

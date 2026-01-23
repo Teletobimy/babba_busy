@@ -29,8 +29,13 @@ class NotificationChannelId {
   static const String analysisChannel = 'babba_analysis_channel';
 }
 
-/// 알림 서비스
+/// 알림 서비스 (싱글톤)
 class NotificationService {
+  // 싱글톤 인스턴스
+  static final NotificationService _instance = NotificationService._internal();
+  factory NotificationService() => _instance;
+  NotificationService._internal();
+
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications =
       FlutterLocalNotificationsPlugin();
@@ -43,6 +48,7 @@ class NotificationService {
   /// 현재 사용자 ID 설정 (토큰 갱신 시 자동 저장용)
   void setCurrentUserId(String? userId) {
     _currentUserId = userId;
+    debugPrint('📱 NotificationService userId 설정: $userId');
   }
 
   /// Navigator Key 설정

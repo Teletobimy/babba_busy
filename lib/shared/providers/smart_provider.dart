@@ -204,10 +204,19 @@ final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref
     final creatorMembership = membershipByUserId[todo.createdBy];
 
     // membership을 찾을 수 없으면 기본값으로 모든 타입 공유
-    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'personal', 'event'];
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
 
     // 작성자가 해당 타입을 공유하도록 설정했는지 확인
     return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
+  // Apply visibility filter: private 일정은 본인만 볼 수 있음
+  final currentUserId = ref.watch(currentUserProvider)?.uid;
+  todos = todos.where((todo) {
+    if (todo.visibility == TodoVisibility.private) {
+      return todo.ownerId == currentUserId || todo.createdBy == currentUserId;
+    }
+    return true;
   }).toList();
 
   // 정렬

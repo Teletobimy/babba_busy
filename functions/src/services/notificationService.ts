@@ -4,6 +4,7 @@ export interface NotificationPayload {
   title: string;
   body: string;
   data: Record<string, string>;
+  tag?: string; // PWA 알림 덮어쓰기용 tag
 }
 
 /**
@@ -99,6 +100,12 @@ export async function sendNotification(
             },
           },
         },
+        webpush: payload.tag ? {
+          notification: {
+            tag: payload.tag, // 같은 tag면 알림 덮어쓰기 (PWA)
+            renotify: true, // 덮어써도 알림 표시
+          },
+        } : undefined,
       });
 
       console.log(

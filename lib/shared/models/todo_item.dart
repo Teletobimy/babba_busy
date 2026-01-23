@@ -3,9 +3,9 @@ import 'recurrence.dart';
 
 /// 일정 타입
 enum TodoEventType {
-  todo,      // 할일 - 개인적인 작은 할일
-  personal,  // 개인 일정
-  event,     // 이벤트/일정 - 그룹 공유 일정
+  todo,      // 할일 - 완료O, 반복X (장보기, 청소 등 가벼운 작업)
+  schedule,  // 일정 - 완료△(비반복만), 반복O (회의, 약속 등)
+  event,     // 이벤트 - 완료X, 반복O (생일, 기념일 등 특별한 날)
 }
 
 /// 하위 호환성을 위한 별칭
@@ -44,10 +44,10 @@ extension TodoEventTypeExtension on TodoEventType {
     switch (this) {
       case TodoEventType.todo:
         return '할일';
-      case TodoEventType.personal:
-        return '개인';
-      case TodoEventType.event:
+      case TodoEventType.schedule:
         return '일정';
+      case TodoEventType.event:
+        return '이벤트';
     }
   }
 
@@ -55,10 +55,21 @@ extension TodoEventTypeExtension on TodoEventType {
     switch (this) {
       case TodoEventType.todo:
         return 'todo';
-      case TodoEventType.personal:
-        return 'personal';
+      case TodoEventType.schedule:
+        return 'schedule';
       case TodoEventType.event:
         return 'event';
+    }
+  }
+
+  /// 반복 설정 가능 여부
+  bool get canRecur {
+    switch (this) {
+      case TodoEventType.todo:
+        return false;
+      case TodoEventType.schedule:
+      case TodoEventType.event:
+        return true;
     }
   }
 
@@ -66,10 +77,10 @@ extension TodoEventTypeExtension on TodoEventType {
     switch (value) {
       case 'todo':
         return TodoEventType.todo;
-      case 'personal':
-        return TodoEventType.personal;
-      case 'schedule': // 하위 호환성
-        return TodoEventType.event;
+      case 'schedule':
+        return TodoEventType.schedule;
+      case 'personal': // 하위 호환성: 기존 Firestore 데이터
+        return TodoEventType.schedule;
       case 'event':
         return TodoEventType.event;
       default:

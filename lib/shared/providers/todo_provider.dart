@@ -181,8 +181,17 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, ({int year
   todos = todos.where((todo) {
     if (todo.createdBy.isEmpty) return true;
     final creatorMembership = membershipByUserId[todo.createdBy];
-    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'personal', 'event'];
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
     return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
+  // Apply visibility filter: private 일정은 본인만 볼 수 있음
+  final currentUserId = ref.watch(currentUserProvider)?.uid;
+  todos = todos.where((todo) {
+    if (todo.visibility == TodoVisibility.private) {
+      return todo.ownerId == currentUserId || todo.createdBy == currentUserId;
+    }
+    return true;
   }).toList();
 
   // Apply completed filter
@@ -286,7 +295,10 @@ List<TodoItem> _generateRecurringInstances(
   int count = 0;
   const maxInstances = 100;
 
-  while (currentDate.isBefore(actualEndDate) && count < maxInstances) {
+  // 종료일 당일도 포함하기 위해 inclusiveEndDate 사용
+  final inclusiveEndDate = DateTime(actualEndDate.year, actualEndDate.month, actualEndDate.day, 23, 59, 59);
+
+  while (!currentDate.isAfter(inclusiveEndDate) && count < maxInstances) {
     final instanceEndTime = todo.startTime != null
         ? currentDate.add(baseDuration)
         : currentDate;
