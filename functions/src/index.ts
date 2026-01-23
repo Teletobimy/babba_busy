@@ -16,5 +16,4 @@ export { onBusinessReviewCompleted } from "./triggers/businessTriggers";
 export {
   onAnalysisJobUpdated,
   onAnalysisJobCreated,
-  cleanupOldAnalysisJobs,
 } from "./triggers/jobTriggers";
