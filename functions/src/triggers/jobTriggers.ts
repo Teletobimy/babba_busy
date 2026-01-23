@@ -1,4 +1,5 @@
 import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 import { sendNotificationToUser } from "../services/notificationService";
 import { MessageTemplates } from "../utils/messageTemplates";
 
@@ -31,8 +32,18 @@ export const onAnalysisJobUpdated = functions.firestore
 
       // completed 상태로 변경된 경우
       if (afterStatus === "completed" && beforeStatus !== "completed") {
-        // 먼저 플래그 설정 (중복 알림 방지)
-        await change.after.ref.update({ notificationSent: true });
+        // 트랜잭션으로 원자적 처리 (race condition 방지)
+        const shouldSend = await admin.firestore().runTransaction(async (transaction) => {
+          const doc = await transaction.get(change.after.ref);
+          if (doc.data()?.notificationSent) return false;
+          transaction.update(change.after.ref, { notificationSent: true });
+          return true;
+        });
+
+        if (!shouldSend) {
+          console.log(`Notification already sent for job ${jobId} (transaction check)`);
+          return;
+        }
 
         const { title, body } = MessageTemplates.analysisJobCompleted(jobType);
 
@@ -53,8 +64,18 @@ export const onAnalysisJobUpdated = functions.firestore
 
       // failed 상태로 변경된 경우
       if (afterStatus === "failed" && beforeStatus !== "failed") {
-        // 먼저 플래그 설정 (중복 알림 방지)
-        await change.after.ref.update({ notificationSent: true });
+        // 트랜잭션으로 원자적 처리 (race condition 방지)
+        const shouldSend = await admin.firestore().runTransaction(async (transaction) => {
+          const doc = await transaction.get(change.after.ref);
+          if (doc.data()?.notificationSent) return false;
+          transaction.update(change.after.ref, { notificationSent: true });
+          return true;
+        });
+
+        if (!shouldSend) {
+          console.log(`Notification already sent for job ${jobId} (transaction check)`);
+          return;
+        }
 
         const { title, body } = MessageTemplates.analysisJobFailed(jobType);
 

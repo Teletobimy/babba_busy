@@ -99,6 +99,9 @@ final fcmTokenSaverProvider = FutureProvider<void>((ref) async {
   try {
     debugPrint('🔔 FCM 초기화 시작: ${user.uid}');
 
+    // 0. userId 설정 (토큰 갱신 시 자동 저장용)
+    notificationService.setCurrentUserId(user.uid);
+
     // 1. 알림 권한 요청
     final hasPermission = await notificationService.requestPermission();
     if (!hasPermission) {

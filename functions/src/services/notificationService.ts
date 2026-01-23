@@ -106,7 +106,7 @@ export async function sendNotification(
         `${response.successCount} succeeded, ${response.failureCount} failed`
       );
 
-      // 5. 실패한 토큰 제거
+      // 5. 실패한 토큰 제거 (arrayRemove로 원자적 처리)
       if (response.failureCount > 0) {
         const failedTokens: string[] = [];
         response.responses.forEach((resp, idx) => {
@@ -116,8 +116,9 @@ export async function sendNotification(
         });
 
         if (failedTokens.length > 0) {
-          const updatedTokens = tokens.filter((token: string) => !failedTokens.includes(token));
-          await userDoc.ref.update({ fcmTokens: updatedTokens });
+          await userDoc.ref.update({
+            fcmTokens: admin.firestore.FieldValue.arrayRemove(...failedTokens),
+          });
           console.log(`Removed ${failedTokens.length} invalid tokens from user ${userId}`);
         }
       }
