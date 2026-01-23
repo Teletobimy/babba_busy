@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/notification_settings_provider.dart';
+import '../../shared/providers/update_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
+import '../../shared/widgets/update_dialog.dart';
 import '../auth/widgets/group_setup_dialog.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
@@ -19,10 +22,10 @@ String _getEventTypeDescription(TodoEventType type) {
   switch (type) {
     case TodoEventType.todo:
       return '개인적인 작은 할일';
-    case TodoEventType.personal:
-      return '개인 일정';
+    case TodoEventType.schedule:
+      return '회의, 약속 등 일정';
     case TodoEventType.event:
-      return '그룹 공유 일정';
+      return '생일, 기념일 등 특별한 날';
   }
 }
 
@@ -391,18 +394,8 @@ class SettingsScreen extends ConsumerWidget {
                 padding: EdgeInsets.zero,
                 child: Column(
                   children: [
-                    _SettingsTile(
-                      icon: Iconsax.info_circle,
-                      title: '앱 정보',
-                      onTap: () {
-                        showAboutDialog(
-                          context: context,
-                          applicationName: 'BABBA',
-                          applicationVersion: '1.0.0',
-                          applicationLegalese: '© 2024 BABBA',
-                        );
-                      },
-                    ),
+                    // 버전 정보 및 업데이트 체크
+                    const _VersionTile(),
                     const Divider(height: 1),
                     _SettingsTile(
                       icon: Iconsax.message_question,
@@ -934,6 +927,132 @@ class _NotificationSubTile extends StatelessWidget {
             activeTrackColor: AppColors.primaryLight,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 버전 정보 및 업데이트 체크 타일
+class _VersionTile extends ConsumerStatefulWidget {
+  const _VersionTile();
+
+  @override
+  ConsumerState<_VersionTile> createState() => _VersionTileState();
+}
+
+class _VersionTileState extends ConsumerState<_VersionTile> {
+  String _version = '';
+  bool _isChecking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _version = info.version;
+      });
+    }
+  }
+
+  Future<void> _checkForUpdate() async {
+    setState(() => _isChecking = true);
+
+    try {
+      final updateInfo = await ref.read(forceUpdateCheckProvider(true).future);
+
+      if (!mounted) return;
+
+      if (updateInfo != null && updateInfo.updateAvailable) {
+        await UpdateDialog.show(context, updateInfo);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('현재 최신 버전입니다'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('업데이트 확인에 실패했습니다'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isChecking = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: _isChecking ? null : _checkForUpdate,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spacingM,
+          vertical: AppTheme.spacingM,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Iconsax.info_circle,
+              size: 22,
+              color: isDark
+                  ? AppColors.textPrimaryDark
+                  : AppColors.textPrimaryLight,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '앱 버전',
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  Text(
+                    _version.isEmpty ? '로딩 중...' : 'v$_version',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_isChecking)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              TextButton(
+                onPressed: _checkForUpdate,
+                child: Text(
+                  '업데이트 확인',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.coral,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

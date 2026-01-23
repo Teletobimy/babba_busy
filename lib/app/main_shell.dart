@@ -1,21 +1,50 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../core/theme/app_colors.dart';
+import '../shared/providers/update_provider.dart';
+import '../shared/widgets/update_dialog.dart';
 
 /// 도구 탭 컬러
 const Color toolsColor = Color(0xFF5B8DEF);
 
 /// 메인 쉘 (하단 네비게이션 바 포함)
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
 
   const MainShell({super.key, required this.child});
 
   @override
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
+  bool _hasCheckedUpdate = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 첫 프레임 렌더링 후 업데이트 체크
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForUpdate();
+    });
+  }
+
+  Future<void> _checkForUpdate() async {
+    if (_hasCheckedUpdate) return;
+    _hasCheckedUpdate = true;
+
+    final updateInfo = await ref.read(appUpdateProvider.future);
+    if (updateInfo != null && updateInfo.updateAvailable && mounted) {
+      await UpdateDialog.show(context, updateInfo);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: child,
+      body: widget.child,
       bottomNavigationBar: const _BottomNavBar(),
     );
   }
