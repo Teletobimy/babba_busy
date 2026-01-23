@@ -1350,8 +1350,6 @@ class BusinessHistoryScreen extends ConsumerWidget {
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('BABBA 앱에서 분석됨');
 
-    SharePlus.instance.share(
-      ShareParams(text: buffer.toString()),
-    );
+    Share.share(buffer.toString());
   }
 }
