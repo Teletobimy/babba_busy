@@ -189,31 +189,25 @@ class FirestoreCache:
 
     @staticmethod
     def _create_analysis_job_atomic_sync(user_id: str, job_id: str, data: dict, max_concurrent: int) -> tuple[bool, str]:
-        """트랜잭션으로 동시 작업 수 확인 후 작업 생성 (동기)
+        """동시 작업 수 확인 후 작업 생성 (동기)
 
         Returns:
             (success, message): 성공 여부와 메시지
         """
-        @firestore.transactional
-        def create_in_transaction(transaction, user_id: str, job_id: str, data: dict, max_concurrent: int):
-            # 진행 중인 작업 수 확인
-            jobs_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS)
-            query = jobs_ref.where(filter=FieldFilter("userId", "==", user_id)).where(
-                filter=FieldFilter("status", "in", ["pending", "processing"])
-            )
-            # 트랜잭션 내에서는 쿼리 결과를 읽기만 함
-            docs = list(query.stream())
+        # 진행 중인 작업 수 확인
+        jobs_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS)
+        query = jobs_ref.where(filter=FieldFilter("userId", "==", user_id)).where(
+            filter=FieldFilter("status", "in", ["pending", "processing"])
+        )
+        docs = list(query.stream())
 
-            if len(docs) >= max_concurrent:
-                return False, "이미 진행 중인 분석이 있습니다."
+        if len(docs) >= max_concurrent:
+            return False, "이미 진행 중인 분석이 있습니다."
 
-            # 새 작업 생성
-            doc_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS).document(job_id)
-            transaction.set(doc_ref, data)
-            return True, "success"
-
-        transaction = db.transaction()
-        return create_in_transaction(transaction, user_id, job_id, data, max_concurrent)
+        # 새 작업 생성
+        doc_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS).document(job_id)
+        doc_ref.set(data)
+        return True, "success"
 
     @staticmethod
     async def create_analysis_job_atomic(user_id: str, job_id: str, data: dict, max_concurrent: int = 1) -> tuple[bool, str]:
