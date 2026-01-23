@@ -14,10 +14,10 @@ class AiApiService {
   final Ref _ref;
   AiApiService(this._ref);
 
-  // Cloud Run API URL
+  // Cloud Run API URL (***REMOVED_PROJECT_ID*** 프로젝트)
   static const String _baseUrl = String.fromEnvironment(
     'AI_API_URL',
-    defaultValue: 'https://babba-ai-api-cykf2jfgmq-du.a.run.app',
+    defaultValue: 'https://***REMOVED_CLOUD_RUN_URL***',
   );
 
   /// Firebase Auth 토큰 가져오기
