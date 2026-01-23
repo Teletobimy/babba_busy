@@ -1,5 +1,4 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
 import { sendNotificationToUser } from "../services/notificationService";
 import { MessageTemplates } from "../utils/messageTemplates";
 
@@ -97,41 +96,9 @@ export const onAnalysisJobCreated = functions.firestore
     // 현재는 Cloud Run에서 백그라운드 처리하므로 로깅만 수행
   });
 
-/**
- * 오래된 분석 작업 정리 (선택적, 스케줄 함수)
- */
-export const cleanupOldAnalysisJobs = functions.pubsub
-  .schedule("every 24 hours")
-  .onRun(async () => {
-    const db = admin.firestore();
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 30); // 30일 전
-
-    try {
-      // 30일 이상 된 완료/실패/취소 작업 삭제
-      const oldJobsSnapshot = await db
-        .collection("analysis_jobs")
-        .where("status", "in", ["completed", "failed", "cancelled"])
-        .where("createdAt", "<", cutoffDate)
-        .limit(100)
-        .get();
-
-      if (oldJobsSnapshot.empty) {
-        console.log("No old analysis jobs to clean up");
-        return;
-      }
-
-      const batch = db.batch();
-      oldJobsSnapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-
-      await batch.commit();
-      console.log(`Cleaned up ${oldJobsSnapshot.size} old analysis jobs`);
-    } catch (error) {
-      console.error("Error cleaning up old analysis jobs:", error);
-    }
-  });
+// NOTE: cleanupOldAnalysisJobs 스케줄 함수는 Cloud Scheduler API 활성화 필요
+// GCP 콘솔에서 cloudscheduler.googleapis.com 활성화 후 추가 가능
+// https://console.cloud.google.com/apis/library/cloudscheduler.googleapis.com
 
 /**
  * 작업 유형별 라우트 반환
