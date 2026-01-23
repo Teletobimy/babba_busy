@@ -41,4 +41,29 @@ export const MessageTemplates = {
     title: "사업 분석 완료",
     body: `"${ideaTitle}" 아이디어 분석이 완료되었습니다`,
   }),
+
+  // Analysis Job 알림
+  analysisJobCompleted: (jobType: string): { title: string; body: string } => {
+    const typeNames: Record<string, string> = {
+      business_review: "사업 검토",
+      psychology_test: "심리 검사",
+    };
+    const typeName = typeNames[jobType] || "분석";
+    return {
+      title: `${typeName} 결과가 도착했어요`,
+      body: "지금 확인해보세요!",
+    };
+  },
+
+  analysisJobFailed: (jobType: string): { title: string; body: string } => {
+    const typeNames: Record<string, string> = {
+      business_review: "사업 검토",
+      psychology_test: "심리 검사",
+    };
+    const typeName = typeNames[jobType] || "분석";
+    return {
+      title: `${typeName} 중 문제가 발생했어요`,
+      body: "다시 시도하시거나 나중에 확인해주세요",
+    };
+  },
 };

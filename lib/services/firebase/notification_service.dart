@@ -25,6 +25,8 @@ class NotificationChannelId {
   static const String chatChannel = 'babba_chat_channel';
   static const String todoChannel = 'babba_todo_channel';
   static const String eventChannel = 'babba_event_channel';
+  static const String businessChannel = 'babba_business_channel';
+  static const String analysisChannel = 'babba_analysis_channel';
 }
 
 /// 알림 서비스
@@ -136,6 +138,26 @@ class NotificationService {
         importance: Importance.high,
       ),
     );
+
+    // 사업 검토 채널
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        NotificationChannelId.businessChannel,
+        '사업 검토 알림',
+        description: '사업 검토 결과 알림',
+        importance: Importance.high,
+      ),
+    );
+
+    // 분석 작업 채널
+    await androidPlugin.createNotificationChannel(
+      const AndroidNotificationChannel(
+        NotificationChannelId.analysisChannel,
+        '분석 결과 알림',
+        description: 'AI 분석 결과 알림',
+        importance: Importance.high,
+      ),
+    );
   }
 
   /// 포그라운드 메시지 핸들러 설정
@@ -157,7 +179,7 @@ class NotificationService {
       title: notification.title ?? 'BABBA',
       body: notification.body ?? '',
       channelId: channelId,
-      payload: message.data.toString(),
+      payload: jsonEncode(message.data),
     );
   }
 
@@ -170,6 +192,11 @@ class NotificationService {
         return NotificationChannelId.todoChannel;
       case 'event':
         return NotificationChannelId.eventChannel;
+      case 'business_review':
+        return NotificationChannelId.businessChannel;
+      case 'analysis_complete':
+      case 'analysis_failed':
+        return NotificationChannelId.analysisChannel;
       default:
         return NotificationChannelId.defaultChannel;
     }
@@ -276,7 +303,15 @@ class NotificationService {
           context.go('/home');
           break;
         case 'business_review':
-          context.go('/tools/business');
+        case 'analysis_complete':
+        case 'analysis_failed':
+          // 사업 검토 또는 분석 작업 관련 알림
+          final jobType = data['jobType'] as String?;
+          if (jobType == 'psychology_test') {
+            context.go('/tools/psychology/history');
+          } else {
+            context.go('/tools/business/history');
+          }
           break;
         default:
           context.go('/home');

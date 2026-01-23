@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/business_review.dart';
+import '../../../shared/models/analysis_job.dart';
 import '../../../shared/providers/business_review_provider.dart';
+import '../../../shared/providers/analysis_job_provider.dart';
+import '../../../services/ai/ai_api_service.dart';
 
 class BusinessHistoryScreen extends ConsumerWidget {
   const BusinessHistoryScreen({super.key});
@@ -12,6 +16,7 @@ class BusinessHistoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final reviewsAsync = ref.watch(businessReviewsProvider);
+    final pendingJobsAsync = ref.watch(pendingAnalysisJobsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.grayScale[50],
@@ -21,9 +26,19 @@ class BusinessHistoryScreen extends ConsumerWidget {
         elevation: 0,
       ),
       body: reviewsAsync.when(
-        data: (reviews) => reviews.isEmpty
-            ? _buildEmptyState(context)
-            : _buildReviewsList(context, ref, reviews),
+        data: (reviews) {
+          // 진행 중인 작업 필터링 (사업 검토만)
+          final pendingJobs = pendingJobsAsync.valueOrNull
+                  ?.where((job) => job.jobType == AnalysisJobType.businessReview)
+                  .toList() ??
+              [];
+
+          if (reviews.isEmpty && pendingJobs.isEmpty) {
+            return _buildEmptyState(context);
+          }
+
+          return _buildContent(context, ref, reviews, pendingJobs);
+        },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(
           child: Column(
@@ -38,6 +53,199 @@ class BusinessHistoryScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    WidgetRef ref,
+    List<BusinessReview> reviews,
+    List<AnalysisJob> pendingJobs,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // 진행 중인 작업 섹션
+        if (pendingJobs.isNotEmpty) ...[
+          _buildSectionHeader(context, '진행 중', AppColors.coral[500]!),
+          const SizedBox(height: 12),
+          ...pendingJobs.map((job) => _buildPendingJobCard(context, ref, job)),
+          const SizedBox(height: 24),
+        ],
+
+        // 완료된 검토 목록
+        if (reviews.isNotEmpty) ...[
+          if (pendingJobs.isNotEmpty)
+            _buildSectionHeader(context, '완료됨', AppColors.sage[500]!),
+          if (pendingJobs.isNotEmpty) const SizedBox(height: 12),
+          _buildReviewsList(context, ref, reviews),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(BuildContext context, String title, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: AppColors.grayScale[700],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPendingJobCard(BuildContext context, WidgetRef ref, AnalysisJob job) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.coral[200]!),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // 펄스 애니메이션 인디케이터
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: AppColors.coral[500],
+                    shape: BoxShape.circle,
+                  ),
+                ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms).fadeOut(duration: 600.ms),
+                const SizedBox(width: 8),
+                Text(
+                  job.status == AnalysisJobStatus.pending ? '대기 중' : '분석 중',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.coral[600],
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                // 취소 버튼
+                TextButton(
+                  onPressed: () => _showCancelDialog(context, ref, job),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    '취소',
+                    style: TextStyle(
+                      color: AppColors.grayScale[500],
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // 아이디어 미리보기
+            Text(
+              job.businessInput.businessIdea,
+              style: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 14,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 12),
+
+            // 진행률 바
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: job.progressPercent / 100,
+                backgroundColor: AppColors.grayScale[200],
+                valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // 진행률 텍스트
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  job.progress.currentStepName ?? '준비 중',
+                  style: TextStyle(
+                    color: AppColors.grayScale[500],
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '${job.progressPercent.toInt()}%',
+                  style: TextStyle(
+                    color: AppColors.coral[500],
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCancelDialog(BuildContext context, WidgetRef ref, AnalysisJob job) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('분석 취소'),
+        content: const Text('진행 중인 분석을 취소하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final service = ref.read(analysisJobServiceProvider);
+              final success = await service.cancelJob(job.id);
+              if (!success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('취소에 실패했습니다')),
+                );
+              }
+            },
+            child: Text('예', style: TextStyle(color: AppColors.coral[500])),
+          ),
+        ],
       ),
     );
   }
@@ -82,12 +290,12 @@ class BusinessHistoryScreen extends ConsumerWidget {
       groupedReviews.putIfAbsent(dateKey, () => []).add(review);
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: groupedReviews.length,
-      itemBuilder: (context, index) {
-        final dateKey = groupedReviews.keys.elementAt(index);
-        final monthReviews = groupedReviews[dateKey]!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: groupedReviews.entries.map((entry) {
+        final dateKey = entry.key;
+        final monthReviews = entry.value;
+        final index = groupedReviews.keys.toList().indexOf(dateKey);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,7 +314,7 @@ class BusinessHistoryScreen extends ConsumerWidget {
             ...monthReviews.map((review) => _buildReviewCard(context, ref, review)),
           ],
         );
-      },
+      }).toList(),
     );
   }
 

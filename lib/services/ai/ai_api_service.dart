@@ -117,7 +117,7 @@ class AiApiService {
     }
   }
 
-  /// 사업 아이디어 분석
+  /// 사업 아이디어 분석 (동기)
   Future<BusinessAnalysisResult> analyzeBusinessIdea({
     required String userId,
     required String idea,
@@ -144,6 +144,114 @@ class AiApiService {
         return BusinessAnalysisResult.fromJson(data);
       } else {
         throw AiApiException('분석 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 사업 아이디어 분석 비동기 요청 (백그라운드 처리)
+  Future<SubmitJobResult> submitBusinessAnalysis({
+    required String userId,
+    required String idea,
+    String? industry,
+    String? targetMarket,
+    String? budget,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/jobs/business/submit'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'idea': idea,
+          if (industry != null) 'industry': industry,
+          if (targetMarket != null) 'target_market': targetMarket,
+          if (budget != null) 'budget': budget,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return SubmitJobResult(
+          jobId: data['job_id'],
+          status: data['status'] ?? 'pending',
+          estimatedTimeSeconds: data['estimated_time_seconds'] ?? 120,
+        );
+      } else if (response.statusCode == 400) {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '요청 실패');
+      } else {
+        throw AiApiException('요청 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 분석 작업 상태 조회
+  Future<JobStatusResult> getJobStatus(String jobId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/jobs/$jobId'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return JobStatusResult.fromJson(data);
+      } else if (response.statusCode == 404) {
+        throw AiApiException('작업을 찾을 수 없습니다');
+      } else {
+        throw AiApiException('조회 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 분석 작업 취소
+  Future<bool> cancelJob(String jobId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/jobs/$jobId/cancel'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return true;
+      } else if (response.statusCode == 400) {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '취소 실패');
+      } else {
+        throw AiApiException('취소 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 사용자의 진행 중인 작업 목록 조회
+  Future<List<JobStatusResult>> getPendingJobs() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/jobs/user/pending'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.map((item) => JobStatusResult.fromJson(item)).toList();
+      } else {
+        throw AiApiException('조회 실패: ${response.statusCode}');
       }
     } catch (e) {
       if (e is AiApiException) rethrow;
@@ -630,4 +738,93 @@ class PsychologyResult {
       recommendations: List<String>.from(json['recommendations'] ?? []),
     );
   }
+}
+
+/// 비동기 작업 제출 결과
+class SubmitJobResult {
+  final String jobId;
+  final String status;
+  final int estimatedTimeSeconds;
+
+  SubmitJobResult({
+    required this.jobId,
+    required this.status,
+    required this.estimatedTimeSeconds,
+  });
+}
+
+/// 작업 진행 상황
+class JobProgress {
+  final int currentStep;
+  final int totalSteps;
+  final double percentage;
+  final String? currentStepName;
+
+  JobProgress({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.percentage,
+    this.currentStepName,
+  });
+
+  factory JobProgress.fromJson(Map<String, dynamic> json) {
+    return JobProgress(
+      currentStep: json['current_step'] ?? 0,
+      totalSteps: json['total_steps'] ?? 5,
+      percentage: (json['percentage'] ?? 0.0).toDouble(),
+      currentStepName: json['current_step_name'],
+    );
+  }
+}
+
+/// 작업 상태 결과
+class JobStatusResult {
+  final String jobId;
+  final String userId;
+  final String jobType;
+  final String status;
+  final JobProgress progress;
+  final String? resultId;
+  final Map<String, dynamic>? error;
+  final DateTime createdAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+
+  JobStatusResult({
+    required this.jobId,
+    required this.userId,
+    required this.jobType,
+    required this.status,
+    required this.progress,
+    this.resultId,
+    this.error,
+    required this.createdAt,
+    this.startedAt,
+    this.completedAt,
+  });
+
+  factory JobStatusResult.fromJson(Map<String, dynamic> json) {
+    return JobStatusResult(
+      jobId: json['job_id'] ?? '',
+      userId: json['user_id'] ?? '',
+      jobType: json['job_type'] ?? 'business_review',
+      status: json['status'] ?? 'pending',
+      progress: JobProgress.fromJson(json['progress'] ?? {}),
+      resultId: json['result_id'],
+      error: json['error'],
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : DateTime.now(),
+      startedAt: json['started_at'] != null
+          ? DateTime.parse(json['started_at'])
+          : null,
+      completedAt: json['completed_at'] != null
+          ? DateTime.parse(json['completed_at'])
+          : null,
+    );
+  }
+
+  bool get isInProgress => status == 'pending' || status == 'processing';
+  bool get isCompleted => status == 'completed';
+  bool get isFailed => status == 'failed';
 }

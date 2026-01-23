@@ -7,7 +7,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/business_review_provider.dart';
+import '../../../shared/providers/analysis_job_provider.dart';
 import '../../../shared/models/business_review.dart';
+import 'widgets/request_accepted_screen.dart';
 
 /// 사업 검토 화면
 class BusinessReviewScreen extends ConsumerStatefulWidget {
@@ -23,6 +25,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   String? _selectedBudget;
 
   bool _isAnalyzing = false;
+  bool _useAsyncMode = true; // 비동기 모드 기본 활성화
+  String? _submittedJobId;
+  int _estimatedTimeSeconds = 120;
   Map<String, String> _analysisProgress = {};
   BusinessAnalysisResult? _result;
   String? _error;
@@ -76,6 +81,63 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     }
     setState(() => _inputError = null);
 
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      setState(() => _error = '로그인이 필요합니다');
+      return;
+    }
+
+    // 이미 진행 중인 분석이 있는지 확인
+    final hasPending = ref.read(hasPendingBusinessJobProvider);
+    if (hasPending) {
+      _showPendingJobDialog();
+      return;
+    }
+
+    // 비동기 모드면 백그라운드 분석 요청
+    if (_useAsyncMode) {
+      await _startAsyncAnalysis(user.uid);
+    } else {
+      await _startSyncAnalysis(user.uid);
+    }
+  }
+
+  /// 비동기 분석 요청 (백그라운드 처리)
+  Future<void> _startAsyncAnalysis(String userId) async {
+    setState(() {
+      _isAnalyzing = true;
+      _error = null;
+    });
+
+    try {
+      final aiApiService = ref.read(aiApiServiceProvider);
+      final result = await aiApiService.submitBusinessAnalysis(
+        userId: userId,
+        idea: _ideaController.text.trim(),
+        industry: _selectedIndustry,
+        budget: _selectedBudget,
+      );
+
+      setState(() {
+        _isAnalyzing = false;
+        _submittedJobId = result.jobId;
+        _estimatedTimeSeconds = result.estimatedTimeSeconds;
+      });
+    } on AiApiException catch (e) {
+      setState(() {
+        _error = e.message;
+        _isAnalyzing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isAnalyzing = false;
+      });
+    }
+  }
+
+  /// 동기 분석 (기존 실시간 스트리밍 방식)
+  Future<void> _startSyncAnalysis(String userId) async {
     setState(() {
       _isAnalyzing = true;
       _analysisProgress = {
@@ -90,12 +152,6 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     });
 
     try {
-      final user = ref.read(currentUserProvider);
-
-      if (user == null) throw Exception('로그인이 필요합니다');
-
-      final userId = user.uid;
-
       final aiApiService = ref.read(aiApiServiceProvider);
       BusinessAnalysisResult? finalResult;
 
@@ -180,6 +236,37 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     }
   }
 
+  void _showPendingJobDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('진행 중인 분석'),
+        content: const Text('이미 진행 중인 분석이 있습니다.\n완료 후 다시 시도해주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/tools/business/history');
+            },
+            child: Text('이력 보기', style: TextStyle(color: AppColors.coral[500])),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _switchToSyncMode() {
+    setState(() {
+      _useAsyncMode = false;
+      _submittedJobId = null;
+    });
+    _startAnalysis();
+  }
+
   // P1: 분석 중 이탈 방지 다이얼로그
   Future<bool> _showExitConfirmDialog() async {
     if (!_isAnalyzing) return true;
@@ -206,6 +293,15 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 비동기 분석 요청 완료 시 접수 확인 화면 표시
+    if (_submittedJobId != null) {
+      return RequestAcceptedScreen(
+        jobId: _submittedJobId!,
+        estimatedTimeSeconds: _estimatedTimeSeconds,
+        onWaitHere: _switchToSyncMode,
+      );
+    }
+
     // P1: 분석 중 이탈 방지
     return PopScope(
       canPop: !_isAnalyzing,

@@ -157,3 +157,88 @@ class PsychologyResultResponse(BaseModel):
     summary: str  # AI 생성 요약
     recommendations: List[str]  # 추천 사항
     completed_at: datetime
+
+
+# ============ 분석 작업 (Analysis Jobs) ============
+
+class AnalysisJobType(str, Enum):
+    """분석 작업 유형"""
+    BUSINESS_REVIEW = "business_review"
+    PSYCHOLOGY_TEST = "psychology_test"
+
+
+class AnalysisJobStatus(str, Enum):
+    """분석 작업 상태"""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class AnalysisJobProgress(BaseModel):
+    """분석 작업 진행 상황"""
+    current_step: int = 0
+    total_steps: int = 5
+    percentage: float = 0.0
+    current_step_name: Optional[str] = None
+
+
+class AnalysisJobError(BaseModel):
+    """분석 작업 에러 정보"""
+    code: str
+    message: str
+    retryable: bool = True
+
+
+class BusinessAnalysisInput(BaseModel):
+    """사업 검토 입력 데이터"""
+    business_idea: str = Field(..., min_length=10, max_length=2000)
+    industry: Optional[str] = None
+    target_market: Optional[str] = None
+    budget: Optional[str] = None
+
+
+class SubmitBusinessAnalysisRequest(BaseModel):
+    """사업 검토 비동기 요청"""
+    user_id: str
+    idea: str = Field(..., min_length=10, max_length=2000)
+    industry: Optional[str] = None
+    target_market: Optional[str] = None
+    budget: Optional[str] = None
+    wait_for_result: bool = False  # True면 기존 동기 방식으로 대기
+
+
+class SubmitBusinessAnalysisResponse(BaseModel):
+    """사업 검토 비동기 응답"""
+    success: bool = True
+    job_id: str
+    status: AnalysisJobStatus = AnalysisJobStatus.PENDING
+    estimated_time_seconds: int = 120  # 약 2분
+
+
+class AnalysisJobResponse(BaseModel):
+    """분석 작업 상태 응답"""
+    success: bool = True
+    job_id: str
+    user_id: str
+    job_type: AnalysisJobType
+    status: AnalysisJobStatus
+    progress: AnalysisJobProgress
+    result_id: Optional[str] = None
+    error: Optional[AnalysisJobError] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class CancelJobResponse(BaseModel):
+    """작업 취소 응답"""
+    success: bool = True
+    job_id: str
+    message: str
+
+
+class ProcessJobRequest(BaseModel):
+    """내부 작업 처리 요청 (Cloud Tasks에서 호출)"""
+    job_id: str
