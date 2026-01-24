@@ -184,17 +184,24 @@ final filteredTodosProvider = Provider<List<TodoItem>>((ref) {
   }).toList();
 });
 
-/// 특정 날짜의 할일 (필터 적용, 반복 확장 포함)
-final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
-  // 실제 모드: 반복 확장된 todos 사용
-  List<TodoItem> todos = ref.watch(todosForDateProvider(date));
-
-  // 각 Todo 작성자의 공유 설정에 따라 필터링
-  // "이 그룹에 공유할 일정 타입" 설정은 작성자 본인이 다른 사람에게 보여줄지 결정
+/// 멤버십 맵 캐싱 (userId -> Membership)
+/// groupMembershipsProvider를 매번 맵으로 변환하지 않도록 캐싱
+final _membershipByUserIdProvider = Provider<Map<String, dynamic>>((ref) {
   final groupMemberships = ref.watch(groupMembershipsProvider).value ?? [];
-  final membershipByUserId = {
-    for (final m in groupMemberships) m.userId: m,
-  };
+  return {for (final m in groupMemberships) m.userId: m};
+});
+
+/// 특정 날짜의 할일 (필터 적용, 반복 확장 포함)
+/// 최적화: 날짜 정규화 + 멤버십 맵 캐싱
+final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
+  // 날짜 정규화 (시간 제거) - 캐시 히트율 향상
+  final normalizedDate = DateTime(date.year, date.month, date.day);
+
+  // 실제 모드: 반복 확장된 todos 사용
+  List<TodoItem> todos = ref.watch(todosForDateProvider(normalizedDate));
+
+  // 캐싱된 멤버십 맵 사용
+  final membershipByUserId = ref.watch(_membershipByUserIdProvider);
 
   todos = todos.where((todo) {
     // createdBy가 비어있으면 기본적으로 표시

@@ -8,8 +8,10 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/group_provider.dart';
+import '../../shared/providers/todo_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/empty_state.dart';
+import '../../shared/widgets/loading_shimmer.dart';
 import '../todo/widgets/add_todo_sheet.dart';
 import 'widgets/ai_summary_card.dart';
 import 'widgets/upcoming_events_card.dart';
@@ -58,18 +60,23 @@ class HomeScreen extends ConsumerWidget {
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
 
-    // Check loading state
-    final todosAsync = ref.watch(smartTodosProvider);
+    // Check loading state - use AsyncValue for better loading detection
+    final todosAsync = ref.watch(todosProvider);
+    final isLoading = todosAsync.isLoading && allTodos.isEmpty;
+
+    // Show shimmer during initial load
+    if (isLoading) {
+      return const Scaffold(
+        body: SafeArea(
+          child: HomeScreenShimmer(),
+        ),
+      );
+    }
 
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
-            // Loading indicator
-            if (todosAsync.isEmpty && allTodos.isEmpty)
-              const SliverToBoxAdapter(
-                child: LinearProgressIndicator(),
-              ),
             // 헤더
             SliverToBoxAdapter(
               child: Padding(

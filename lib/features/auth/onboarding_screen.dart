@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
@@ -13,20 +15,22 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  // 모드: selection (선택), create (생성), join (참여)
-  String _mode = 'selection'; 
+class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
+  // 모드: selection (선택), create (생성), join (참여), transitioning (전환 중)
+  String _mode = 'selection';
   final _formKey = GlobalKey<FormState>();
-  
+
   // 입력 컨트롤러
   final _groupNameController = TextEditingController();
   final _memberNameController = TextEditingController();
   final _inviteCodeController = TextEditingController();
-  
+
   int _selectedColorIndex = 0;
   bool _isLoading = false;
   String? _errorMessage;
   String? _inviteCode; // 생성 완료 시 표시할 초대 코드
+  bool _isTransitioningToHome = false; // 홈으로 전환 중 상태
 
   @override
   void dispose() {
@@ -370,71 +374,129 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // 성공 화면 (그룹 생성 시 초대 코드 표시)
   Widget _buildSuccessScreen(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingL),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Icon(
-                Iconsax.tick_circle5,
-                size: 80,
-                color: AppColors.successLight,
-              ),
-              const SizedBox(height: AppTheme.spacingL),
-              Text(
-                '그룹이 생성되었습니다!',
-                style: Theme.of(context).textTheme.headlineMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spacingM),
-              Text(
-                '아래 초대 코드를 멤버들에게 공유하세요',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: AppTheme.spacingXL),
-              Container(
-                padding: const EdgeInsets.all(AppTheme.spacingL),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  border: Border.all(
-                    color: AppColors.primaryLight.withValues(alpha: 0.3),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          child: _isTransitioningToHome
+              ? _buildTransitioningOverlay(context, isDark)
+              : Padding(
+                  padding: const EdgeInsets.all(AppTheme.spacingL),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Icon(
+                        Iconsax.tick_circle5,
+                        size: 80,
+                        color: AppColors.successLight,
+                      ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
+                      const SizedBox(height: AppTheme.spacingL),
+                      Text(
+                        '그룹이 생성되었습니다!',
+                        style: Theme.of(context).textTheme.headlineMedium,
+                        textAlign: TextAlign.center,
+                      ).animate().fadeIn(delay: 200.ms, duration: 300.ms),
+                      const SizedBox(height: AppTheme.spacingM),
+                      Text(
+                        '아래 초대 코드를 멤버들에게 공유하세요',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ).animate().fadeIn(delay: 300.ms, duration: 300.ms),
+                      const SizedBox(height: AppTheme.spacingXL),
+                      Container(
+                        padding: const EdgeInsets.all(AppTheme.spacingL),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryLight.withValues(alpha: 0.1),
+                          borderRadius:
+                              BorderRadius.circular(AppTheme.radiusMedium),
+                          border: Border.all(
+                            color: AppColors.primaryLight.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              '초대 코드',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: AppTheme.spacingS),
+                            Text(
+                              _inviteCode!,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineLarge
+                                  ?.copyWith(
+                                    color: AppColors.primaryLight,
+                                    letterSpacing: 4,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ).animate().fadeIn(delay: 400.ms, duration: 300.ms).slideY(begin: 0.1),
+                      const SizedBox(height: AppTheme.spacingXL),
+                      ElevatedButton(
+                        onPressed: _navigateToHome,
+                        child: const Text('시작하기'),
+                      ).animate().fadeIn(delay: 500.ms, duration: 300.ms),
+                    ],
                   ),
                 ),
-                child: Column(
-                  children: [
-                    Text(
-                      '초대 코드',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: AppTheme.spacingS),
-                    Text(
-                      _inviteCode!,
-                      style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                        color: AppColors.primaryLight,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacingXL),
-              ElevatedButton(
-                onPressed: () {
-                  // 멤버십 데이터 새로고침
-                  ref.invalidate(userMembershipsProvider);
-                },
-                child: const Text('시작하기'),
-              ),
-            ],
-          ),
         ),
       ),
     );
+  }
+
+  /// 홈으로 부드럽게 전환
+  Future<void> _navigateToHome() async {
+    setState(() {
+      _isTransitioningToHome = true;
+    });
+
+    // 전환 애니메이션을 위한 짧은 지연
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    // 멤버십 데이터 새로고침
+    ref.invalidate(userMembershipsProvider);
+
+    // 추가 지연 후 네비게이션 (데이터 로드 대기)
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    if (mounted) {
+      context.go('/home');
+    }
+  }
+
+  /// 전환 중 오버레이
+  Widget _buildTransitioningOverlay(BuildContext context, bool isDark) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isDark ? AppColors.primaryDark : AppColors.primaryLight,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppTheme.spacingM),
+          Text(
+            'BABBA 시작하기...',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 200.ms);
   }
 }
 

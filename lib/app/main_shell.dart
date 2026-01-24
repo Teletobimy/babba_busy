@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../core/theme/app_colors.dart';
+import '../core/theme/app_theme.dart';
 import '../shared/providers/auth_provider.dart';
+import '../shared/providers/group_provider.dart';
 import '../shared/providers/update_provider.dart';
 import '../shared/widgets/update_dialog.dart';
 import '../services/firebase/notification_service.dart';
@@ -79,9 +81,82 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final transitionState = ref.watch(groupTransitionProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      body: widget.child,
+      body: Stack(
+        children: [
+          // 메인 콘텐츠
+          widget.child,
+          // 그룹 전환 오버레이
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: transitionState.isTransitioning
+                ? _GroupTransitionOverlay(
+                    groupName: transitionState.targetGroupName,
+                    isDark: isDark,
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
       bottomNavigationBar: const _BottomNavBar(),
+    );
+  }
+}
+
+/// 그룹 전환 오버레이 위젯
+class _GroupTransitionOverlay extends StatelessWidget {
+  final String? groupName;
+  final bool isDark;
+
+  const _GroupTransitionOverlay({
+    this.groupName,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: (isDark ? AppColors.backgroundDark : AppColors.backgroundLight)
+          .withValues(alpha: 0.95),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 로딩 인디케이터
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                strokeWidth: 3,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isDark ? AppColors.primaryDark : AppColors.primaryLight,
+                ),
+              ),
+            ),
+            if (groupName != null) ...[
+              const SizedBox(height: AppTheme.spacingM),
+              Text(
+                groupName!,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: AppTheme.spacingXS),
+              Text(
+                '으로 전환 중...',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

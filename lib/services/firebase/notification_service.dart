@@ -399,6 +399,11 @@ class NotificationService {
   }
 
   /// FCM 토큰 Firestore에 저장
+  ///
+  /// Race Condition 방지를 위해 FieldValue.arrayUnion 사용:
+  /// - Firestore 서버에서 atomic하게 중복 체크 및 추가 수행
+  /// - 여러 기기에서 동시에 토큰을 추가해도 데이터 일관성 보장
+  /// - SetOptions(merge: true)로 문서 존재 여부와 관계없이 안전하게 처리
   Future<void> saveTokenToFirestore(String userId) async {
     debugPrint('💾 saveTokenToFirestore 시작: $userId');
 
@@ -406,73 +411,53 @@ class NotificationService {
       // 1. FCM 토큰 가져오기
       final token = await getToken();
       if (token == null) {
-        debugPrint('❌ FCM 토큰을 가져올 수 없습니다 (userId: $userId)');
+        debugPrint('[FCM] 토큰을 가져올 수 없습니다');
         return;
       }
 
-      debugPrint('📱 FCM 토큰 획득 성공: ${token.substring(0, 20)}...');
+      debugPrint('[FCM] 토큰 획득: ${token.substring(0, 20)}...');
 
-      // 2. Firestore에서 사용자 문서 조회
-      debugPrint('📂 Firestore 사용자 문서 조회 중: users/$userId');
+      // 2. Atomic하게 토큰 추가 (문서 존재 여부와 관계없이 동작)
+      // - FieldValue.arrayUnion: 서버에서 중복 체크 후 추가 (이미 있으면 무시)
+      // - SetOptions(merge: true): 문서가 없으면 생성, 있으면 해당 필드만 업데이트
+      // - 이 조합으로 Race Condition 없이 안전하게 토큰 저장
       final userRef = _firestore.collection('users').doc(userId);
-      final userDoc = await userRef.get();
-
-      // 3. 문서가 없으면 생성
-      if (!userDoc.exists) {
-        debugPrint('📝 사용자 문서 없음. 새로 생성합니다.');
-        await userRef.set({
-          'fcmTokens': [token],
-        }, SetOptions(merge: true));
-        debugPrint('✅ FCM 토큰 저장 완료 (새 문서): $userId');
-        return;
-      }
-
-      // 4. 기존 토큰 목록 확인
-      final data = userDoc.data();
-      debugPrint('📄 기존 사용자 데이터: ${data?.keys.toList()}');
-
-      final List<String> existingTokens = data != null && data.containsKey('fcmTokens')
-          ? List<String>.from(data['fcmTokens'] ?? [])
-          : [];
-
-      debugPrint('📋 기존 토큰 개수: ${existingTokens.length}');
-
-      // 5. 이미 토큰이 있으면 스킵
-      if (existingTokens.contains(token)) {
-        debugPrint('ℹ️ FCM 토큰이 이미 등록되어 있습니다: $userId');
-        return;
-      }
-
-      // 6. 토큰이 없으면 추가
-      debugPrint('➕ 새 FCM 토큰 추가 중... (userId: $userId)');
-      await userRef.update({
+      await userRef.set({
         'fcmTokens': FieldValue.arrayUnion([token]),
-      });
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
 
-      debugPrint('✅✅✅ FCM 토큰 저장 완료: $userId (총 ${existingTokens.length + 1}개 기기)');
-    } catch (e, stack) {
-      debugPrint('❌ FCM 토큰 저장 실패: $e');
-      debugPrint('❌ Stack: $stack');
+      debugPrint('[FCM] 토큰 저장 완료: $userId');
+    } catch (e) {
+      debugPrint('[FCM] 토큰 저장 실패: $e');
       rethrow; // 에러를 상위로 전달하여 로깅 가능하게
     }
   }
 
   /// FCM 토큰 Firestore에서 제거 (로그아웃 시)
+  ///
+  /// FieldValue.arrayRemove로 atomic하게 토큰 제거:
+  /// - 토큰이 없어도 에러 없이 처리
+  /// - 여러 기기에서 동시에 제거해도 안전
   Future<void> removeTokenFromFirestore(String userId) async {
     try {
       final token = await getToken();
-      if (token == null) return;
+      if (token == null) {
+        debugPrint('[FCM] 제거할 토큰이 없습니다');
+        return;
+      }
 
       final userRef = _firestore.collection('users').doc(userId);
 
-      // 토큰 배열에서 제거 (merge를 사용하여 안전하게 처리)
+      // Atomic하게 토큰 제거 (없어도 에러 없음)
       await userRef.set({
         'fcmTokens': FieldValue.arrayRemove([token]),
+        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      debugPrint('✅ FCM 토큰 제거 완료: $userId');
+      debugPrint('[FCM] 토큰 제거 완료: $userId');
     } catch (e) {
-      debugPrint('❌ FCM 토큰 제거 실패: $e');
+      debugPrint('[FCM] 토큰 제거 실패: $e');
     }
   }
 

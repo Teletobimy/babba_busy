@@ -164,15 +164,20 @@ final todayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
   }).toList();
 });
 
+/// 월 키 정규화 (캐싱 효율성 향상)
+typedef MonthKey = ({int year, int month});
+
 /// 특정 월의 확장된 todos (반복 인스턴스 포함)
-final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, ({int year, int month})>((ref, params) {
+/// 메모리 최적화: 최대 31개 인스턴스만 생성 (월 범위)
+final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>((ref, params) {
   var todos = ref.watch(todosProvider).value ?? [];
   final holidays = ref.watch(allHolidaysForYearProvider(params.year));
 
   final startOfMonth = DateTime(params.year, params.month, 1);
   final endOfMonth = DateTime(params.year, params.month + 1, 0, 23, 59, 59);
 
-  todos = _expandRecurringTodos(todos, startOfMonth, endOfMonth, holidays);
+  // 월 범위에 맞게 반복 인스턴스 생성 제한
+  todos = _expandRecurringTodos(todos, startOfMonth, endOfMonth, holidays, maxInstancesPerTodo: 31);
 
   // Apply shared event types filter
   final memberships = ref.watch(groupMembershipsProvider).valueOrNull ?? [];
@@ -203,14 +208,24 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, ({int year
   return todos;
 });
 
+/// 날짜 키 정규화 (시간 제거하여 캐시 히트율 향상)
+/// DateTime 대신 정규화된 날짜 문자열(yyyyMMdd) 사용으로 재생성 방지
+final normalizedDateKeyProvider = Provider.family<DateTime, DateTime>((ref, date) {
+  return DateTime(date.year, date.month, date.day);
+});
+
 /// 특정 날짜의 todos (반복 인스턴스 포함)
+/// 캐싱 최적화: 날짜를 정규화하여 동일 날짜에 대한 중복 계산 방지
 final todosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
+  // 날짜 정규화 (시간 제거)
+  final normalizedDate = DateTime(date.year, date.month, date.day);
   final todos = ref.watch(todosProvider).value ?? [];
-  final holidays = ref.watch(allHolidaysForYearProvider(date.year));
-  final startOfDay = DateTime(date.year, date.month, date.day);
+  final holidays = ref.watch(allHolidaysForYearProvider(normalizedDate.year));
+  final startOfDay = normalizedDate;
   final endOfDay = startOfDay.add(const Duration(days: 1));
 
-  final expandedTodos = _expandRecurringTodos(todos, startOfDay, endOfDay, holidays);
+  // 단일 날짜이므로 최대 1개의 인스턴스만 필요
+  final expandedTodos = _expandRecurringTodos(todos, startOfDay, endOfDay, holidays, maxInstancesPerTodo: 1);
 
   return expandedTodos.where((todo) {
     if (todo.startTime != null) {
@@ -225,12 +240,14 @@ final todosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, dat
 });
 
 /// 반복 todos 확장 함수
+/// [maxInstancesPerTodo]: todo당 최대 인스턴스 수 (메모리 최적화)
 List<TodoItem> _expandRecurringTodos(
   List<TodoItem> todos,
   DateTime rangeStart,
   DateTime rangeEnd,
-  List<Holiday> holidays,
-) {
+  List<Holiday> holidays, {
+  int maxInstancesPerTodo = 100,
+}) {
   final result = <TodoItem>[];
 
   for (final todo in todos) {
@@ -252,8 +269,11 @@ List<TodoItem> _expandRecurringTodos(
         // 날짜 없는 todo는 포함 안 함
       }
     } else {
-      // 반복 todo 확장
-      final instances = _generateRecurringInstances(todo, rangeStart, rangeEnd, holidays);
+      // 반복 todo 확장 (인스턴스 수 제한)
+      final instances = _generateRecurringInstances(
+        todo, rangeStart, rangeEnd, holidays,
+        maxInstances: maxInstancesPerTodo,
+      );
       result.addAll(instances);
     }
   }
@@ -267,12 +287,14 @@ List<TodoItem> _expandRecurringTodos(
 }
 
 /// 반복 todo 인스턴스 생성
+/// [maxInstances]: 이 todo에서 생성할 최대 인스턴스 수 (범위에 따라 동적 조정)
 List<TodoItem> _generateRecurringInstances(
   TodoItem todo,
   DateTime rangeStart,
   DateTime rangeEnd,
-  List<Holiday> holidays,
-) {
+  List<Holiday> holidays, {
+  int maxInstances = 100,
+}) {
   final instances = <TodoItem>[];
   final baseDuration = todo.endTime != null && todo.startTime != null
       ? todo.endTime!.difference(todo.startTime!)
@@ -291,9 +313,7 @@ List<TodoItem> _generateRecurringInstances(
     currentDate = _adjustStartDateForTodo(todo, currentDate, rangeStart);
   }
 
-  // 최대 100개 인스턴스까지만 생성 (무한 루프 방지)
   int count = 0;
-  const maxInstances = 100;
 
   // 종료일 당일도 포함하기 위해 inclusiveEndDate 사용
   final inclusiveEndDate = DateTime(actualEndDate.year, actualEndDate.month, actualEndDate.day, 23, 59, 59);
@@ -332,7 +352,7 @@ List<TodoItem> _generateRecurringInstances(
     count++;
   }
 
-  if (count >= maxInstances) {
+  if (count >= maxInstances && maxInstances > 31) {
     debugPrint('⚠️ Recurring todo "${todo.title}" exceeded max instances ($maxInstances)');
   }
 

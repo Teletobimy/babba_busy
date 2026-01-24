@@ -124,16 +124,38 @@ class ChatService {
     });
   }
 
-  /// 모든 메시지 읽음 처리
+  /// 모든 메시지 읽음 처리 (Batch 사용으로 성능 최적화)
   Future<void> markAllAsRead() async {
     final messages = _ref.read(chatMessagesProvider).value ?? [];
     final user = _ref.read(currentUserProvider);
-    if (user == null) return;
+    final membership = _ref.read(currentMembershipProvider);
+    final firestore = _firestore;
+    if (user == null || membership == null || firestore == null) return;
 
-    for (final message in messages) {
-      if (!message.isReadBy(user.uid)) {
-        await markAsRead(message.id);
+    final unreadMessages = messages.where((msg) => !msg.isReadBy(user.uid)).toList();
+    if (unreadMessages.isEmpty) return;
+
+    // Firestore batch 사용: 최대 500개 작업을 한 번의 네트워크 요청으로 처리
+    // 500개 초과 시 여러 batch로 분할
+    const batchLimit = 500;
+    for (var i = 0; i < unreadMessages.length; i += batchLimit) {
+      final batch = firestore.batch();
+      final end = (i + batchLimit < unreadMessages.length)
+          ? i + batchLimit
+          : unreadMessages.length;
+
+      for (var j = i; j < end; j++) {
+        final docRef = firestore
+            .collection('families')
+            .doc(membership.groupId)
+            .collection('chat_messages')
+            .doc(unreadMessages[j].id);
+        batch.update(docRef, {
+          'readBy': FieldValue.arrayUnion([user.uid]),
+        });
       }
+
+      await batch.commit();
     }
   }
 

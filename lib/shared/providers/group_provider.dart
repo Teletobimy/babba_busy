@@ -1,30 +1,73 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/membership.dart';
 import '../models/family.dart';
 import 'auth_provider.dart';
 
-/// 마지막으로 선택한 그룹 ID를 로컬에 저장/불러오기
-final lastSelectedGroupProvider = FutureProvider<String?>((ref) async {
-  final prefs = await SharedPreferences.getInstance();
-  return prefs.getString('last_selected_group_id');
+/// 그룹 전환 상태 관리
+class GroupTransitionState {
+  final bool isTransitioning;
+  final String? targetGroupId;
+  final String? targetGroupName;
+
+  const GroupTransitionState({
+    this.isTransitioning = false,
+    this.targetGroupId,
+    this.targetGroupName,
+  });
+
+  GroupTransitionState copyWith({
+    bool? isTransitioning,
+    String? targetGroupId,
+    String? targetGroupName,
+  }) {
+    return GroupTransitionState(
+      isTransitioning: isTransitioning ?? this.isTransitioning,
+      targetGroupId: targetGroupId ?? this.targetGroupId,
+      targetGroupName: targetGroupName ?? this.targetGroupName,
+    );
+  }
+}
+
+/// 그룹 전환 상태 Provider
+final groupTransitionProvider = StateProvider<GroupTransitionState>((ref) {
+  return const GroupTransitionState();
 });
 
 /// 현재 선택된 그룹 ID
+/// FutureProvider 의존성 제거 - 초기화는 initializeSelectedGroup()에서 처리
 final selectedGroupIdProvider = StateProvider<String?>((ref) {
   // 사용자의 첫 번째 멤버십의 그룹을 기본값으로 설정
+  // FutureProvider watch 제거 - 불필요한 재계산 방지
   final memberships = ref.watch(userMembershipsProvider).value ?? [];
   if (memberships.isEmpty) return null;
-  
-  // 로컬 저장소에서 불러온 값이 있으면 사용
-  final lastSelected = ref.watch(lastSelectedGroupProvider).value;
-  if (lastSelected != null && memberships.any((m) => m.groupId == lastSelected)) {
-    return lastSelected;
-  }
-  
-  // 없으면 첫 번째 그룹 선택
+
+  // 첫 번째 그룹을 기본값으로 (로컬 저장소 값은 initializeSelectedGroup에서 처리)
   return memberships.first.groupId;
 });
+
+/// 선택된 그룹 초기화 완료 여부
+final selectedGroupInitializedProvider = StateProvider<bool>((ref) => false);
+
+/// 앱 시작 시 로컬 저장소에서 마지막 선택 그룹 복원
+/// main.dart 또는 앱 초기화 시점에 한 번만 호출
+Future<void> initializeSelectedGroup(WidgetRef ref) async {
+  // 이미 초기화되었으면 스킵
+  if (ref.read(selectedGroupInitializedProvider)) return;
+
+  final prefs = await SharedPreferences.getInstance();
+  final lastSelected = prefs.getString('last_selected_group_id');
+
+  if (lastSelected != null) {
+    final memberships = ref.read(userMembershipsProvider).value ?? [];
+    if (memberships.any((m) => m.groupId == lastSelected)) {
+      ref.read(selectedGroupIdProvider.notifier).state = lastSelected;
+    }
+  }
+
+  ref.read(selectedGroupInitializedProvider.notifier).state = true;
+}
 
 /// 사용자가 속한 모든 멤버십 목록
 final userMembershipsProvider = StreamProvider<List<Membership>>((ref) {
@@ -102,13 +145,48 @@ Future<void> completeOnboarding(dynamic ref) async {
   ref.read(onboardingCompletedProvider.notifier).state = true;
 }
 
-/// 그룹 전환
-Future<void> switchGroup(dynamic ref, String groupId) async {
+/// 그룹 전환 (부드러운 전환 애니메이션 지원)
+/// [withTransition]이 true이면 전환 오버레이를 표시하고 지연 후 전환
+Future<void> switchGroup(
+  dynamic ref,
+  String groupId, {
+  String? groupName,
+  bool withTransition = true,
+  Duration transitionDuration = const Duration(milliseconds: 300),
+}) async {
+  // 현재 그룹과 같으면 무시
+  final currentGroupId = ref.read(selectedGroupIdProvider);
+  if (currentGroupId == groupId) return;
+
+  if (withTransition) {
+    // 전환 상태 시작
+    ref.read(groupTransitionProvider.notifier).state = GroupTransitionState(
+      isTransitioning: true,
+      targetGroupId: groupId,
+      targetGroupName: groupName,
+    );
+
+    // 전환 애니메이션을 위한 짧은 지연
+    await Future.delayed(const Duration(milliseconds: 150));
+  }
+
+  // 그룹 ID 변경
   ref.read(selectedGroupIdProvider.notifier).state = groupId;
 
-  // 로컬 저장소에 저장
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString('last_selected_group_id', groupId);
+  // 로컬 저장소에 저장 (비동기로 처리)
+  SharedPreferences.getInstance().then((prefs) {
+    prefs.setString('last_selected_group_id', groupId);
+  });
+
+  if (withTransition) {
+    // 데이터 로딩을 위한 추가 지연
+    await Future.delayed(transitionDuration);
+
+    // 전환 상태 종료
+    ref.read(groupTransitionProvider.notifier).state = const GroupTransitionState();
+  }
+
+  debugPrint('[GroupProvider] Switched to group: $groupId');
 }
 
 /// Membership의 공유 타입 업데이트

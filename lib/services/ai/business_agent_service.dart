@@ -54,10 +54,15 @@ class BusinessAgentService {
       _runMarketingAgent(model, businessIdea, industry, budget),
     ];
 
-    final results = await Future.wait(futures);
+    // eagerError: false로 부분 실패 허용 - 일부 에이전트 실패해도 나머지 결과 반환
+    final results = await Future.wait(
+      futures.map((f) => f.catchError((e) => '분석 실패: $e')),
+      eagerError: false,
+    );
 
     for (int i = 0; i < agentNames.length; i++) {
-      yield AgentProgress(agentNames[i], 'completed', results[i]);
+      final status = results[i].startsWith('분석 실패') ? 'failed' : 'completed';
+      yield AgentProgress(agentNames[i], status, results[i]);
     }
 
     // Phase 2: 제품 기획자 (Phase 1 결과 활용)

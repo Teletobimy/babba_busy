@@ -12,12 +12,63 @@ class GroupSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final memberships = ref.watch(userMembershipsProvider).value ?? [];
+    final membershipsAsync = ref.watch(userMembershipsProvider);
     final selectedGroupId = ref.watch(selectedGroupIdProvider);
+    final transitionState = ref.watch(groupTransitionProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    // 로딩 중일 때 shimmer 표시
+    if (membershipsAsync.isLoading) {
+      return Container(
+        width: 100,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : Colors.grey[200],
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+      );
+    }
+
+    final memberships = membershipsAsync.value ?? [];
     if (memberships.isEmpty) {
       return const SizedBox.shrink();
+    }
+
+    // 전환 중일 때 로딩 인디케이터 표시
+    if (transitionState.isTransitioning) {
+      return Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTheme.spacingM,
+          vertical: AppTheme.spacingS,
+        ),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppColors.primaryLight,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              transitionState.targetGroupName ?? '전환 중...',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.primaryLight,
+                  ),
+            ),
+          ],
+        ),
+      );
     }
 
     // 현재 선택된 그룹 찾기
@@ -170,7 +221,17 @@ class GroupSelector extends ConsumerWidget {
             builder: (context) => const GroupSetupDialog(isJoinOnly: true),
           );
         } else {
-          await switchGroup(ref, value);
+          // 선택한 그룹 이름 찾기
+          final targetMembership = memberships.firstWhere(
+            (m) => m.groupId == value,
+            orElse: () => memberships.first,
+          );
+          await switchGroup(
+            ref,
+            value,
+            groupName: targetMembership.groupName,
+            withTransition: true,
+          );
         }
       },
     );

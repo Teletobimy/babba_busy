@@ -197,9 +197,13 @@ class AuthService {
               .map((doc) => doc.data()['groupId'] as String)
               .toList();
 
-          for (final familyId in familyIds) {
-            await notificationService.unsubscribeFromFamily(familyId);
-          }
+          // 병렬 처리: 독립적인 구독 해제 작업을 동시에 실행
+          await Future.wait(
+            familyIds.map((familyId) =>
+              notificationService.unsubscribeFromFamily(familyId)
+            ),
+            eagerError: false, // 일부 실패해도 나머지 계속 진행
+          );
         }
       } catch (e) {
         debugPrint('FCM 토큰 정리 실패: $e');
