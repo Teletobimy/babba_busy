@@ -216,11 +216,16 @@ class AuthService {
 
   /// 그룹 생성 및 참여 (다중 그룹 지원)
   Future<String?> createFamily(String familyName, String memberName, String color) async {
+    debugPrint('[AuthService] 🏠 Creating family: $familyName');
     final user = _auth?.currentUser;
-    if (user == null || _firestore == null) return null;
+    if (user == null || _firestore == null) {
+      debugPrint('[AuthService] ❌ User or Firestore is null');
+      return null;
+    }
 
     // 초대 코드 생성
     final inviteCode = _generateInviteCode();
+    debugPrint('[AuthService] 🎫 Generated invite code: $inviteCode');
 
     // 1. 가족(그룹) 문서 생성
     final familyRef = await _firestore!.collection('families').add({
@@ -228,10 +233,12 @@ class AuthService {
       'inviteCode': inviteCode,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    debugPrint('[AuthService] ✅ Created family document: ${familyRef.id}');
 
     // 2. 사용자 문서 생성 (없는 경우)
     final userDoc = await _firestore!.collection('users').doc(user.uid).get();
     if (!userDoc.exists) {
+      debugPrint('[AuthService] 👤 Creating user document');
       await _firestore!.collection('users').doc(user.uid).set({
         'name': memberName,
         'email': user.email,
@@ -239,6 +246,7 @@ class AuthService {
         'createdAt': FieldValue.serverTimestamp(),
       });
     } else {
+      debugPrint('[AuthService] 👤 Updating existing user document');
       // 기존 사용자인 경우 defaultGroupId만 업데이트
       await _firestore!.collection('users').doc(user.uid).update({
         'defaultGroupId': familyRef.id,
@@ -256,7 +264,9 @@ class AuthService {
       'avatarUrl': user.photoURL, // Google 프로필 사진
       'joinedAt': FieldValue.serverTimestamp(),
     });
+    debugPrint('[AuthService] ✅ Created membership document');
 
+    debugPrint('[AuthService] ✅ Family creation complete: ${familyRef.id}');
     return inviteCode;
   }
 

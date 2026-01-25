@@ -41,10 +41,16 @@ final selectedGroupIdProvider = StateProvider<String?>((ref) {
   // 사용자의 첫 번째 멤버십의 그룹을 기본값으로 설정
   // FutureProvider watch 제거 - 불필요한 재계산 방지
   final memberships = ref.watch(userMembershipsProvider).value ?? [];
-  if (memberships.isEmpty) return null;
+  debugPrint('[selectedGroupIdProvider] 🔍 Recalculating... memberships.length=${memberships.length}');
+  if (memberships.isEmpty) {
+    debugPrint('[selectedGroupIdProvider] ⚠️ No memberships, returning null');
+    return null;
+  }
 
   // 첫 번째 그룹을 기본값으로 (로컬 저장소 값은 initializeSelectedGroup에서 처리)
-  return memberships.first.groupId;
+  final firstGroupId = memberships.first.groupId;
+  debugPrint('[selectedGroupIdProvider] 🎯 Returning first group: $firstGroupId');
+  return firstGroupId;
 });
 
 /// 선택된 그룹 초기화 완료 여부
@@ -140,9 +146,11 @@ final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
 
 /// 온보딩 완료 표시
 Future<void> completeOnboarding(dynamic ref) async {
+  debugPrint('[completeOnboarding] 📝 Marking onboarding as completed...');
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('onboarding_status', 'completed');
   ref.read(onboardingCompletedProvider.notifier).state = true;
+  debugPrint('[completeOnboarding] ✅ Onboarding marked as completed');
 }
 
 /// 그룹 전환 (부드러운 전환 애니메이션 지원)

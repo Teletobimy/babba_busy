@@ -51,6 +51,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   // 혼자 시작하기 (자동 생성)
   Future<void> _startAlone() async {
+    debugPrint('[OnboardingScreen] 👤 Starting alone...');
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -59,15 +60,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     try {
       final user = ref.read(currentUserProvider);
       if (user == null) throw Exception('로그인이 필요합니다.');
+      debugPrint('[OnboardingScreen] 🔐 User: ${user.uid}');
 
       final firestore = ref.read(firestoreProvider);
       if (firestore == null) throw Exception('Firestore 초기화 실패');
 
       // 1. 사용자의 기존 멤버십 확인
+      debugPrint('[OnboardingScreen] 🔍 Checking existing memberships...');
       final memberships = await firestore
           .collection('memberships')
           .where('userId', isEqualTo: user.uid)
           .get();
+      debugPrint('[OnboardingScreen] 📋 Found ${memberships.docs.length} memberships');
 
       // 2. "나만의 공간" 그룹이 이미 있는지 확인
       String? existingMySpaceId;
@@ -76,12 +80,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         final groupDoc = await firestore.collection('families').doc(groupId).get();
         if (groupDoc.exists && groupDoc.data()?['name'] == '나만의 공간') {
           existingMySpaceId = groupId;
+          debugPrint('[OnboardingScreen] ✅ Found existing "나만의 공간": $groupId');
           break;
         }
       }
 
       // 3. 이미 "나만의 공간"이 있으면 생성하지 않고 온보딩만 완료
       if (existingMySpaceId != null) {
+        debugPrint('[OnboardingScreen] ⏭️ Skipping creation, marking onboarding complete');
         await completeOnboarding(ref);
         if (mounted) {
           setState(() => _isLoading = false);
@@ -90,6 +96,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       }
 
       // 4. "나만의 공간"이 없으면 새로 생성
+      debugPrint('[OnboardingScreen] 🆕 Creating new "나만의 공간"...');
       final authService = ref.read(authServiceProvider);
       final userName = user.displayName ?? '나';
 
@@ -102,6 +109,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         userName,
         colorHex,
       );
+      debugPrint('[OnboardingScreen] ✅ Created "나만의 공간"');
 
       // 온보딩 완료 표시
       await completeOnboarding(ref);
@@ -110,7 +118,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       if (mounted) {
         setState(() => _isLoading = false);
       }
+      debugPrint('[OnboardingScreen] ✅ Onboarding completed successfully');
     } catch (e) {
+      debugPrint('[OnboardingScreen] ❌ Error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = e.toString().replaceAll('Exception: ', '');
