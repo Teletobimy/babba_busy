@@ -57,11 +57,42 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     });
 
     try {
-      final authService = ref.read(authServiceProvider);
-      // 기본값으로 그룹 생성
       final user = ref.read(currentUserProvider);
-      final userName = user?.displayName ?? '나';
-      
+      if (user == null) throw Exception('로그인이 필요합니다.');
+
+      final firestore = ref.read(firestoreProvider);
+      if (firestore == null) throw Exception('Firestore 초기화 실패');
+
+      // 1. 사용자의 기존 멤버십 확인
+      final memberships = await firestore
+          .collection('memberships')
+          .where('userId', isEqualTo: user.uid)
+          .get();
+
+      // 2. "나만의 공간" 그룹이 이미 있는지 확인
+      String? existingMySpaceId;
+      for (final doc in memberships.docs) {
+        final groupId = doc.data()['groupId'] as String;
+        final groupDoc = await firestore.collection('families').doc(groupId).get();
+        if (groupDoc.exists && groupDoc.data()?['name'] == '나만의 공간') {
+          existingMySpaceId = groupId;
+          break;
+        }
+      }
+
+      // 3. 이미 "나만의 공간"이 있으면 생성하지 않고 온보딩만 완료
+      if (existingMySpaceId != null) {
+        await completeOnboarding(ref);
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      // 4. "나만의 공간"이 없으면 새로 생성
+      final authService = ref.read(authServiceProvider);
+      final userName = user.displayName ?? '나';
+
       // 랜덤 색상 선택
       final color = AppColors.memberColors[0];
       final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
@@ -71,10 +102,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         userName,
         colorHex,
       );
-      
+
       // 온보딩 완료 표시
       await completeOnboarding(ref);
-      
+
       // 성공 - 라우터가 자동으로 리다이렉트
       if (mounted) {
         setState(() => _isLoading = false);

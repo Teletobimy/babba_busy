@@ -98,10 +98,10 @@ jobs:
           touch .env
           flutter pub get
 
-      - name: Auto-increment build number
+      - name: Get version from pubspec.yaml
         id: version
         run: |
-          # 현재 버전 읽기
+          # 현재 버전 읽기 (수정하지 않음)
           CURRENT_VERSION=$(grep 'version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
           echo "Current version: $CURRENT_VERSION"
 
@@ -109,16 +109,8 @@ jobs:
           VERSION=$(echo $CURRENT_VERSION | cut -d'+' -f1)
           BUILD=$(echo $CURRENT_VERSION | cut -d'+' -f2)
 
-          # 빌드 번호 증가
-          NEW_BUILD=$((BUILD + 1))
-          NEW_VERSION="${VERSION}+${NEW_BUILD}"
-
-          echo "New version: $NEW_VERSION"
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "build_number=$NEW_BUILD" >> $GITHUB_OUTPUT
-
-          # pubspec.yaml 업데이트
-          sed -i "s/version: $CURRENT_VERSION/version: $NEW_VERSION/" pubspec.yaml
+          echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "build_number=$BUILD" >> $GITHUB_OUTPUT
 
       - name: Generate App Icons
         run: dart run flutter_launcher_icons
@@ -144,15 +136,6 @@ jobs:
           projectId: ***REMOVED_PROJECT_ID***
           channelId: live
 
-      - name: Commit version bump
-        continue-on-error: true
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add pubspec.yaml
-          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }} [skip ci]"
-          git pull --rebase origin main
-          git push
 
   # Android APK 빌드
   build-android:
