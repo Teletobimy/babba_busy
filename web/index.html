@@ -75,9 +75,14 @@
 
   <script>
     // Service Worker 업데이트 감지 및 자동 새로고침
+    let swRegistration = null;
+    let refreshing = false;
+
     if ('serviceWorker' in navigator) {
       // 1. Flutter Service Worker 등록 (PWA 캐싱)
       navigator.serviceWorker.register('flutter_service_worker.js').then(function(registration) {
+        swRegistration = registration;  // 전역 저장
+
         // 업데이트 체크
         registration.addEventListener('updatefound', function() {
           const newWorker = registration.installing;
@@ -99,25 +104,26 @@
           console.error('[FCM SW] 등록 실패:', error);
         });
 
-      // 다른 탭에서 새 SW 활성화 시 새로고침
+      // 새 SW 활성화 시 자동 새로고침 (한 번만)
       navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (refreshing) return;
+        refreshing = true;
+        // 토스트 숨기기
+        document.getElementById('update-toast').classList.remove('show');
         window.location.reload();
       });
     }
 
     function updateApp() {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+      // 대기 중인 새 SW에 skipWaiting 메시지 전송
+      // Flutter의 flutter_service_worker.js는 문자열 'skipWaiting'을 기대함
+      if (swRegistration && swRegistration.waiting) {
+        swRegistration.waiting.postMessage('skipWaiting');
+      } else {
+        // waiting이 없으면 (이미 활성화됨) 단순 새로고침
+        window.location.reload();
       }
-      window.location.reload();
     }
-
-    // 앱 시작 시 버전 체크 (5분마다)
-    setInterval(function() {
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'CHECK_UPDATE' });
-      }
-    }, 5 * 60 * 1000);
   </script>
 </body>
 </html>
