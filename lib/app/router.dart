@@ -27,13 +27,20 @@ class RouterNotifier extends ChangeNotifier {
   final Ref _ref;
   bool _isCompletingOnboarding = false;
   bool _hasInitializedGroup = false;
+  int _notifyCount = 0; // 디버깅: notifyListeners 호출 횟수
+  int _redirectCount = 0; // 디버깅: redirect 호출 횟수
 
   RouterNotifier(this._ref) {
-    debugPrint('[RouterNotifier] 🔧 Constructor called');
+    debugPrint('[RouterNotifier] 🔧 Constructor called at ${DateTime.now()}');
+    debugPrint('[RouterNotifier] 🔧 Initial _hasInitializedGroup: $_hasInitializedGroup');
 
     // 1. 인증 상태 변경 감시
     _ref.listen(authStateProvider, (previous, next) {
-      debugPrint('[RouterNotifier] 🔐 authStateProvider changed: ${next?.value?.uid}');
+      debugPrint('[RouterNotifier] 🔐 authStateProvider changed:');
+      debugPrint('[RouterNotifier]   previous: ${previous?.value?.uid}');
+      debugPrint('[RouterNotifier]   next: ${next?.value?.uid}');
+      debugPrint('[RouterNotifier]   next.isLoading: ${next?.isLoading}');
+      debugPrint('[RouterNotifier]   next.hasValue: ${next?.hasValue}');
       // 로그아웃 시 초기화 플래그 및 Provider 상태 리셋
       if (next?.value == null && previous?.value != null) {
         debugPrint('[RouterNotifier] 🔓 User logged out, resetting all initialization state');
@@ -41,31 +48,55 @@ class RouterNotifier extends ChangeNotifier {
         _ref.read(selectedGroupInitializedProvider.notifier).state = false;
         _ref.read(selectedGroupIdProvider.notifier).state = null;
       }
+      _notifyCount++;
+      debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider');
       notifyListeners();
     });
 
     // 2. 멤버십 데이터 변경 감시
     _ref.listen(userMembershipsProvider, (previous, next) {
-      debugPrint('[RouterNotifier] 👥 userMembershipsProvider changed: ${next.value?.length} memberships');
+      debugPrint('[RouterNotifier] 👥 userMembershipsProvider changed:');
+      debugPrint('[RouterNotifier]   previous count: ${previous?.value?.length}');
+      debugPrint('[RouterNotifier]   next count: ${next.value?.length}');
+      debugPrint('[RouterNotifier]   next.isLoading: ${next.isLoading}');
+      debugPrint('[RouterNotifier]   next.hasValue: ${next.hasValue}');
+      debugPrint('[RouterNotifier]   _hasInitializedGroup: $_hasInitializedGroup');
       // 멤버십 데이터가 처음 로드되었을 때 마지막 선택 그룹 복원
       // 단, 이미 초기화 완료된 경우(onboarding에서 직접 초기화) 스킵
       final alreadyInitialized = _ref.read(selectedGroupInitializedProvider);
+      debugPrint('[RouterNotifier]   alreadyInitialized: $alreadyInitialized');
       if (!_hasInitializedGroup && !alreadyInitialized && next.hasValue && (next.value?.isNotEmpty ?? false)) {
         debugPrint('[RouterNotifier] 🎯 First time memberships loaded, initializing group');
         _hasInitializedGroup = true;
         _initializeSelectedGroupAsync();
+      } else {
+        debugPrint('[RouterNotifier]   ⏭️ Skipping initialization:');
+        debugPrint('[RouterNotifier]     _hasInitializedGroup=$_hasInitializedGroup');
+        debugPrint('[RouterNotifier]     alreadyInitialized=$alreadyInitialized');
+        debugPrint('[RouterNotifier]     next.hasValue=${next.hasValue}');
+        debugPrint('[RouterNotifier]     next.value?.isNotEmpty=${next.value?.isNotEmpty}');
       }
       // 초기화 완료된 경우에만 notify (race condition 방지)
       if (alreadyInitialized || _ref.read(selectedGroupInitializedProvider)) {
+        _notifyCount++;
+        debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from userMembershipsProvider');
         notifyListeners();
+      } else {
+        debugPrint('[RouterNotifier]   ⏭️ Skipping notifyListeners (not initialized yet)');
       }
     });
 
     // 3. 핵심 수정: selectedGroupIdProvider 변경 감시
     _ref.listen(selectedGroupIdProvider, (previous, next) {
       debugPrint('[RouterNotifier] 🎯 selectedGroupIdProvider changed: $previous -> $next');
-      if (_ref.read(selectedGroupInitializedProvider)) {
+      final isInitialized = _ref.read(selectedGroupInitializedProvider);
+      debugPrint('[RouterNotifier]   isInitialized: $isInitialized');
+      if (isInitialized) {
+        _notifyCount++;
+        debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from selectedGroupIdProvider');
         notifyListeners();
+      } else {
+        debugPrint('[RouterNotifier]   ⏭️ Skipping notifyListeners (not initialized)');
       }
     });
 
@@ -73,6 +104,8 @@ class RouterNotifier extends ChangeNotifier {
     _ref.listen(selectedGroupInitializedProvider, (previous, next) {
       debugPrint('[RouterNotifier] ✅ selectedGroupInitializedProvider changed: $previous -> $next');
       if (next == true) {
+        _notifyCount++;
+        debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from selectedGroupInitializedProvider');
         notifyListeners();
       }
     });
@@ -139,7 +172,11 @@ class RouterNotifier extends ChangeNotifier {
   }
 
   String? redirect(BuildContext context, GoRouterState state) {
-    debugPrint('[Router] 🚦 === REDIRECT START === Location: ${state.matchedLocation}');
+    _redirectCount++;
+    debugPrint('[Router] 🚦 ═══════════════════════════════════════════════════');
+    debugPrint('[Router] 🚦 REDIRECT #$_redirectCount at ${DateTime.now()}');
+    debugPrint('[Router] 🚦 Location: ${state.matchedLocation}');
+    debugPrint('[Router] 🚦 ═══════════════════════════════════════════════════');
     final authState = _ref.read(authStateProvider);
     final memberships = _ref.read(userMembershipsProvider);
     final onboardingCompleted = _ref.read(onboardingCompletedProvider);
@@ -150,26 +187,34 @@ class RouterNotifier extends ChangeNotifier {
     final isAuthRoute = state.matchedLocation.startsWith('/auth');
     final isOnboarding = state.matchedLocation == '/onboarding';
 
+    debugPrint('[Router]   authState.isLoading: ${authState.isLoading}');
+    debugPrint('[Router]   authState.hasValue: ${authState.hasValue}');
+    debugPrint('[Router]   authState.value?.uid: ${authState.valueOrNull?.uid}');
     debugPrint('[Router]   isLoggedIn: $isLoggedIn');
     debugPrint('[Router]   memberships.isLoading: ${memberships.isLoading}');
+    debugPrint('[Router]   memberships.hasValue: ${memberships.hasValue}');
     debugPrint('[Router]   memberships.value?.length: ${memberships.valueOrNull?.length}');
     debugPrint('[Router]   onboardingCompleted: $onboardingCompleted');
     debugPrint('[Router]   isGroupInitialized: $isGroupInitialized');
     debugPrint('[Router]   selectedGroupId: $selectedGroupId');
+    debugPrint('[Router]   _hasInitializedGroup: $_hasInitializedGroup');
     debugPrint('[Router]   isAuthRoute: $isAuthRoute');
     debugPrint('[Router]   isOnboarding: $isOnboarding');
 
     // 1. 로그인하지 않은 경우
     if (!isLoggedIn) {
-      debugPrint('[Router] ❌ Not logged in, redirect to /auth/login');
-      if (!isAuthRoute) return '/auth/login';
-      debugPrint('[Router] ✅ Already on auth route, no redirect');
+      debugPrint('[Router] ❌ DECISION: Not logged in');
+      if (!isAuthRoute) {
+        debugPrint('[Router] ➡️ REDIRECT to /auth/login');
+        return '/auth/login';
+      }
+      debugPrint('[Router] ✅ STAY on auth route');
       return null;
     }
 
     // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
     if (memberships.isLoading && !isOnboarding && !isAuthRoute) {
-      debugPrint('[Router] ⏳ Memberships loading, wait...');
+      debugPrint('[Router] ⏳ WAIT: Memberships still loading');
       return null;
     }
 
@@ -180,14 +225,16 @@ class RouterNotifier extends ChangeNotifier {
     // 이 조건이 없으면 selectedGroupIdProvider가 null인 상태에서 /home으로 이동하여
     // 모든 Feature Provider가 빈 데이터를 반환함
     if (hasGroups && !isGroupInitialized && !isOnboarding && !isAuthRoute) {
-      debugPrint('[Router] ⏳ Has groups but not initialized, waiting...');
+      debugPrint('[Router] ⏳ WAIT: Has groups ($hasGroups) but not initialized ($isGroupInitialized)');
+      debugPrint('[Router]   Waiting for _initializeSelectedGroupAsync to complete...');
       return null;
     }
 
     // 4. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
     if (!isOnboarding && !isAuthRoute) {
       if (!hasGroups && !onboardingCompleted) {
-        debugPrint('[Router] 🎯 No groups & no onboarding, redirect to /onboarding');
+        debugPrint('[Router] 🎯 DECISION: No groups ($hasGroups) & no onboarding ($onboardingCompleted)');
+        debugPrint('[Router] ➡️ REDIRECT to /onboarding');
         return '/onboarding';
       }
       // 그룹이 있는데 온보딩 상태가 아니면 온보딩 완료로 간주 (기기 이동 등)
@@ -195,12 +242,20 @@ class RouterNotifier extends ChangeNotifier {
     }
 
     // 5. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
-    if (isLoggedIn && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding))) {
-      debugPrint('[Router] 🏠 Redirect to /home (logged in & (auth route OR has groups OR onboarding completed))');
+    final shouldRedirectToHome = isLoggedIn && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding));
+    debugPrint('[Router]   shouldRedirectToHome check:');
+    debugPrint('[Router]     isLoggedIn=$isLoggedIn');
+    debugPrint('[Router]     isAuthRoute=$isAuthRoute');
+    debugPrint('[Router]     hasGroups && isOnboarding = $hasGroups && $isOnboarding = ${hasGroups && isOnboarding}');
+    debugPrint('[Router]     onboardingCompleted && isOnboarding = $onboardingCompleted && $isOnboarding = ${onboardingCompleted && isOnboarding}');
+    debugPrint('[Router]     => shouldRedirectToHome=$shouldRedirectToHome');
+    if (shouldRedirectToHome) {
+      debugPrint('[Router] 🏠 DECISION: Should go to /home');
+      debugPrint('[Router] ➡️ REDIRECT to /home');
       return '/home';
     }
 
-    debugPrint('[Router] ✅ No redirect needed');
+    debugPrint('[Router] ✅ NO REDIRECT needed, staying at ${state.matchedLocation}');
     return null;
   }
 }

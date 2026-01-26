@@ -38,10 +38,16 @@ final groupTransitionProvider = StateProvider<GroupTransitionState>((ref) {
 /// 현재 선택된 그룹 ID
 /// 초기값 null - initializeSelectedGroup()에서 설정됨
 /// ⚠️ StateProvider 내부에서 ref.watch() 사용 금지 (무한 재계산 유발)
-final selectedGroupIdProvider = StateProvider<String?>((ref) => null);
+final selectedGroupIdProvider = StateProvider<String?>((ref) {
+  debugPrint('[selectedGroupIdProvider] 🔧 Created with initial value: null');
+  return null;
+});
 
 /// 선택된 그룹 초기화 완료 여부
-final selectedGroupInitializedProvider = StateProvider<bool>((ref) => false);
+final selectedGroupInitializedProvider = StateProvider<bool>((ref) {
+  debugPrint('[selectedGroupInitializedProvider] 🔧 Created with initial value: false');
+  return false;
+});
 
 /// 앱 시작 시 로컬 저장소에서 마지막 선택 그룹 복원
 /// 또는 첫 번째 그룹으로 자동 초기화
