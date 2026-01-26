@@ -48,13 +48,15 @@ class RouterNotifier extends ChangeNotifier {
     _ref.listen(userMembershipsProvider, (previous, next) {
       debugPrint('[RouterNotifier] 👥 userMembershipsProvider changed: ${next.value?.length} memberships');
       // 멤버십 데이터가 처음 로드되었을 때 마지막 선택 그룹 복원
-      if (!_hasInitializedGroup && next.hasValue && (next.value?.isNotEmpty ?? false)) {
+      // 단, 이미 초기화 완료된 경우(onboarding에서 직접 초기화) 스킵
+      final alreadyInitialized = _ref.read(selectedGroupInitializedProvider);
+      if (!_hasInitializedGroup && !alreadyInitialized && next.hasValue && (next.value?.isNotEmpty ?? false)) {
         debugPrint('[RouterNotifier] 🎯 First time memberships loaded, initializing group');
         _hasInitializedGroup = true;
         _initializeSelectedGroupAsync();
       }
       // 초기화 완료된 경우에만 notify (race condition 방지)
-      if (_ref.read(selectedGroupInitializedProvider)) {
+      if (alreadyInitialized || _ref.read(selectedGroupInitializedProvider)) {
         notifyListeners();
       }
     });
@@ -78,6 +80,12 @@ class RouterNotifier extends ChangeNotifier {
 
   /// 비동기로 마지막 선택 그룹 복원 또는 첫 번째 그룹으로 초기화
   Future<void> _initializeSelectedGroupAsync() async {
+    // 이미 초기화 완료된 경우 스킵 (onboarding_screen에서 직접 초기화한 경우)
+    if (_ref.read(selectedGroupInitializedProvider)) {
+      debugPrint('[RouterNotifier] ⚠️ Already initialized, skipping _initializeSelectedGroupAsync');
+      return;
+    }
+
     try {
       debugPrint('[RouterNotifier] 🔄 Initializing selected group...');
       final memberships = _ref.read(userMembershipsProvider).value ?? [];
