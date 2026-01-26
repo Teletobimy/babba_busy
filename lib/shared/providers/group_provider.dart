@@ -99,6 +99,33 @@ final userMembershipsProvider = StreamProvider<List<Membership>>((ref) {
   });
 });
 
+/// 중복 "나만의 공간" 필터링된 멤버십 목록 (UI 표시용)
+/// 가장 오래된 "나만의 공간" 1개만 유지
+final filteredUserMembershipsProvider = Provider<AsyncValue<List<Membership>>>((ref) {
+  final membershipsAsync = ref.watch(userMembershipsProvider);
+
+  return membershipsAsync.whenData((memberships) {
+    // "나만의 공간" 그룹들 중 가장 오래된 것 찾기
+    String? oldestMySpaceId;
+    DateTime? oldestJoinedAt;
+
+    for (final m in memberships) {
+      if (m.groupName == '나만의 공간') {
+        if (oldestJoinedAt == null || m.joinedAt.isBefore(oldestJoinedAt)) {
+          oldestMySpaceId = m.groupId;
+          oldestJoinedAt = m.joinedAt;
+        }
+      }
+    }
+
+    // 중복 "나만의 공간" 제외
+    return memberships.where((m) {
+      if (m.groupName != '나만의 공간') return true;
+      return m.groupId == oldestMySpaceId;
+    }).toList();
+  });
+});
+
 /// 현재 선택된 그룹의 멤버십 정보
 final currentMembershipProvider = Provider<Membership?>((ref) {
   final selectedGroupId = ref.watch(selectedGroupIdProvider);

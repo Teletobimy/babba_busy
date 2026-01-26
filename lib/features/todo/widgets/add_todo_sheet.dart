@@ -313,7 +313,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
 
   /// Phase 2: 공개 범위 선택 위젯
   Widget _buildVisibilitySection(BuildContext context, bool isDark) {
-    final memberships = ref.watch(userMembershipsProvider).value ?? [];
+    final memberships = ref.watch(filteredUserMembershipsProvider).value ?? [];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

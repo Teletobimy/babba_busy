@@ -12,7 +12,7 @@ class GroupSelector extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final membershipsAsync = ref.watch(userMembershipsProvider);
+    final membershipsAsync = ref.watch(filteredUserMembershipsProvider);
     final selectedGroupId = ref.watch(selectedGroupIdProvider);
     final transitionState = ref.watch(groupTransitionProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
