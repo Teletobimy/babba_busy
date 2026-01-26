@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -19,13 +20,24 @@ class BusinessHistoryScreen extends ConsumerWidget {
     final reviewsAsync = ref.watch(businessReviewsProvider);
     final pendingJobsAsync = ref.watch(pendingAnalysisJobsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.grayScale[50],
-      appBar: AppBar(
-        title: const Text('검토 이력'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go('/tools/business');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Iconsax.arrow_left),
+            onPressed: () => context.go('/tools/business'),
+          ),
+          title: const Text('검토 이력'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
       body: reviewsAsync.when(
         data: (reviews) {
           // 진행 중인 작업 필터링 (사업 검토만)
@@ -54,6 +66,7 @@ class BusinessHistoryScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -120,7 +120,7 @@ final pendingTodosProvider = Provider<List<TodoItem>>((ref) {
 final memberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, memberId) {
   final todos = ref.watch(todosProvider).value ?? [];
   if (memberId == null) return todos;
-  return todos.where((todo) => todo.assigneeId == memberId).toList();
+  return todos.where((todo) => todo.isAssignedTo(memberId)).toList();
 });
 
 /// 특정 날짜의 시간 있는 할일 (Day View용)

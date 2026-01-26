@@ -77,6 +77,7 @@ class _GroupSetupDialogState extends ConsumerState<GroupSetupDialog> {
 
         // 새로 생성한 그룹을 selectedGroupIdProvider에 직접 설정
         ref.read(selectedGroupIdProvider.notifier).state = result.groupId;
+        ref.read(selectedGroupInitializedProvider.notifier).state = true;
 
         // SharedPreferences에도 저장
         final prefs = await SharedPreferences.getInstance();

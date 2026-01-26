@@ -154,7 +154,7 @@ final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateT
 final smartMemberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, memberId) {
   final todos = ref.watch(smartTodosProvider);
   if (memberId == null) return todos;
-  return todos.where((todo) => todo.assigneeId == memberId).toList();
+  return todos.where((todo) => todo.isAssignedTo(memberId)).toList();
 });
 
 /// 캘린더 그룹 목록

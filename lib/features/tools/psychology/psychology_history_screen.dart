@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,13 +16,24 @@ class PsychologyHistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final resultsAsync = ref.watch(psychologyResultsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.grayScale[50],
-      appBar: AppBar(
-        title: const Text('검사 이력'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go('/tools/psychology');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Iconsax.arrow_left),
+            onPressed: () => context.go('/tools/psychology'),
+          ),
+          title: const Text('검사 이력'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+        ),
       body: resultsAsync.when(
         data: (results) => results.isEmpty
             ? _buildEmptyState(context)
@@ -37,6 +49,7 @@ class PsychologyHistoryScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
       ),
     );
   }

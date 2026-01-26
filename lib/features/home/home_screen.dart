@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/group_provider.dart';
+import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/todo_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/empty_state.dart';
@@ -32,6 +33,8 @@ class HomeScreen extends ConsumerWidget {
     // Smart Provider 사용 - 데모/실제 데이터 자동 선택
     final currentMember = ref.watch(smartCurrentMemberProvider);
     final members = ref.watch(smartMembersProvider);
+    // Firebase Auth에서 직접 이름 가져오기 (빠른 fallback용)
+    final firebaseUser = ref.watch(currentUserProvider);
 
     // Reset member filter when group changes
     ref.listen(currentMembershipProvider, (previous, next) {
@@ -110,9 +113,9 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ).animate().fadeIn(duration: 300.ms, delay: 150.ms),
                     const SizedBox(height: 2),
-                    // 사용자 이름 (강조)
+                    // 사용자 이름 (강조) - 멤버십 이름 → Firebase 이름 → 기본값 순서
                     Text(
-                      '${currentMember?.name ?? '사용자'}님',
+                      '${currentMember?.name ?? firebaseUser?.displayName ?? '사용자'}님',
                       style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),

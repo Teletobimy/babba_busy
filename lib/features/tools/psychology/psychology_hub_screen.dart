@@ -11,13 +11,24 @@ class PsychologyHubScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: AppColors.grayScale[50],
-      appBar: AppBar(
-        title: const Text('심리검사'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go('/tools');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Iconsax.arrow_left),
+            onPressed: () => context.go('/tools'),
+          ),
+          title: const Text('심리검사'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          actions: [
           IconButton(
             onPressed: () => context.push('/tools/psychology/history'),
             icon: const Icon(Iconsax.document_text),
@@ -166,6 +177,7 @@ class PsychologyHubScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

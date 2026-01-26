@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/holiday_provider.dart';
 import '../../shared/providers/calendar_filter_provider.dart';
+import '../../shared/providers/group_provider.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/models/holiday.dart';
 import '../../shared/models/family_member.dart';
@@ -52,6 +53,13 @@ class CalendarScreen extends ConsumerWidget {
     final selectedTodos = ref.watch(smartTodosForDateProvider(selectedDate));
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Reset calendar member filter when group changes
+    ref.listen(currentMembershipProvider, (previous, next) {
+      if (previous?.groupId != next?.groupId) {
+        ref.read(calendarMemberFilterProvider.notifier).state = null;
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -730,7 +738,7 @@ class _MonthView extends ConsumerWidget {
     // 선택된 멤버에 따라 Todo 필터링
     final filteredTodos = selectedMemberId == null
         ? expandedTodos
-        : expandedTodos.where((todo) => todo.assigneeId == selectedMemberId).toList();
+        : expandedTodos.where((todo) => todo.isAssignedTo(selectedMemberId)).toList();
 
     return SingleChildScrollView(
       child: Column(

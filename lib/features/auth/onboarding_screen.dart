@@ -203,8 +203,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           colorHex,
         );
 
-        // join 후에도 멤버십이 생성되므로, userMembershipsProvider 갱신 대기 후 선택
-        // join은 groupId를 알 수 없으므로 RouterNotifier의 자동 초기화에 의존
+        // join 후 해당 그룹 ID를 찾아서 설정
+        final user = ref.read(currentUserProvider);
+        final firestore = ref.read(firestoreProvider);
+        if (user != null && firestore != null) {
+          final memberships = await firestore
+              .collection('memberships')
+              .where('userId', isEqualTo: user.uid)
+              .orderBy('joinedAt', descending: true)
+              .limit(1)
+              .get();
+          if (memberships.docs.isNotEmpty) {
+            final newGroupId = memberships.docs.first.data()['groupId'] as String;
+            ref.read(selectedGroupIdProvider.notifier).state = newGroupId;
+            ref.read(selectedGroupInitializedProvider.notifier).state = true;
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('last_selected_group_id', newGroupId);
+          }
+        }
         await completeOnboarding(ref);
         // 성공 시 라우터 자동 이동
       }
