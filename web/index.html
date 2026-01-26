@@ -117,11 +117,21 @@
         });
 
       // 새 SW 활성화 시 자동 새로고침 (한 번만)
-      // 핵심 수정: sessionStorage로 reload 횟수 제한 (무한 루프 방지)
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (refreshing) return;
+        refreshing = true;
 
-        // reload 후 refreshing 변수는 초기화되므로 sessionStorage로 추가 보호
+        // updateApp()에서 업데이트 중인 경우: 한 번만 reload하고 끝
+        if (sessionStorage.getItem('sw_updating') === 'true') {
+          console.log('[SW] Update initiated by user, reloading once');
+          sessionStorage.removeItem('sw_updating');
+          sessionStorage.removeItem('sw_reload_count');
+          document.getElementById('update-toast').classList.remove('show');
+          window.location.reload();
+          return;
+        }
+
+        // 자동 업데이트의 경우: reload 횟수 제한
         const reloadCount = parseInt(sessionStorage.getItem('sw_reload_count') || '0', 10);
         if (reloadCount >= 2) {
           console.warn('[SW] Max reload count reached, skipping to prevent loop');
@@ -129,31 +139,49 @@
           return;
         }
 
-        refreshing = true;
         sessionStorage.setItem('sw_reload_count', (reloadCount + 1).toString());
-
-        // 토스트 숨기기
         document.getElementById('update-toast').classList.remove('show');
         window.location.reload();
       });
 
-      // 정상 로드 시 reload 카운터 초기화 (3초 후)
+      // 정상 로드 시 reload 카운터 및 업데이트 플래그 초기화 (3초 후)
       setTimeout(function() {
         sessionStorage.removeItem('sw_reload_count');
+        sessionStorage.removeItem('sw_updating');
       }, 3000);
     }
 
     function updateApp() {
+      // 이미 업데이트 진행 중이면 무시 (중복 클릭 방지)
+      if (sessionStorage.getItem('sw_updating') === 'true') {
+        console.log('[SW] Update already in progress, ignoring');
+        return;
+      }
+
+      // 업데이트 플래그 설정
+      sessionStorage.setItem('sw_updating', 'true');
       // 업데이트 시간 기록 (재로드 후 토스트 중복 방지)
       sessionStorage.setItem('pwa_last_update', Date.now().toString());
+      // reload 카운터 미리 설정 (controllerchange에서 1회만 reload하도록)
+      sessionStorage.setItem('sw_reload_count', '10');
+
       // 토스트 즉시 숨기기
       document.getElementById('update-toast').classList.remove('show');
 
       // 대기 중인 새 SW에 skipWaiting 메시지 전송
       if (swRegistration && swRegistration.waiting) {
         swRegistration.waiting.postMessage('skipWaiting');
+        // controllerchange 이벤트가 reload를 처리함
+        // 1초 내에 controllerchange가 안 오면 수동 reload
+        setTimeout(function() {
+          if (sessionStorage.getItem('sw_updating') === 'true') {
+            sessionStorage.removeItem('sw_updating');
+            window.location.reload();
+          }
+        }, 1000);
       } else {
         // waiting이 없으면 (이미 활성화됨) 단순 새로고침
+        sessionStorage.removeItem('sw_updating');
         window.location.reload();
       }
     }
