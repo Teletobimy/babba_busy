@@ -80,6 +80,36 @@
     // 개발 환경 감지 (localhost 또는 127.0.0.1)
     const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
+    // 디버그 로그 (localStorage에 저장하여 새로고침 후에도 확인 가능)
+    function debugLog(msg) {
+      const now = new Date().toISOString().substr(11, 12);
+      const logMsg = '[' + now + '] ' + msg;
+      console.log(logMsg);
+      try {
+        const logs = JSON.parse(localStorage.getItem('sw_debug_logs') || '[]');
+        logs.push(logMsg);
+        // 최대 50개 로그 유지
+        if (logs.length > 50) logs.shift();
+        localStorage.setItem('sw_debug_logs', JSON.stringify(logs));
+      } catch (e) {}
+    }
+
+    // 콘솔에서 로그 확인: showSwLogs()
+    window.showSwLogs = function() {
+      const logs = JSON.parse(localStorage.getItem('sw_debug_logs') || '[]');
+      console.log('=== SW Debug Logs ===');
+      logs.forEach(function(log) { console.log(log); });
+      return logs;
+    };
+
+    // 로그 초기화: clearSwLogs()
+    window.clearSwLogs = function() {
+      localStorage.removeItem('sw_debug_logs');
+      console.log('SW logs cleared');
+    };
+
+    debugLog('Page loaded. refreshing=' + refreshing + ', sw_updating=' + sessionStorage.getItem('sw_updating') + ', sw_reload_count=' + sessionStorage.getItem('sw_reload_count'));
+
     // 최근 업데이트 여부 체크 (5분 이내 업데이트했으면 토스트 안 보임)
     const UPDATE_COOLDOWN = 5 * 60 * 1000; // 5분
     function wasRecentlyUpdated() {
@@ -89,22 +119,32 @@
     }
 
     if ('serviceWorker' in navigator) {
+      debugLog('ServiceWorker supported. Registering...');
+
       // 1. Flutter Service Worker 등록 (PWA 캐싱)
       navigator.serviceWorker.register('flutter_service_worker.js').then(function(registration) {
         swRegistration = registration;  // 전역 저장
+        debugLog('Flutter SW registered. waiting=' + !!registration.waiting + ', active=' + !!registration.active + ', installing=' + !!registration.installing);
 
         // 업데이트 체크 (개발 환경 또는 최근 업데이트한 경우 토스트 표시 안 함)
         if (!isDev && !wasRecentlyUpdated()) {
           registration.addEventListener('updatefound', function() {
+            debugLog('updatefound event fired');
             const newWorker = registration.installing;
             newWorker.addEventListener('statechange', function() {
+              debugLog('SW statechange: ' + newWorker.state + ', hasController=' + !!navigator.serviceWorker.controller);
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 // 새 버전 발견 - 토스트 표시
+                debugLog('New SW installed, showing toast');
                 document.getElementById('update-toast').classList.add('show');
               }
             });
           });
+        } else {
+          debugLog('Skipping updatefound listener. isDev=' + isDev + ', wasRecentlyUpdated=' + wasRecentlyUpdated());
         }
+      }).catch(function(err) {
+        debugLog('Flutter SW registration failed: ' + err);
       });
 
       // 2. Firebase Messaging Service Worker 등록 (FCM 푸시 알림)
@@ -118,12 +158,17 @@
 
       // 새 SW 활성화 시 자동 새로고침 (한 번만)
       navigator.serviceWorker.addEventListener('controllerchange', function() {
-        if (refreshing) return;
+        debugLog('controllerchange fired! refreshing=' + refreshing + ', sw_updating=' + sessionStorage.getItem('sw_updating') + ', sw_reload_count=' + sessionStorage.getItem('sw_reload_count'));
+
+        if (refreshing) {
+          debugLog('controllerchange: already refreshing, skipping');
+          return;
+        }
         refreshing = true;
 
         // updateApp()에서 업데이트 중인 경우: 한 번만 reload하고 끝
         if (sessionStorage.getItem('sw_updating') === 'true') {
-          console.log('[SW] Update initiated by user, reloading once');
+          debugLog('controllerchange: user-initiated update, reloading once');
           sessionStorage.removeItem('sw_updating');
           sessionStorage.removeItem('sw_reload_count');
           document.getElementById('update-toast').classList.remove('show');
@@ -133,28 +178,34 @@
 
         // 자동 업데이트의 경우: reload 횟수 제한
         const reloadCount = parseInt(sessionStorage.getItem('sw_reload_count') || '0', 10);
+        debugLog('controllerchange: auto-update, reloadCount=' + reloadCount);
+
         if (reloadCount >= 2) {
-          console.warn('[SW] Max reload count reached, skipping to prevent loop');
+          debugLog('controllerchange: max reload reached, stopping');
           sessionStorage.removeItem('sw_reload_count');
           return;
         }
 
         sessionStorage.setItem('sw_reload_count', (reloadCount + 1).toString());
+        debugLog('controllerchange: reloading... new count=' + (reloadCount + 1));
         document.getElementById('update-toast').classList.remove('show');
         window.location.reload();
       });
 
       // 정상 로드 시 reload 카운터 및 업데이트 플래그 초기화 (3초 후)
       setTimeout(function() {
+        debugLog('3s cleanup: clearing sw_reload_count and sw_updating');
         sessionStorage.removeItem('sw_reload_count');
         sessionStorage.removeItem('sw_updating');
       }, 3000);
     }
 
     function updateApp() {
+      debugLog('updateApp() called. sw_updating=' + sessionStorage.getItem('sw_updating'));
+
       // 이미 업데이트 진행 중이면 무시 (중복 클릭 방지)
       if (sessionStorage.getItem('sw_updating') === 'true') {
-        console.log('[SW] Update already in progress, ignoring');
+        debugLog('updateApp: already in progress, ignoring');
         return;
       }
 
@@ -165,22 +216,27 @@
       // reload 카운터 미리 설정 (controllerchange에서 1회만 reload하도록)
       sessionStorage.setItem('sw_reload_count', '10');
 
+      debugLog('updateApp: flags set. swRegistration=' + !!swRegistration + ', waiting=' + !!(swRegistration && swRegistration.waiting));
+
       // 토스트 즉시 숨기기
       document.getElementById('update-toast').classList.remove('show');
 
       // 대기 중인 새 SW에 skipWaiting 메시지 전송
       if (swRegistration && swRegistration.waiting) {
+        debugLog('updateApp: sending skipWaiting to waiting SW');
         swRegistration.waiting.postMessage('skipWaiting');
         // controllerchange 이벤트가 reload를 처리함
         // 1초 내에 controllerchange가 안 오면 수동 reload
         setTimeout(function() {
           if (sessionStorage.getItem('sw_updating') === 'true') {
+            debugLog('updateApp: timeout fallback, reloading');
             sessionStorage.removeItem('sw_updating');
             window.location.reload();
           }
         }, 1000);
       } else {
         // waiting이 없으면 (이미 활성화됨) 단순 새로고침
+        debugLog('updateApp: no waiting SW, simple reload');
         sessionStorage.removeItem('sw_updating');
         window.location.reload();
       }
