@@ -48,22 +48,33 @@ class RouterNotifier extends ChangeNotifier {
     });
   }
 
-  /// 비동기로 마지막 선택 그룹 복원
+  /// 비동기로 마지막 선택 그룹 복원 또는 첫 번째 그룹으로 초기화
   Future<void> _initializeSelectedGroupAsync() async {
     try {
       debugPrint('[RouterNotifier] 🔄 Initializing selected group...');
+      final memberships = _ref.read(userMembershipsProvider).value ?? [];
+
+      if (memberships.isEmpty) {
+        debugPrint('[RouterNotifier] ⚠️ No memberships, skipping group initialization');
+        _ref.read(selectedGroupInitializedProvider.notifier).state = true;
+        return;
+      }
+
       final prefs = await SharedPreferences.getInstance();
       final lastSelected = prefs.getString('last_selected_group_id');
       debugPrint('[RouterNotifier] 💾 Last selected group from prefs: $lastSelected');
-      if (lastSelected != null) {
-        final memberships = _ref.read(userMembershipsProvider).value ?? [];
-        if (memberships.any((m) => m.groupId == lastSelected)) {
-          debugPrint('[RouterNotifier] ✅ Setting selected group to: $lastSelected');
-          _ref.read(selectedGroupIdProvider.notifier).state = lastSelected;
-        } else {
-          debugPrint('[RouterNotifier] ⚠️ Last selected group not found in memberships');
-        }
+
+      // 로컬 저장소에 저장된 그룹이 유효하면 사용
+      if (lastSelected != null && memberships.any((m) => m.groupId == lastSelected)) {
+        debugPrint('[RouterNotifier] ✅ Setting selected group to: $lastSelected');
+        _ref.read(selectedGroupIdProvider.notifier).state = lastSelected;
+      } else {
+        // 첫 번째 그룹으로 초기화
+        final firstGroupId = memberships.first.groupId;
+        debugPrint('[RouterNotifier] 🎯 Setting first group: $firstGroupId');
+        _ref.read(selectedGroupIdProvider.notifier).state = firstGroupId;
       }
+
       _ref.read(selectedGroupInitializedProvider.notifier).state = true;
       debugPrint('[RouterNotifier] ✅ Group initialization completed');
     } catch (e) {

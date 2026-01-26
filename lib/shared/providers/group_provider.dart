@@ -36,40 +36,40 @@ final groupTransitionProvider = StateProvider<GroupTransitionState>((ref) {
 });
 
 /// 현재 선택된 그룹 ID
-/// FutureProvider 의존성 제거 - 초기화는 initializeSelectedGroup()에서 처리
-final selectedGroupIdProvider = StateProvider<String?>((ref) {
-  // 사용자의 첫 번째 멤버십의 그룹을 기본값으로 설정
-  // FutureProvider watch 제거 - 불필요한 재계산 방지
-  final memberships = ref.watch(userMembershipsProvider).value ?? [];
-  debugPrint('[selectedGroupIdProvider] 🔍 Recalculating... memberships.length=${memberships.length}');
-  if (memberships.isEmpty) {
-    debugPrint('[selectedGroupIdProvider] ⚠️ No memberships, returning null');
-    return null;
-  }
-
-  // 첫 번째 그룹을 기본값으로 (로컬 저장소 값은 initializeSelectedGroup에서 처리)
-  final firstGroupId = memberships.first.groupId;
-  debugPrint('[selectedGroupIdProvider] 🎯 Returning first group: $firstGroupId');
-  return firstGroupId;
-});
+/// 초기값 null - initializeSelectedGroup()에서 설정됨
+/// ⚠️ StateProvider 내부에서 ref.watch() 사용 금지 (무한 재계산 유발)
+final selectedGroupIdProvider = StateProvider<String?>((ref) => null);
 
 /// 선택된 그룹 초기화 완료 여부
 final selectedGroupInitializedProvider = StateProvider<bool>((ref) => false);
 
 /// 앱 시작 시 로컬 저장소에서 마지막 선택 그룹 복원
+/// 또는 첫 번째 그룹으로 자동 초기화
 /// main.dart 또는 앱 초기화 시점에 한 번만 호출
 Future<void> initializeSelectedGroup(WidgetRef ref) async {
   // 이미 초기화되었으면 스킵
   if (ref.read(selectedGroupInitializedProvider)) return;
 
+  final memberships = ref.read(userMembershipsProvider).value ?? [];
+
+  if (memberships.isEmpty) {
+    debugPrint('[initializeSelectedGroup] ⚠️ No memberships yet');
+    ref.read(selectedGroupInitializedProvider.notifier).state = true;
+    return;
+  }
+
   final prefs = await SharedPreferences.getInstance();
   final lastSelected = prefs.getString('last_selected_group_id');
 
-  if (lastSelected != null) {
-    final memberships = ref.read(userMembershipsProvider).value ?? [];
-    if (memberships.any((m) => m.groupId == lastSelected)) {
-      ref.read(selectedGroupIdProvider.notifier).state = lastSelected;
-    }
+  // 로컬 저장소에 저장된 그룹이 유효하면 사용
+  if (lastSelected != null && memberships.any((m) => m.groupId == lastSelected)) {
+    debugPrint('[initializeSelectedGroup] ✅ Restored last selected group: $lastSelected');
+    ref.read(selectedGroupIdProvider.notifier).state = lastSelected;
+  } else {
+    // 첫 번째 그룹으로 초기화
+    final firstGroupId = memberships.first.groupId;
+    debugPrint('[initializeSelectedGroup] 🎯 Setting first group: $firstGroupId');
+    ref.read(selectedGroupIdProvider.notifier).state = firstGroupId;
   }
 
   ref.read(selectedGroupInitializedProvider.notifier).state = true;
