@@ -117,13 +117,30 @@
         });
 
       // 새 SW 활성화 시 자동 새로고침 (한 번만)
+      // 핵심 수정: sessionStorage로 reload 횟수 제한 (무한 루프 방지)
       navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (refreshing) return;
+
+        // reload 후 refreshing 변수는 초기화되므로 sessionStorage로 추가 보호
+        const reloadCount = parseInt(sessionStorage.getItem('sw_reload_count') || '0', 10);
+        if (reloadCount >= 2) {
+          console.warn('[SW] Max reload count reached, skipping to prevent loop');
+          sessionStorage.removeItem('sw_reload_count');
+          return;
+        }
+
         refreshing = true;
+        sessionStorage.setItem('sw_reload_count', (reloadCount + 1).toString());
+
         // 토스트 숨기기
         document.getElementById('update-toast').classList.remove('show');
         window.location.reload();
       });
+
+      // 정상 로드 시 reload 카운터 초기화 (3초 후)
+      setTimeout(function() {
+        sessionStorage.removeItem('sw_reload_count');
+      }, 3000);
     }
 
     function updateApp() {

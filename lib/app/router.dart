@@ -36,21 +36,34 @@ class RouterNotifier extends ChangeNotifier {
 
     // 1. 인증 상태 변경 감시
     _ref.listen(authStateProvider, (previous, next) {
+      final prevUid = previous?.valueOrNull?.uid;
+      final nextUid = next?.valueOrNull?.uid;
       debugPrint('[RouterNotifier] 🔐 authStateProvider changed:');
-      debugPrint('[RouterNotifier]   previous: ${previous?.value?.uid}');
-      debugPrint('[RouterNotifier]   next: ${next?.value?.uid}');
+      debugPrint('[RouterNotifier]   previous UID: $prevUid');
+      debugPrint('[RouterNotifier]   next UID: $nextUid');
       debugPrint('[RouterNotifier]   next.isLoading: ${next?.isLoading}');
       debugPrint('[RouterNotifier]   next.hasValue: ${next?.hasValue}');
+
       // 로그아웃 시 초기화 플래그 및 Provider 상태 리셋
-      if (next?.value == null && previous?.value != null) {
+      if (nextUid == null && prevUid != null) {
         debugPrint('[RouterNotifier] 🔓 User logged out, resetting all initialization state');
         _hasInitializedGroup = false;
         _ref.read(selectedGroupInitializedProvider.notifier).state = false;
         _ref.read(selectedGroupIdProvider.notifier).state = null;
+        _notifyCount++;
+        debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider (logout)');
+        notifyListeners();
+        return;
       }
-      _notifyCount++;
-      debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider');
-      notifyListeners();
+
+      // 실제 UID 변경이 있을 때만 notify (같은 UID로 토큰 갱신 등은 무시)
+      if (prevUid != nextUid) {
+        _notifyCount++;
+        debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider (UID changed)');
+        notifyListeners();
+      } else {
+        debugPrint('[RouterNotifier]   ⏭️ Skipping notify (UID unchanged: $prevUid == $nextUid)');
+      }
     });
 
     // 2. 멤버십 데이터 변경 감시
@@ -103,10 +116,13 @@ class RouterNotifier extends ChangeNotifier {
     // 4. 핵심 수정: 초기화 완료 상태 감시
     _ref.listen(selectedGroupInitializedProvider, (previous, next) {
       debugPrint('[RouterNotifier] ✅ selectedGroupInitializedProvider changed: $previous -> $next');
-      if (next == true) {
+      // false -> true 변경 시에만 notify (한 번만 실행 보장, true -> true 무시)
+      if (previous == false && next == true) {
         _notifyCount++;
         debugPrint('[RouterNotifier] 📢 notifyListeners() #$_notifyCount from selectedGroupInitializedProvider');
         notifyListeners();
+      } else {
+        debugPrint('[RouterNotifier]   ⏭️ Skipping notify (not false->true transition)');
       }
     });
   }
@@ -242,9 +258,12 @@ class RouterNotifier extends ChangeNotifier {
     }
 
     // 5. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
-    final shouldRedirectToHome = isLoggedIn && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding));
+    // 핵심 수정: 이미 /home에 있으면 다시 /home으로 redirect하지 않음 (무한 루프 방지)
+    final isAlreadyAtHome = state.matchedLocation == '/home' || state.matchedLocation.startsWith('/home/');
+    final shouldRedirectToHome = isLoggedIn && !isAlreadyAtHome && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding));
     debugPrint('[Router]   shouldRedirectToHome check:');
     debugPrint('[Router]     isLoggedIn=$isLoggedIn');
+    debugPrint('[Router]     isAlreadyAtHome=$isAlreadyAtHome');
     debugPrint('[Router]     isAuthRoute=$isAuthRoute');
     debugPrint('[Router]     hasGroups && isOnboarding = $hasGroups && $isOnboarding = ${hasGroups && isOnboarding}');
     debugPrint('[Router]     onboardingCompleted && isOnboarding = $onboardingCompleted && $isOnboarding = ${onboardingCompleted && isOnboarding}');
@@ -267,7 +286,8 @@ final routerNotifierProvider = Provider<RouterNotifier>((ref) {
 
 /// 라우터 Provider
 final routerProvider = Provider<GoRouter>((ref) {
-  final notifier = ref.watch(routerNotifierProvider);
+  // 핵심 수정: watch -> read 변경 (watch 사용 시 RouterNotifier 재생성 시 GoRouter도 재생성됨)
+  final notifier = ref.read(routerNotifierProvider);
 
   // NotificationService에 Navigator Key 전달 및 초기 메시지 처리
   Future.microtask(() async {
