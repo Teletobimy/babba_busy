@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_provider.dart';
+import '../../../shared/providers/group_provider.dart';
 
 class GroupSetupDialog extends ConsumerStatefulWidget {
   final bool isJoinOnly;
@@ -64,12 +66,23 @@ class _GroupSetupDialogState extends ConsumerState<GroupSetupDialog> {
       final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
       if (_mode == 'create') {
-        final code = await authService.createFamily(
+        final result = await authService.createFamily(
           _groupNameController.text.trim(),
           _memberNameController.text.trim(),
           colorHex,
         );
-        setState(() => _newInviteCode = code);
+        if (result == null) {
+          throw Exception('그룹 생성에 실패했습니다.');
+        }
+
+        // 새로 생성한 그룹을 selectedGroupIdProvider에 직접 설정
+        ref.read(selectedGroupIdProvider.notifier).state = result.groupId;
+
+        // SharedPreferences에도 저장
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_selected_group_id', result.groupId);
+
+        setState(() => _newInviteCode = result.inviteCode);
       } else if (_mode == 'join') {
         await authService.joinFamily(
           _inviteCodeController.text.trim(),

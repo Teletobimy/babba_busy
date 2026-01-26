@@ -30,12 +30,21 @@ class RouterNotifier extends ChangeNotifier {
 
   RouterNotifier(this._ref) {
     debugPrint('[RouterNotifier] 🔧 Constructor called');
-    // 관련 Provider들의 상태 변화를 감시하여 리다이렉션 트리거
-    // onboardingCompletedProvider는 listen하지 않음 - redirect 내에서 상태 변경 시 무한 루프 방지
+
+    // 1. 인증 상태 변경 감시
     _ref.listen(authStateProvider, (previous, next) {
       debugPrint('[RouterNotifier] 🔐 authStateProvider changed: ${next?.value?.uid}');
+      // 로그아웃 시 초기화 플래그 및 Provider 상태 리셋
+      if (next?.value == null && previous?.value != null) {
+        debugPrint('[RouterNotifier] 🔓 User logged out, resetting all initialization state');
+        _hasInitializedGroup = false;
+        _ref.read(selectedGroupInitializedProvider.notifier).state = false;
+        _ref.read(selectedGroupIdProvider.notifier).state = null;
+      }
       notifyListeners();
     });
+
+    // 2. 멤버십 데이터 변경 감시
     _ref.listen(userMembershipsProvider, (previous, next) {
       debugPrint('[RouterNotifier] 👥 userMembershipsProvider changed: ${next.value?.length} memberships');
       // 멤버십 데이터가 처음 로드되었을 때 마지막 선택 그룹 복원
@@ -44,7 +53,26 @@ class RouterNotifier extends ChangeNotifier {
         _hasInitializedGroup = true;
         _initializeSelectedGroupAsync();
       }
-      notifyListeners();
+      // 초기화 완료된 경우에만 notify (race condition 방지)
+      if (_ref.read(selectedGroupInitializedProvider)) {
+        notifyListeners();
+      }
+    });
+
+    // 3. 핵심 수정: selectedGroupIdProvider 변경 감시
+    _ref.listen(selectedGroupIdProvider, (previous, next) {
+      debugPrint('[RouterNotifier] 🎯 selectedGroupIdProvider changed: $previous -> $next');
+      if (_ref.read(selectedGroupInitializedProvider)) {
+        notifyListeners();
+      }
+    });
+
+    // 4. 핵심 수정: 초기화 완료 상태 감시
+    _ref.listen(selectedGroupInitializedProvider, (previous, next) {
+      debugPrint('[RouterNotifier] ✅ selectedGroupInitializedProvider changed: $previous -> $next');
+      if (next == true) {
+        notifyListeners();
+      }
     });
   }
 
@@ -79,6 +107,8 @@ class RouterNotifier extends ChangeNotifier {
       debugPrint('[RouterNotifier] ✅ Group initialization completed');
     } catch (e) {
       debugPrint('[RouterNotifier] ❌ Error initializing selected group: $e');
+      // 에러가 발생해도 초기화 완료로 표시하여 앱이 영구 대기 상태에 빠지지 않도록
+      _ref.read(selectedGroupInitializedProvider.notifier).state = true;
     }
   }
 
@@ -105,6 +135,8 @@ class RouterNotifier extends ChangeNotifier {
     final authState = _ref.read(authStateProvider);
     final memberships = _ref.read(userMembershipsProvider);
     final onboardingCompleted = _ref.read(onboardingCompletedProvider);
+    final isGroupInitialized = _ref.read(selectedGroupInitializedProvider);
+    final selectedGroupId = _ref.read(selectedGroupIdProvider);
 
     final isLoggedIn = authState.valueOrNull != null;
     final isAuthRoute = state.matchedLocation.startsWith('/auth');
@@ -114,6 +146,8 @@ class RouterNotifier extends ChangeNotifier {
     debugPrint('[Router]   memberships.isLoading: ${memberships.isLoading}');
     debugPrint('[Router]   memberships.value?.length: ${memberships.valueOrNull?.length}');
     debugPrint('[Router]   onboardingCompleted: $onboardingCompleted');
+    debugPrint('[Router]   isGroupInitialized: $isGroupInitialized');
+    debugPrint('[Router]   selectedGroupId: $selectedGroupId');
     debugPrint('[Router]   isAuthRoute: $isAuthRoute');
     debugPrint('[Router]   isOnboarding: $isOnboarding');
 
@@ -126,7 +160,6 @@ class RouterNotifier extends ChangeNotifier {
     }
 
     // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
-    // 앱 시작 시 memberships가 null/Loading인 동안은 /home 시도 방지
     if (memberships.isLoading && !isOnboarding && !isAuthRoute) {
       debugPrint('[Router] ⏳ Memberships loading, wait...');
       return null;
@@ -135,19 +168,25 @@ class RouterNotifier extends ChangeNotifier {
     final hasGroups = (memberships.valueOrNull ?? []).isNotEmpty;
     debugPrint('[Router]   hasGroups: $hasGroups');
 
-    // 3. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
-    // 만약 그룹이 이미 있다면 (다른 기기에서 생성했거나 등) 온보딩을 건너뜁니다.
+    // 3. 핵심 수정: 그룹이 있지만 초기화가 완료되지 않은 경우 대기
+    // 이 조건이 없으면 selectedGroupIdProvider가 null인 상태에서 /home으로 이동하여
+    // 모든 Feature Provider가 빈 데이터를 반환함
+    if (hasGroups && !isGroupInitialized && !isOnboarding && !isAuthRoute) {
+      debugPrint('[Router] ⏳ Has groups but not initialized, waiting...');
+      return null;
+    }
+
+    // 4. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
     if (!isOnboarding && !isAuthRoute) {
       if (!hasGroups && !onboardingCompleted) {
         debugPrint('[Router] 🎯 No groups & no onboarding, redirect to /onboarding');
         return '/onboarding';
       }
       // 그룹이 있는데 온보딩 상태가 아니면 온보딩 완료로 간주 (기기 이동 등)
-      // 별도 메서드로 분리하여 중복 호출 방지
       _markOnboardingCompleteIfNeeded(hasGroups, onboardingCompleted);
     }
 
-    // 4. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
+    // 5. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
     if (isLoggedIn && (isAuthRoute || (hasGroups && isOnboarding) || (onboardingCompleted && isOnboarding))) {
       debugPrint('[Router] 🏠 Redirect to /home (logged in & (auth route OR has groups OR onboarding completed))');
       return '/home';

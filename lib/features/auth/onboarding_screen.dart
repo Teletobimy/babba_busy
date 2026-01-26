@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/auth_provider.dart';
@@ -28,6 +29,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   int _selectedColorIndex = 0;
   bool _isLoading = false;
+  bool _isStartingAlone = false; // 연속 클릭 방지용 락
   String? _errorMessage;
   String? _inviteCode; // 생성 완료 시 표시할 초대 코드
   bool _isTransitioningToHome = false; // 홈으로 전환 중 상태
@@ -51,6 +53,13 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   // 혼자 시작하기 (자동 생성)
   Future<void> _startAlone() async {
+    // 연속 클릭 방지: 이미 실행 중이면 즉시 반환
+    if (_isStartingAlone) {
+      debugPrint('[OnboardingScreen] ⚠️ Already starting alone, ignoring');
+      return;
+    }
+    _isStartingAlone = true;
+
     debugPrint('[OnboardingScreen] 👤 Starting alone...');
     setState(() {
       _isLoading = true;
@@ -87,7 +96,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
       // 3. 이미 "나만의 공간"이 있으면 생성하지 않고 온보딩만 완료
       if (existingMySpaceId != null) {
-        debugPrint('[OnboardingScreen] ⏭️ Skipping creation, marking onboarding complete');
+        debugPrint('[OnboardingScreen] ⏭️ Skipping creation, setting existing group');
+        // 핵심 수정: 기존 그룹을 selectedGroupIdProvider에 직접 설정
+        ref.read(selectedGroupIdProvider.notifier).state = existingMySpaceId;
+        ref.read(selectedGroupInitializedProvider.notifier).state = true;
+
+        // SharedPreferences에도 저장
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_selected_group_id', existingMySpaceId);
+
         await completeOnboarding(ref);
         if (mounted) {
           setState(() => _isLoading = false);
@@ -104,12 +121,24 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final color = AppColors.memberColors[0];
       final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
-      await authService.createFamily(
+      final result = await authService.createFamily(
         '나만의 공간', // 기본 그룹명
         userName,
         colorHex,
       );
-      debugPrint('[OnboardingScreen] ✅ Created "나만의 공간"');
+
+      if (result == null) {
+        throw Exception('그룹 생성에 실패했습니다.');
+      }
+      debugPrint('[OnboardingScreen] ✅ Created "나만의 공간": ${result.groupId}');
+
+      // 핵심 수정: 새로 생성한 그룹을 selectedGroupIdProvider에 직접 설정
+      ref.read(selectedGroupIdProvider.notifier).state = result.groupId;
+      ref.read(selectedGroupInitializedProvider.notifier).state = true;
+
+      // SharedPreferences에도 저장
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_selected_group_id', result.groupId);
 
       // 온보딩 완료 표시
       await completeOnboarding(ref);
@@ -127,6 +156,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           _isLoading = false;
         });
       }
+    } finally {
+      _isStartingAlone = false; // 락 해제
     }
   }
 
@@ -145,19 +176,35 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
       final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
       if (_mode == 'create') {
-        final code = await authService.createFamily(
+        final result = await authService.createFamily(
           _groupNameController.text.trim(),
           _memberNameController.text.trim(),
           colorHex,
         );
+
+        if (result == null) {
+          throw Exception('그룹 생성에 실패했습니다.');
+        }
+
+        // 핵심 수정: 새로 생성한 그룹을 selectedGroupIdProvider에 직접 설정
+        ref.read(selectedGroupIdProvider.notifier).state = result.groupId;
+        ref.read(selectedGroupInitializedProvider.notifier).state = true;
+
+        // SharedPreferences에도 저장
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_selected_group_id', result.groupId);
+
         await completeOnboarding(ref);
-        setState(() => _inviteCode = code); // 성공 화면 표시
+        setState(() => _inviteCode = result.inviteCode); // 성공 화면 표시
       } else if (_mode == 'join') {
         await authService.joinFamily(
           _inviteCodeController.text.trim(),
           _memberNameController.text.trim(),
           colorHex,
         );
+
+        // join 후에도 멤버십이 생성되므로, userMembershipsProvider 갱신 대기 후 선택
+        // join은 groupId를 알 수 없으므로 RouterNotifier의 자동 초기화에 의존
         await completeOnboarding(ref);
         // 성공 시 라우터 자동 이동
       }

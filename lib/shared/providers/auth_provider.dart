@@ -215,7 +215,8 @@ class AuthService {
   }
 
   /// 그룹 생성 및 참여 (다중 그룹 지원)
-  Future<String?> createFamily(String familyName, String memberName, String color) async {
+  /// 반환값: (groupId: 생성된 그룹 ID, inviteCode: 초대 코드) 또는 null
+  Future<({String groupId, String inviteCode})?> createFamily(String familyName, String memberName, String color) async {
     debugPrint('[AuthService] 🏠 Creating family: $familyName');
     final user = _auth?.currentUser;
     if (user == null || _firestore == null) {
@@ -267,7 +268,7 @@ class AuthService {
     debugPrint('[AuthService] ✅ Created membership document');
 
     debugPrint('[AuthService] ✅ Family creation complete: ${familyRef.id}');
-    return inviteCode;
+    return (groupId: familyRef.id, inviteCode: inviteCode);
   }
 
   /// 초대 코드로 그룹 참여 (다중 그룹 지원)
