@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 
 /// 앱 초기 로딩 시 표시되는 오버레이
 /// 데이터 로드 중 깜빡임을 방지합니다
+/// 로고만 표시하여 자연스러운 전환 제공
 class LoadingOverlay extends StatelessWidget {
   const LoadingOverlay({super.key});
 
@@ -16,7 +17,7 @@ class LoadingOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 로고 또는 앱 아이콘
+            // 로고
             Container(
               width: 80,
               height: 80,
@@ -30,18 +31,8 @@ class LoadingOverlay extends StatelessWidget {
                 color: AppColors.primaryLight,
               ),
             ),
-            const SizedBox(height: 24),
-            // 로딩 인디케이터
-            SizedBox(
-              width: 32,
-              height: 32,
-              child: CircularProgressIndicator(
-                strokeWidth: 3,
-                color: AppColors.primaryLight,
-              ),
-            ),
             const SizedBox(height: 16),
-            // 로딩 텍스트
+            // 앱 이름
             Text(
               'BABBA',
               style: TextStyle(
@@ -50,16 +41,6 @@ class LoadingOverlay extends StatelessWidget {
                 color: isDark
                     ? AppColors.textPrimaryDark
                     : AppColors.textPrimaryLight,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '데이터를 불러오는 중...',
-              style: TextStyle(
-                fontSize: 14,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
               ),
             ),
           ],
