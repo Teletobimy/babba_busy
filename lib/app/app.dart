@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
 import '../shared/providers/notification_settings_provider.dart';
+import '../shared/providers/loading_provider.dart';
+import '../shared/widgets/loading_overlay.dart';
 import 'router.dart';
 
 /// 테마 모드 Provider
@@ -17,6 +19,7 @@ class FamilyHubApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final isInitialLoading = ref.watch(isInitialLoadingProvider);
 
     // FCM 토큰 자동 저장 (로그인 시)
     final tokenSaver = ref.watch(fcmTokenSaverProvider);
@@ -30,17 +33,28 @@ class FamilyHubApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'BABBA',
       debugShowCheckedModeBanner: false,
-      
+
       // 테마 설정
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
-      
+
       // 라우터 설정
       routerConfig: router,
-      
+
       // 한국어 로케일
       locale: const Locale('ko', 'KR'),
+
+      // 로딩 오버레이 (초기 데이터 로드 중 깜빡임 방지)
+      builder: (context, child) {
+        return Stack(
+          children: [
+            child!,
+            if (isInitialLoading)
+              const LoadingOverlay(),
+          ],
+        );
+      },
     );
   }
 }

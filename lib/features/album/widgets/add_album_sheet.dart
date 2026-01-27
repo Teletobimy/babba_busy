@@ -5,28 +5,47 @@ import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/providers/memory_provider.dart';
+import '../../../shared/providers/album_provider.dart';
+import '../../../shared/providers/group_provider.dart';
+import '../../../shared/models/album.dart';
+import 'album_share_sheet.dart';
 
-/// 추억 추가 바텀 시트
-class AddMemorySheet extends ConsumerStatefulWidget {
-  const AddMemorySheet({super.key});
+/// 앨범 추가 바텀 시트
+class AddAlbumSheet extends ConsumerStatefulWidget {
+  const AddAlbumSheet({super.key});
 
   @override
-  ConsumerState<AddMemorySheet> createState() => _AddMemorySheetState();
+  ConsumerState<AddAlbumSheet> createState() => _AddAlbumSheetState();
 }
 
-class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
+class _AddAlbumSheetState extends ConsumerState<AddAlbumSheet> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _placeNameController = TextEditingController();
-  String _selectedCategory = 'daily';
+  AlbumType _selectedType = AlbumType.moment;
   DateTime _selectedDate = DateTime.now();
   final List<String> _selectedPhotoPaths = [];
+  List<String> _selectedGroupIds = [];
+  bool _hasLocation = false;
   bool _isLoading = false;
 
   // 임시 좌표 (실제로는 지도에서 선택하거나 현재 위치 사용)
-  final double _latitude = 37.5665;
-  final double _longitude = 126.9780;
+  double? _latitude;
+  double? _longitude;
+
+  @override
+  void initState() {
+    super.initState();
+    // 기본적으로 현재 그룹 선택
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentGroupId = ref.read(selectedGroupIdProvider);
+      if (currentGroupId != null) {
+        setState(() {
+          _selectedGroupIds = [currentGroupId];
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -48,29 +67,34 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
 
   Future<void> _handleAdd() async {
     if (_titleController.text.trim().isEmpty) return;
-    if (_placeNameController.text.trim().isEmpty) return;
 
     setState(() => _isLoading = true);
 
     try {
-      // final memoryService = ref.read(memoryServiceProvider); // Removed as it's directly called
-      
       // 실제로는 Firebase Storage에 이미지 업로드 후 URL 획득
       // 여기서는 로컬 경로를 그대로 사용 (데모용)
       final photoUrls = _selectedPhotoPaths;
 
-          await ref.read(memoryServiceProvider).addMemory(
+      await ref.read(albumServiceProvider).addAlbum(
             title: _titleController.text.trim(),
             description: _descriptionController.text.trim().isEmpty
                 ? null
                 : _descriptionController.text.trim(),
-            latitude: _latitude,
-            longitude: _longitude,
-            placeName: _placeNameController.text.trim(),
-            category: _selectedCategory,
             date: _selectedDate,
             photoUrls: photoUrls,
+            sharedGroups: _selectedGroupIds,
+            visibility: _selectedGroupIds.isEmpty
+                ? AlbumVisibility.private
+                : AlbumVisibility.shared,
+            albumType: _selectedType,
+            hasLocation: _hasLocation,
+            latitude: _hasLocation ? _latitude : null,
+            longitude: _hasLocation ? _longitude : null,
+            placeName: _hasLocation && _placeNameController.text.trim().isNotEmpty
+                ? _placeNameController.text.trim()
+                : null,
           );
+
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -93,9 +117,26 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
     }
   }
 
+  void _showShareSheet() async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AlbumShareSheet(
+        selectedGroupIds: _selectedGroupIds,
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _selectedGroupIds = result;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final memberships = ref.watch(filteredUserMembershipsProvider).value ?? [];
 
     return Container(
       constraints: BoxConstraints(
@@ -136,7 +177,7 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
 
             // 타이틀
             Text(
-              '새 추억',
+              '새 앨범',
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: AppTheme.spacingM),
@@ -241,35 +282,25 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
             TextField(
               controller: _titleController,
               decoration: const InputDecoration(
-                hintText: '추억 제목',
+                hintText: '앨범 제목',
                 prefixIcon: Icon(Iconsax.text),
               ),
             ),
             const SizedBox(height: AppTheme.spacingM),
 
-            // 장소명
-            TextField(
-              controller: _placeNameController,
-              decoration: const InputDecoration(
-                hintText: '장소 이름',
-                prefixIcon: Icon(Iconsax.location),
-              ),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
-
-            // 카테고리
+            // 앨범 타입
             Text(
-              '카테고리',
+              '앨범 유형',
               style: Theme.of(context).textTheme.titleSmall,
             ),
             const SizedBox(height: AppTheme.spacingS),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: MemoryCategory.all.map((category) {
-                final isSelected = _selectedCategory == category;
+              children: AlbumType.values.map((type) {
+                final isSelected = _selectedType == type;
                 return GestureDetector(
-                  onTap: () => setState(() => _selectedCategory = category),
+                  onTap: () => setState(() => _selectedType = type),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.symmetric(
@@ -283,7 +314,7 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
                       borderRadius: BorderRadius.circular(AppTheme.radiusFull),
                     ),
                     child: Text(
-                      MemoryCategory.getLabel(category),
+                      type.label,
                       style: TextStyle(
                         color: isSelected ? Colors.white : AppColors.memoryColor,
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -319,12 +350,106 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
             ),
             const SizedBox(height: AppTheme.spacingM),
 
+            // 공유 설정
+            GestureDetector(
+              onTap: _showShareSheet,
+              child: Container(
+                padding: const EdgeInsets.all(AppTheme.spacingM),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _selectedGroupIds.isEmpty ? Iconsax.lock : Iconsax.share,
+                      size: 20,
+                      color: _selectedGroupIds.isNotEmpty
+                          ? AppColors.memoryColor
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _selectedGroupIds.isEmpty
+                          ? Text(
+                              '나만 보기',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_selectedGroupIds.length}개 그룹에 공유',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(
+                                        color: AppColors.memoryColor,
+                                      ),
+                                ),
+                                Text(
+                                  memberships
+                                      .where((m) =>
+                                          _selectedGroupIds.contains(m.groupId))
+                                      .map((m) => m.groupName)
+                                      .join(', '),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                    ),
+                    const Icon(Iconsax.arrow_right_3, size: 16),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // 위치 정보 토글
+            Row(
+              children: [
+                Checkbox(
+                  value: _hasLocation,
+                  onChanged: (value) {
+                    setState(() {
+                      _hasLocation = value ?? false;
+                      if (!_hasLocation) {
+                        _placeNameController.clear();
+                        _latitude = null;
+                        _longitude = null;
+                      }
+                    });
+                  },
+                  activeColor: AppColors.memoryColor,
+                ),
+                Text(
+                  '위치 정보 추가',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+
+            // 장소명 (위치 정보 활성화 시)
+            if (_hasLocation) ...[
+              const SizedBox(height: AppTheme.spacingS),
+              TextField(
+                controller: _placeNameController,
+                decoration: const InputDecoration(
+                  hintText: '장소 이름',
+                  prefixIcon: Icon(Iconsax.location),
+                ),
+              ),
+            ],
+            const SizedBox(height: AppTheme.spacingM),
+
             // 설명
             TextField(
               controller: _descriptionController,
               maxLines: 3,
               decoration: const InputDecoration(
-                hintText: '추억에 대한 설명 (선택)',
+                hintText: '앨범 설명 (선택)',
                 prefixIcon: Icon(Iconsax.note_1),
               ),
             ),
@@ -347,7 +472,7 @@ class _AddMemorySheetState extends ConsumerState<AddMemorySheet> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text('추억 저장'),
+                    : const Text('앨범 저장'),
               ),
             ),
           ],

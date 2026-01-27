@@ -688,8 +688,8 @@ class _ModuleTile extends StatelessWidget {
     switch (module) {
       case AppModule.memo:
         return Iconsax.note_1;
-      case AppModule.memory:
-        return Iconsax.map_1;
+      case AppModule.album:
+        return Iconsax.gallery;
       case AppModule.budget:
         return Iconsax.wallet_3;
       case AppModule.people:
@@ -707,7 +707,7 @@ class _ModuleTile extends StatelessWidget {
     switch (module) {
       case AppModule.memo:
         return AppColors.memoColor;
-      case AppModule.memory:
+      case AppModule.album:
         return AppColors.memoryColor;
       case AppModule.budget:
         return AppColors.budgetColor;
@@ -726,8 +726,8 @@ class _ModuleTile extends StatelessWidget {
     switch (module) {
       case AppModule.memo:
         return '메모 및 아이디어 기록';
-      case AppModule.memory:
-        return '추억 장소 기록';
+      case AppModule.album:
+        return '사진 앨범 공유';
       case AppModule.budget:
         return '가계부 관리';
       case AppModule.people:

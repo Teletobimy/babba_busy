@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 앱 모듈 정의
 enum AppModule {
   memo('메모', 'memo'),
-  memory('추억', 'memory'),
+  album('앨범', 'album'),
   budget('가계부', 'budget'),
   people('사람들', 'people'),
   chat('대화방', 'chat'),
@@ -59,8 +59,8 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
       isEnabled: true,
       order: 0,
     ),
-    AppModule.memory: const ModuleInfo(
-      module: AppModule.memory,
+    AppModule.album: const ModuleInfo(
+      module: AppModule.album,
       isEnabled: true,
       order: 1,
     ),

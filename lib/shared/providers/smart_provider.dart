@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/family_member.dart';
 import '../models/family.dart';
 import '../models/todo_item.dart';
-import '../models/memory.dart';
+import '../models/album.dart';
 import '../models/transaction.dart';
 import '../models/calendar_group.dart';
 import '../models/chat_message.dart';
@@ -10,7 +10,7 @@ import '../models/memo.dart';
 import '../models/memo_category.dart';
 import 'auth_provider.dart';
 import 'todo_provider.dart';
-import 'memory_provider.dart';
+import 'album_provider.dart';
 import 'budget_provider.dart';
 import 'group_provider.dart';
 import 'chat_provider.dart';
@@ -320,16 +320,16 @@ final smartThisWeekTodosProvider = Provider<List<TodoItem>>((ref) {
     });
 });
 
-/// 추억 목록
-final smartMemoriesProvider = Provider<List<Memory>>((ref) {
-  return ref.watch(memoriesProvider).value ?? [];
+/// 앨범 목록 (Memory 대체)
+final smartAlbumsListProvider = Provider<List<Album>>((ref) {
+  return ref.watch(smartAlbumsProvider);
 });
 
-/// 카테고리별 추억
-final smartMemoriesByCategoryProvider = Provider.family<List<Memory>, String?>((ref, category) {
-  final memories = ref.watch(smartMemoriesProvider);
-  if (category == null || category.isEmpty) return memories;
-  return memories.where((m) => m.category == category).toList();
+/// 타입별 앨범
+final smartAlbumsByTypeProvider = Provider.family<List<Album>, AlbumType?>((ref, type) {
+  final albums = ref.watch(smartAlbumsListProvider);
+  if (type == null) return albums;
+  return albums.where((a) => a.albumType == type).toList();
 });
 
 /// 거래 목록

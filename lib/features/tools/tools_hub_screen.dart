@@ -7,12 +7,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/smart_provider.dart';
-import '../../shared/providers/memory_provider.dart';
+import '../../shared/providers/album_provider.dart';
 import '../../shared/providers/chat_provider.dart';
-import '../../shared/models/memory.dart';
+import '../../shared/models/album.dart';
 import '../../shared/models/chat_message.dart';
-import '../memory/memory_screen.dart';
-import '../memory/widgets/add_memory_sheet.dart';
+import '../album/widgets/add_album_sheet.dart';
 import '../budget/widgets/add_transaction_sheet.dart';
 import '../people/people_screen.dart';
 import '../memo/memo_screen.dart';
@@ -217,8 +216,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
     switch (module) {
       case AppModule.memo:
         return const MemoContent();
-      case AppModule.memory:
-        return const _MemoryContent();
+      case AppModule.album:
+        return const _AlbumContent();
       case AppModule.budget:
         return const _BudgetContent();
       case AppModule.people:
@@ -236,8 +235,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
     switch (module) {
       case AppModule.memo:
         return Iconsax.note_1;
-      case AppModule.memory:
-        return Iconsax.map_1;
+      case AppModule.album:
+        return Iconsax.gallery;
       case AppModule.budget:
         return Iconsax.wallet_3;
       case AppModule.people:
@@ -256,7 +255,7 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
     switch (module) {
       case AppModule.memo:
         return AppColors.memoColor;
-      case AppModule.memory:
+      case AppModule.album:
         return AppColors.memoryColor;
       case AppModule.budget:
         return AppColors.budgetColor;
@@ -273,35 +272,32 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
 
 }
 
-/// 추억 콘텐츠 (MemoryScreen 내부 내용만)
-class _MemoryContent extends ConsumerWidget {
-  const _MemoryContent();
+/// 앨범 콘텐츠 (AlbumScreen 내부 내용만)
+class _AlbumContent extends ConsumerWidget {
+  const _AlbumContent();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // MemoryScreen의 body 내용을 그대로 사용하되, Scaffold 없이
-    return const _MemoryScreenContent();
+    return const _AlbumScreenContent();
   }
 }
 
-/// MemoryScreen의 내용만 추출 (Scaffold 제외)
-class _MemoryScreenContent extends ConsumerWidget {
-  const _MemoryScreenContent();
+/// AlbumScreen의 내용만 추출 (Scaffold 제외)
+class _AlbumScreenContent extends ConsumerWidget {
+  const _AlbumScreenContent();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isMapView = ref.watch(memoryViewModeProvider);
-    final selectedCategory = ref.watch(selectedCategoryProvider);
-    final allMemories = ref.watch(smartMemoriesProvider);
-    final memories = selectedCategory == null
-        ? allMemories
-        : allMemories.where((m) => m.category == selectedCategory).toList();
+    final viewMode = ref.watch(albumViewModeProvider);
+    final selectedType = ref.watch(selectedAlbumTypeProvider);
+    final albums = ref.watch(filteredAlbumsProvider);
+    final allAlbums = ref.watch(combinedAlbumsProvider);
 
     return Stack(
       children: [
         Column(
           children: [
-            // 상단 정보 + 필터
+            // 상단 정보 + 뷰 모드 전환
             Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTheme.spacingL,
@@ -311,49 +307,74 @@ class _MemoryScreenContent extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${memories.length}개의 추억',
+                    '${albums.length}개의 앨범',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.memoryColor,
                         ),
                   ),
-                  IconButton(
-                    onPressed: () {
-                      ref.read(memoryViewModeProvider.notifier).state = !isMapView;
-                    },
+                  PopupMenuButton<AlbumViewMode>(
                     icon: Icon(
-                      isMapView ? Iconsax.grid_1 : Iconsax.map_1,
+                      _getViewModeIcon(viewMode),
                       size: 20,
                     ),
+                    onSelected: (mode) {
+                      ref.read(albumViewModeProvider.notifier).state = mode;
+                    },
+                    itemBuilder: (context) => AlbumViewMode.values
+                        .map((mode) => PopupMenuItem(
+                              value: mode,
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _getViewModeIcon(mode),
+                                    size: 20,
+                                    color: viewMode == mode
+                                        ? AppColors.memoryColor
+                                        : null,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    mode.label,
+                                    style: TextStyle(
+                                      color: viewMode == mode
+                                          ? AppColors.memoryColor
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ))
+                        .toList(),
                   ),
                 ],
               ),
             ),
-            // 카테고리 필터
+            // 타입 필터
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
               child: Row(
                 children: [
-                  _MemoryCategoryChip(
+                  _AlbumTypeChip(
                     label: '전체',
-                    count: allMemories.length,
-                    isSelected: selectedCategory == null,
+                    count: allAlbums.length,
+                    isSelected: selectedType == null,
                     onTap: () =>
-                        ref.read(selectedCategoryProvider.notifier).state = null,
+                        ref.read(selectedAlbumTypeProvider.notifier).state = null,
                   ),
                   const SizedBox(width: 8),
-                  ...MemoryCategory.all.map((category) {
+                  ...AlbumType.values.map((type) {
                     final count =
-                        allMemories.where((m) => m.category == category).length;
+                        allAlbums.where((a) => a.albumType == type).length;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: _MemoryCategoryChip(
-                        label: MemoryCategory.getLabel(category),
+                      child: _AlbumTypeChip(
+                        label: type.label,
                         count: count,
-                        isSelected: selectedCategory == category,
+                        isSelected: selectedType == type,
                         onTap: () => ref
-                            .read(selectedCategoryProvider.notifier)
-                            .state = category,
+                            .read(selectedAlbumTypeProvider.notifier)
+                            .state = type,
                       ),
                     );
                   }),
@@ -363,9 +384,7 @@ class _MemoryScreenContent extends ConsumerWidget {
             const SizedBox(height: AppTheme.spacingM),
             // 콘텐츠
             Expanded(
-              child: isMapView
-                  ? _buildMapView(context, memories)
-                  : _buildTimelineView(context, ref, memories),
+              child: _buildAlbumContent(context, ref, viewMode, albums),
             ),
           ],
         ),
@@ -374,8 +393,8 @@ class _MemoryScreenContent extends ConsumerWidget {
           right: AppTheme.spacingL,
           bottom: AppTheme.spacingL,
           child: FloatingActionButton(
-            heroTag: 'memory_fab',
-            onPressed: () => _showAddMemorySheet(context),
+            heroTag: 'album_fab',
+            onPressed: () => _showAddAlbumSheet(context),
             backgroundColor: AppColors.memoryColor,
             child: const Icon(Iconsax.add),
           ),
@@ -384,43 +403,40 @@ class _MemoryScreenContent extends ConsumerWidget {
     );
   }
 
-  Widget _buildMapView(BuildContext context, List<Memory> memories) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Iconsax.map_1,
-            size: 64,
-            color: AppColors.memoryColor.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: AppTheme.spacingM),
-          Text(
-            '지도 뷰',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
-          ),
-          const SizedBox(height: AppTheme.spacingS),
-          Text(
-            '총 ${memories.length}개의 추억',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.memoryColor,
-                ),
-          ),
-        ],
-      ),
-    );
+  IconData _getViewModeIcon(AlbumViewMode mode) {
+    switch (mode) {
+      case AlbumViewMode.timeline:
+        return Iconsax.calendar_1;
+      case AlbumViewMode.person:
+        return Iconsax.people;
+      case AlbumViewMode.location:
+        return Iconsax.location;
+    }
   }
 
-  Widget _buildTimelineView(BuildContext context, WidgetRef ref, List<Memory> memories) {
-    if (memories.isEmpty) {
-      return const Center(child: Text('추억을 추가해보세요'));
+  Widget _buildAlbumContent(
+      BuildContext context, WidgetRef ref, AlbumViewMode viewMode, List<Album> albums) {
+    if (albums.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Iconsax.gallery,
+              size: 64,
+              color: AppColors.memoryColor.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+            Text(
+              '앨범을 추가해보세요',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ],
+        ),
+      );
     }
-    // 간단한 그리드 뷰
+
+    // 시간순 뷰 (기본)
     return GridView.builder(
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -429,9 +445,9 @@ class _MemoryScreenContent extends ConsumerWidget {
         crossAxisSpacing: 12,
         childAspectRatio: 1,
       ),
-      itemCount: memories.length,
+      itemCount: albums.length,
       itemBuilder: (context, index) {
-        final memory = memories[index];
+        final album = albums[index];
         return Container(
           decoration: BoxDecoration(
             color: AppColors.memoryColor.withValues(alpha: 0.1),
@@ -441,18 +457,31 @@ class _MemoryScreenContent extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Iconsax.gallery, color: AppColors.memoryColor),
+              Row(
+                children: [
+                  Icon(Iconsax.gallery, color: AppColors.memoryColor),
+                  const Spacer(),
+                  if (album.sharedGroups.isNotEmpty)
+                    Icon(
+                      Iconsax.share,
+                      size: 14,
+                      color: AppColors.memoryColor,
+                    ),
+                ],
+              ),
               const Spacer(),
               Text(
-                memory.title,
+                album.title,
                 style: Theme.of(context).textTheme.titleSmall,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 4),
               Text(
-                memory.placeName,
-                style: Theme.of(context).textTheme.bodySmall,
+                album.albumType.label,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.memoryColor,
+                    ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -463,23 +492,23 @@ class _MemoryScreenContent extends ConsumerWidget {
     );
   }
 
-  void _showAddMemorySheet(BuildContext context) {
+  void _showAddAlbumSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AddMemorySheet(),
+      builder: (context) => const AddAlbumSheet(),
     );
   }
 }
 
-class _MemoryCategoryChip extends StatelessWidget {
+class _AlbumTypeChip extends StatelessWidget {
   final String label;
   final int count;
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _MemoryCategoryChip({
+  const _AlbumTypeChip({
     required this.label,
     required this.count,
     required this.isSelected,
