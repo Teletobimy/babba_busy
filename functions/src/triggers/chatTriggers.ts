@@ -14,13 +14,10 @@ export const onChatMessageCreated = functions.firestore
 
     try {
       const senderId = messageData.senderId;
-      const messageText = messageData.message || "";
+      const senderName = messageData.senderName || "사용자";
+      const messageType = messageData.type || "text";
+      const messageContent = messageData.content || "";
       const readBy = messageData.readBy || [];
-
-      // 발신자 정보 조회
-      const senderDoc = await admin.firestore().collection("users").doc(senderId).get();
-      const senderData = senderDoc.data();
-      const senderName = senderData?.displayName || "사용자";
 
       // 그룹 멤버 조회
       const membershipsSnapshot = await admin.firestore()
@@ -38,7 +35,9 @@ export const onChatMessageCreated = functions.firestore
       }
 
       // 알림 전송 (tag로 같은 채팅방 알림 덮어쓰기)
-      const { title, body } = MessageTemplates.chatMessage(senderName, messageText);
+      const { title, body } = messageType === "image"
+        ? MessageTemplates.chatImageMessage(senderName)
+        : MessageTemplates.chatMessage(senderName, messageContent);
       await sendNotification(memberIds, {
         title,
         body,

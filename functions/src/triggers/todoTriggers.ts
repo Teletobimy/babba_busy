@@ -34,7 +34,7 @@ export const onTodoCreated = functions.firestore
       // 생성자 정보 조회
       const creatorDoc = await admin.firestore().collection("users").doc(creatorId).get();
       const creatorData = creatorDoc.data();
-      const creatorName = creatorData?.displayName || "사용자";
+      const creatorName = creatorData?.name || "사용자";
 
       // 알림 전송
       const { title: notifTitle, body } = MessageTemplates.todoAssigned(title, creatorName);
@@ -77,7 +77,7 @@ export const onTodoUpdated = functions.firestore
         if (completerId && completerId !== creatorId) {
           const completerDoc = await admin.firestore().collection("users").doc(completerId).get();
           const completerData = completerDoc.data();
-          const completerName = completerData?.displayName || "사용자";
+          const completerName = completerData?.name || "사용자";
 
           const { title: notifTitle, body } = MessageTemplates.todoCompleted(title, completerName);
           await sendNotificationToUser(creatorId, {
@@ -125,7 +125,7 @@ export const onEventCreated = functions.firestore
       // 생성자 정보 조회
       const creatorDoc = await admin.firestore().collection("users").doc(creatorId).get();
       const creatorData = creatorDoc.data();
-      const creatorName = creatorData?.displayName || "사용자";
+      const creatorName = creatorData?.name || "사용자";
 
       // 알림 전송
       const { title: notifTitle, body } = MessageTemplates.eventCreated(title, creatorName);

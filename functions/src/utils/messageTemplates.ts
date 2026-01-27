@@ -9,6 +9,11 @@ export const MessageTemplates = {
     body: message.length > 100 ? `${message.substring(0, 100)}...` : message,
   }),
 
+  chatImageMessage: (senderName: string): { title: string; body: string } => ({
+    title: senderName,
+    body: "📷 사진을 보냈습니다",
+  }),
+
   // Todo 알림
   todoAssigned: (title: string, assignerName: string): { title: string; body: string } => ({
     title: "새 할일이 할당되었습니다",
