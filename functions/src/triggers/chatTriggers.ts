@@ -35,9 +35,9 @@ export const onChatMessageCreated = functions.firestore
       }
 
       // 알림 전송 (tag로 같은 채팅방 알림 덮어쓰기)
-      const { title, body } = messageType === "image"
-        ? MessageTemplates.chatImageMessage(senderName)
-        : MessageTemplates.chatMessage(senderName, messageContent);
+      const { title, body } = messageType === "image" ?
+        MessageTemplates.chatImageMessage(senderName) :
+        MessageTemplates.chatMessage(senderName, messageContent);
       await sendNotification(memberIds, {
         title,
         body,
