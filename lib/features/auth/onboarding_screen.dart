@@ -562,11 +562,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     // 전환 애니메이션을 위한 짧은 지연
     await Future.delayed(const Duration(milliseconds: 300));
 
-    // 멤버십 데이터 새로고침
-    ref.invalidate(userMembershipsProvider);
-
-    // 추가 지연 후 네비게이션 (데이터 로드 대기)
-    await Future.delayed(const Duration(milliseconds: 200));
+    // invalidate 제거 - 라우터가 자동으로 멤버십 감지하므로 불필요한 리스너 재트리거 방지
 
     if (mounted) {
       context.go('/home');

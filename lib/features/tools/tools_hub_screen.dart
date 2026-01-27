@@ -51,9 +51,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
   }
 
   void _handleTabChange() {
-    if (!_tabController.indexIsChanging) {
-      ref.read(selectedToolTabProvider.notifier).state = _tabController.index;
-    }
+    // indexIsChanging 조건 제거 - 스와이프/탭 클릭 모두 동기화
+    ref.read(selectedToolTabProvider.notifier).state = _tabController.index;
   }
 
   @override
