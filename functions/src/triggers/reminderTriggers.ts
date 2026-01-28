@@ -11,7 +11,7 @@ function calculateNextReminderAt(
   reminderMinutes: number[],
   remindersSent: number[]
 ): Date | null {
-  const pendingMinutes = reminderMinutes.filter(m => !remindersSent.includes(m));
+  const pendingMinutes = reminderMinutes.filter((m) => !remindersSent.includes(m));
   if (pendingMinutes.length === 0) return null;
 
   // 미발송 알림 중 가장 빠른 시간 찾기 (가장 큰 minutes 값)
@@ -62,7 +62,7 @@ export const checkReminders = functions.pubsub
         const eventTime = todo.startTime?.toDate() || todo.dueDate?.toDate();
         if (!eventTime) continue;
 
-        let updatedRemindersSent = [...remindersSent];
+        const updatedRemindersSent = [...remindersSent];
 
         for (const minutes of reminderMinutes) {
           // 이미 발송된 알림 스킵
@@ -118,9 +118,9 @@ export const checkReminders = functions.pubsub
 
           currentBatch.update(doc.ref, {
             remindersSent: updatedRemindersSent,
-            nextReminderAt: nextReminderAt
-              ? admin.firestore.Timestamp.fromDate(nextReminderAt)
-              : null,
+            nextReminderAt: nextReminderAt ?
+              admin.firestore.Timestamp.fromDate(nextReminderAt) :
+              null,
           });
           batchOperationCount++;
         }
@@ -128,7 +128,7 @@ export const checkReminders = functions.pubsub
 
       if (processedCount > 0) {
         // 모든 배치 커밋
-        const batchCommits = batches.map(batch => batch.commit());
+        const batchCommits = batches.map((batch) => batch.commit());
         await Promise.all([
           ...batchCommits,
           ...notifications,
@@ -228,9 +228,9 @@ async function handleReminderCleanup(
         );
 
         await change.after.ref.update({
-          nextReminderAt: nextReminderAt
-            ? admin.firestore.Timestamp.fromDate(nextReminderAt)
-            : null,
+          nextReminderAt: nextReminderAt ?
+            admin.firestore.Timestamp.fromDate(nextReminderAt) :
+            null,
         });
       }
     }
