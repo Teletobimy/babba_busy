@@ -91,7 +91,7 @@ export const checkReminders = functions.pubsub
                     todoId: doc.id,
                     route: "/home",
                   },
-                  tag: `reminder_${doc.id}_${minutes}`,
+                  tag: `reminder_${doc.id}`, // 같은 할일은 최신 알림으로 덮어쓰기
                 })
               );
 
