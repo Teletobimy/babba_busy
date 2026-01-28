@@ -359,22 +359,31 @@ class AuthService {
     }
   }
 
-  /// 가족 이름 업데이트
+  /// 가족 이름 업데이트 (배치 최적화)
   Future<void> updateFamilyName(String familyId, String newName) async {
     if (_firestore == null) return;
-    
-    // 1. families 컬렉션 업데이트
-    await _firestore!.collection('families').doc(familyId).update({'name': newName});
-    
-    // 2. 해당 그룹의 모든 memberships의 groupName도 업데이트 (캐시 동기화)
+
+    // 1. 해당 그룹의 모든 memberships 조회
     final memberships = await _firestore!
         .collection('memberships')
         .where('groupId', isEqualTo: familyId)
         .get();
-    
-    for (final doc in memberships.docs) {
-      await doc.reference.update({'groupName': newName});
+
+    // 2. WriteBatch로 families + memberships 한번에 업데이트
+    final batch = _firestore!.batch();
+
+    // families 컬렉션 업데이트
+    batch.update(
+      _firestore!.collection('families').doc(familyId),
+      {'name': newName},
+    );
+
+    // memberships의 groupName 업데이트 (최대 499개, families 1개 포함 총 500개)
+    for (final doc in memberships.docs.take(499)) {
+      batch.update(doc.reference, {'groupName': newName});
     }
+
+    await batch.commit();
   }
 }
 

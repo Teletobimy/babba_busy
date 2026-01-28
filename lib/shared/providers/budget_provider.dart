@@ -4,7 +4,7 @@ import '../models/transaction.dart';
 import 'auth_provider.dart';
 import 'group_provider.dart';
 
-/// 거래 목록 스트림
+/// 거래 목록 스트림 (최근 100개로 제한하여 비용 최적화)
 final transactionsProvider = StreamProvider<List<BudgetTransaction>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
@@ -15,6 +15,7 @@ final transactionsProvider = StreamProvider<List<BudgetTransaction>>((ref) {
       .doc(membership.groupId)
       .collection('transactions')
       .orderBy('date', descending: true)
+      .limit(100) // 비용 최적화: 최근 100개만 구독
       .snapshots()
       .map((snapshot) =>
           snapshot.docs.map((doc) => BudgetTransaction.fromFirestore(doc)).toList());
