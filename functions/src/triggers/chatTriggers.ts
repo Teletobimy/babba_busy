@@ -67,7 +67,7 @@ export const onChatMessageCreated = functions.firestore
           type: "chat",
           familyId,
           messageId: snapshot.id,
-          route: "/chat",
+          route: "/home", // 채팅 전용 화면이 없으므로 홈으로 이동
         },
         tag: `chat_${familyId}`, // PWA: 같은 채팅방 알림은 최신 것으로 덮어씀
       });

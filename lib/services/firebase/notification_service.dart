@@ -280,6 +280,27 @@ class NotificationService {
     });
   }
 
+  /// 유효한 라우트 목록 (라우터에 정의된 경로만)
+  static const Set<String> _validRoutes = {
+    '/home',
+    '/calendar',
+    '/tools',
+    '/settings',
+    '/tools/business',
+    '/tools/business/history',
+    '/tools/psychology',
+    '/tools/psychology/history',
+  };
+
+  /// 라우트 유효성 검사
+  bool _isValidRoute(String route) {
+    // 정확히 일치하거나 파라미터가 있는 라우트 패턴 체크
+    if (_validRoutes.contains(route)) return true;
+    // /tools/psychology/test/{testType} 패턴 체크
+    if (route.startsWith('/tools/psychology/test/')) return true;
+    return false;
+  }
+
   /// 알림 네비게이션 처리
   void _handleNotificationNavigation(dynamic payload) {
     if (_navigatorKey?.currentContext == null) {
@@ -298,8 +319,12 @@ class NotificationService {
       final type = data['type'] as String?;
       final route = data['route'] as String?;
 
-      // route가 지정되어 있으면 해당 경로로 이동
-      if (route != null) {
+      debugPrint('🔔 알림 탭 - type: $type, route: $route');
+      debugPrint('🔔 알림 데이터: $data');
+
+      // route가 지정되어 있고 유효하면 해당 경로로 이동
+      if (route != null && _isValidRoute(route)) {
+        debugPrint('🔔 유효한 route로 이동: $route');
         context.go(route);
         return;
       }
@@ -308,24 +333,31 @@ class NotificationService {
       switch (type) {
         case 'todo':
         case 'event':
+          debugPrint('🔔 할일/일정 알림 → /home');
           context.go('/home');
           break;
         case 'chat':
-          // 추후 채팅 화면 구현 시
+          debugPrint('🔔 채팅 알림 → /home');
           context.go('/home');
           break;
         case 'business_review':
+          debugPrint('🔔 사업 검토 알림 → /tools/business/history');
+          context.go('/tools/business/history');
+          break;
         case 'analysis_complete':
         case 'analysis_failed':
-          // 사업 검토 또는 분석 작업 관련 알림
+          // 분석 작업 관련 알림 - jobType으로 구분
           final jobType = data['jobType'] as String?;
           if (jobType == 'psychology_test') {
+            debugPrint('🔔 심리 검사 알림 → /tools/psychology/history');
             context.go('/tools/psychology/history');
           } else {
+            debugPrint('🔔 사업 분석 알림 → /tools/business/history');
             context.go('/tools/business/history');
           }
           break;
         default:
+          debugPrint('🔔 기본 알림 → /home');
           context.go('/home');
       }
     } catch (e) {
