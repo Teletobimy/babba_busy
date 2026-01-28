@@ -48,6 +48,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   TodoVisibility _visibility = TodoVisibility.shared;
   final List<String> _sharedGroups = [];
 
+  // 알림 설정
+  final List<int> _reminderMinutes = [];
+
   @override
   void initState() {
     super.initState();
@@ -122,6 +125,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       _visibility = todo.visibility;
       _sharedGroups.clear();
       _sharedGroups.addAll(todo.sharedGroups);
+      // 알림 설정
+      _reminderMinutes.clear();
+      _reminderMinutes.addAll(todo.reminderMinutes);
     });
   }
 
@@ -194,6 +200,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           // Phase 2 필드
           visibility: _visibility,
           sharedGroups: _sharedGroups,
+          // 알림 설정
+          reminderMinutes: _reminderMinutes,
         );
       } else {
         // 추가 모드
@@ -216,6 +224,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           // Phase 2 필드
           visibility: _visibility,
           sharedGroups: _sharedGroups,
+          // 알림 설정
+          reminderMinutes: _reminderMinutes,
         );
       }
       if (mounted) {
@@ -309,6 +319,31 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       label += ' ($dayNames)';
     }
     return label;
+  }
+
+  Future<void> _showReminderSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ReminderSheet(
+        initialReminders: _reminderMinutes,
+        onSave: (reminders) {
+          setState(() {
+            _reminderMinutes.clear();
+            _reminderMinutes.addAll(reminders);
+          });
+        },
+      ),
+    );
+  }
+
+  String _getReminderLabel() {
+    if (_reminderMinutes.isEmpty) return '알림';
+    if (_reminderMinutes.length == 1) {
+      return ReminderPresets.getLabel(_reminderMinutes.first);
+    }
+    return '알림 ${_reminderMinutes.length}개';
   }
 
   /// Phase 2: 공개 범위 선택 위젯
@@ -749,6 +784,20 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                     ),
                     const SizedBox(width: 8),
                   ],
+
+                  // 알림 설정
+                  if (_dueDate != null) ...[
+                    _OptionChip(
+                      icon: Iconsax.notification,
+                      label: _getReminderLabel(),
+                      isSelected: _reminderMinutes.isNotEmpty,
+                      onTap: _showReminderSheet,
+                      onClear: _reminderMinutes.isNotEmpty
+                          ? () => setState(() => _reminderMinutes.clear())
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                 ],
               ),
             ),
@@ -1105,6 +1154,270 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
             child: ElevatedButton(
               onPressed: () {
                 widget.onSave(_type, _days, _endDate, _excludeHolidays);
+                Navigator.of(context).pop();
+              },
+              child: const Text('저장'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 알림 설정 시트
+class _ReminderSheet extends StatefulWidget {
+  final List<int> initialReminders;
+  final Function(List<int>) onSave;
+
+  const _ReminderSheet({
+    required this.initialReminders,
+    required this.onSave,
+  });
+
+  @override
+  State<_ReminderSheet> createState() => _ReminderSheetState();
+}
+
+class _ReminderSheetState extends State<_ReminderSheet> {
+  late List<int> _selectedReminders;
+  final _customController = TextEditingController();
+  String _customUnit = 'minutes'; // 'minutes' | 'hours' | 'days'
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedReminders = List.from(widget.initialReminders);
+  }
+
+  @override
+  void dispose() {
+    _customController.dispose();
+    super.dispose();
+  }
+
+  void _toggleReminder(int minutes) {
+    setState(() {
+      if (_selectedReminders.contains(minutes)) {
+        _selectedReminders.remove(minutes);
+      } else {
+        _selectedReminders.add(minutes);
+        _selectedReminders.sort();
+      }
+    });
+  }
+
+  void _addCustomReminder() {
+    final value = int.tryParse(_customController.text);
+    if (value == null || value <= 0) return;
+
+    int minutes;
+    switch (_customUnit) {
+      case 'hours':
+        minutes = value * 60;
+        break;
+      case 'days':
+        minutes = value * 1440;
+        break;
+      default:
+        minutes = value;
+    }
+
+    if (!_selectedReminders.contains(minutes)) {
+      setState(() {
+        _selectedReminders.add(minutes);
+        _selectedReminders.sort();
+      });
+    }
+
+    _customController.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.all(AppTheme.spacingL),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('알림 설정', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppTheme.spacingM),
+
+          // 프리셋 칩 목록
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: ReminderPresets.all.map((minutes) {
+              final isSelected = _selectedReminders.contains(minutes);
+              return GestureDetector(
+                onTap: () => _toggleReminder(minutes),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryLight
+                          : (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSelected)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: Icon(
+                            Icons.check,
+                            size: 14,
+                            color: AppColors.primaryLight,
+                          ),
+                        ),
+                      Text(
+                        ReminderPresets.getLabel(minutes),
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.primaryLight
+                              : (isDark
+                                  ? AppColors.textPrimaryDark
+                                  : AppColors.textPrimaryLight),
+                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: AppTheme.spacingM),
+
+          // 커스텀 시간 입력
+          Text('커스텀 알림', style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: AppTheme.spacingS),
+          Row(
+            children: [
+              // 숫자 입력
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: _customController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    hintText: '숫자',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  onSubmitted: (_) => _addCustomReminder(),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 단위 선택
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: (isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight)
+                        .withValues(alpha: 0.2),
+                  ),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _customUnit,
+                    items: const [
+                      DropdownMenuItem(value: 'minutes', child: Text('분 전')),
+                      DropdownMenuItem(value: 'hours', child: Text('시간 전')),
+                      DropdownMenuItem(value: 'days', child: Text('일 전')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _customUnit = value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // 추가 버튼
+              IconButton(
+                onPressed: _addCustomReminder,
+                icon: Icon(
+                  Icons.add_circle,
+                  color: AppColors.primaryLight,
+                ),
+              ),
+            ],
+          ),
+
+          // 선택된 알림 목록
+          if (_selectedReminders.isNotEmpty) ...[
+            const SizedBox(height: AppTheme.spacingM),
+            Text('선택됨', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: AppTheme.spacingS),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _selectedReminders.map((minutes) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        ReminderPresets.getLabel(minutes),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.primaryLight,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => _toggleReminder(minutes),
+                        child: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: AppColors.primaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+
+          const SizedBox(height: AppTheme.spacingL),
+
+          // 저장 버튼
+          SizedBox(
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () {
+                widget.onSave(_selectedReminders);
                 Navigator.of(context).pop();
               },
               child: const Text('저장'),

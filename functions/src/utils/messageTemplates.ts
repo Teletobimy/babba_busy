@@ -14,6 +14,27 @@ export const MessageTemplates = {
     body: "📷 사진을 보냈습니다",
   }),
 
+  // 미리 알림
+  todoReminder: (title: string, minutesBefore: number): { title: string; body: string } => {
+    let timeLabel: string;
+    if (minutesBefore === 0) {
+      timeLabel = "지금";
+    } else if (minutesBefore < 60) {
+      timeLabel = `${minutesBefore}분 후`;
+    } else if (minutesBefore < 1440) {
+      const hours = Math.floor(minutesBefore / 60);
+      timeLabel = `${hours}시간 후`;
+    } else {
+      const days = Math.floor(minutesBefore / 1440);
+      timeLabel = `${days}일 후`;
+    }
+
+    return {
+      title: "일정 알림",
+      body: `"${title}"이(가) ${timeLabel} 시작됩니다`,
+    };
+  },
+
   // Todo 알림
   todoAssigned: (title: string, assignerName: string): { title: string; body: string } => ({
     title: "새 할일이 할당되었습니다",

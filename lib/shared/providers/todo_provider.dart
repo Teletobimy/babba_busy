@@ -472,6 +472,8 @@ class TodoService {
     // Phase 2 필드
     TodoVisibility visibility = TodoVisibility.shared,
     List<String>? sharedGroups,
+    // 알림 설정
+    List<int> reminderMinutes = const [],
   }) async {
     final userTodosRef = _userTodosCollection;
     if (userTodosRef == null || _userId == null) return;
@@ -515,6 +517,9 @@ class TodoService {
           ? Timestamp.fromDate(recurrenceEndDate)
           : null,
       'excludeHolidays': excludeHolidays,
+      // 알림 설정
+      'reminderMinutes': reminderMinutes.isEmpty ? null : reminderMinutes,
+      'remindersSent': null,
     };
 
     // users/{userId}/todos에 저장 (CollectionGroup 쿼리로 다른 사용자가 조회)
@@ -570,6 +575,8 @@ class TodoService {
     // Phase 2 필드
     TodoVisibility? visibility,
     List<String>? sharedGroups,
+    // 알림 설정
+    List<int>? reminderMinutes,
   }) async {
     final userTodosRef = _userTodosCollection;
     if (userTodosRef == null) return;
@@ -604,6 +611,11 @@ class TodoService {
     // Phase 2 필드
     if (visibility != null) updates['visibility'] = visibility.value;
     if (sharedGroups != null) updates['sharedGroups'] = sharedGroups;
+    // 알림 설정
+    if (reminderMinutes != null) {
+      updates['reminderMinutes'] = reminderMinutes.isEmpty ? null : reminderMinutes;
+      updates['remindersSent'] = null; // 알림 시간 변경 시 발송 기록 초기화
+    }
 
     if (updates.isNotEmpty) {
       await userTodosRef.doc(todoId).update(updates);

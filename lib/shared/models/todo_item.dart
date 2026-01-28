@@ -1,6 +1,62 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'recurrence.dart';
 
+/// 알림 프리셋 (분 단위)
+class ReminderPresets {
+  static const int atTime = 0; // 정시
+  static const int fiveMin = 5; // 5분 전
+  static const int tenMin = 10; // 10분 전
+  static const int thirtyMin = 30; // 30분 전
+  static const int oneHour = 60; // 1시간 전
+  static const int twoHours = 120; // 2시간 전
+  static const int oneDay = 1440; // 하루 전 (24*60)
+  static const int twoDays = 2880; // 이틀 전 (48*60)
+
+  static const List<int> all = [
+    atTime,
+    fiveMin,
+    tenMin,
+    thirtyMin,
+    oneHour,
+    twoHours,
+    oneDay,
+    twoDays,
+  ];
+
+  static String getLabel(int minutes) {
+    switch (minutes) {
+      case 0:
+        return '정시';
+      case 5:
+        return '5분 전';
+      case 10:
+        return '10분 전';
+      case 30:
+        return '30분 전';
+      case 60:
+        return '1시간 전';
+      case 120:
+        return '2시간 전';
+      case 1440:
+        return '하루 전';
+      case 2880:
+        return '이틀 전';
+      default:
+        if (minutes < 60) return '$minutes분 전';
+        if (minutes < 1440) {
+          final hours = minutes ~/ 60;
+          final mins = minutes % 60;
+          if (mins == 0) return '$hours시간 전';
+          return '$hours시간 $mins분 전';
+        }
+        final days = minutes ~/ 1440;
+        final remainingHours = (minutes % 1440) ~/ 60;
+        if (remainingHours == 0) return '$days일 전';
+        return '$days일 $remainingHours시간 전';
+    }
+  }
+}
+
 /// 일정 타입
 enum TodoEventType {
   todo,      // 할일 - 완료O, 반복X (장보기, 청소 등 가벼운 작업)
@@ -128,6 +184,10 @@ class TodoItem {
   final List<String> sharedGroups;     // 공유 그룹 목록
   final TodoVisibility visibility;     // 공개 범위 (private | shared)
 
+  // 알림 설정
+  final List<int> reminderMinutes;     // 알림 시간 목록 (분 단위, 복수 설정 가능)
+  final List<int> remindersSent;       // 발송 완료된 알림 (중복 방지)
+
   TodoItem({
     required this.id,
     required this.familyId,
@@ -159,6 +219,9 @@ class TodoItem {
     this.ownerId,
     this.sharedGroups = const [],
     this.visibility = TodoVisibility.shared,
+    // 알림 설정
+    this.reminderMinutes = const [],
+    this.remindersSent = const [],
   });
 
   /// 시간이 지정된 할일인지 여부
@@ -236,6 +299,13 @@ class TodoItem {
           : [],
       visibility: TodoVisibilityExtension.fromString(
           data['visibility'] ?? 'shared'),
+      // 알림 설정
+      reminderMinutes: data['reminderMinutes'] != null
+          ? List<int>.from(data['reminderMinutes'])
+          : [],
+      remindersSent: data['remindersSent'] != null
+          ? List<int>.from(data['remindersSent'])
+          : [],
     );
   }
 
@@ -312,6 +382,9 @@ class TodoItem {
       'ownerId': ownerId,
       'sharedGroups': sharedGroups,
       'visibility': visibility.value,
+      // 알림 설정
+      'reminderMinutes': reminderMinutes.isEmpty ? null : reminderMinutes,
+      'remindersSent': remindersSent.isEmpty ? null : remindersSent,
     };
   }
 
@@ -346,6 +419,9 @@ class TodoItem {
     String? ownerId,
     List<String>? sharedGroups,
     TodoVisibility? visibility,
+    // 알림 설정
+    List<int>? reminderMinutes,
+    List<int>? remindersSent,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -378,6 +454,9 @@ class TodoItem {
       ownerId: ownerId ?? this.ownerId,
       sharedGroups: sharedGroups ?? this.sharedGroups,
       visibility: visibility ?? this.visibility,
+      // 알림 설정
+      reminderMinutes: reminderMinutes ?? this.reminderMinutes,
+      remindersSent: remindersSent ?? this.remindersSent,
     );
   }
 }
