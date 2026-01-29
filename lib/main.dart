@@ -5,7 +5,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'app/app.dart';
 import 'firebase_options.dart';
 import 'shared/providers/group_provider.dart';
@@ -13,9 +12,6 @@ import 'services/firebase/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // SharedPreferences 초기화
-  final sharedPrefs = await SharedPreferences.getInstance();
 
   // 환경변수 로드
   try {
@@ -64,11 +60,13 @@ void main() async {
     debugPrint('Firebase 초기화 실패: $e');
   }
 
+  // ProviderContainer 생성 및 온보딩 상태 초기화
+  final container = ProviderContainer();
+  await initOnboardingState(container);
+
   runApp(
-    ProviderScope(
-      overrides: [
-        sharedPrefsProvider.overrideWithValue(sharedPrefs),
-      ],
+    UncontrolledProviderScope(
+      container: container,
       child: const FamilyHubApp(),
     ),
   );
