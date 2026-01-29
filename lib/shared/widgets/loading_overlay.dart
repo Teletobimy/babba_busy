@@ -17,19 +17,11 @@ class LoadingOverlay extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 로고
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Icon(
-                Icons.family_restroom,
-                size: 40,
-                color: AppColors.primaryLight,
-              ),
+            // BABBA 로고
+            Image.asset(
+              'assets/icons/app_icon.png',
+              width: 100,
+              height: 100,
             ),
             const SizedBox(height: 16),
             // 앱 이름
