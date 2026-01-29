@@ -47,4 +47,4 @@ app.*.map.json
 # Environment variables (API Keys 등 민감정보)
 .env
 .env.local
-.env.*.local
+.env.*.localnul
