@@ -115,34 +115,44 @@ class UpdateDialog extends StatelessWidget {
               height: 1.4,
             ),
           ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: onSkip,
-          child: Text(
-            '이 버전 건너뛰기',
-            style: TextStyle(color: Colors.grey[500]),
-          ),
-        ),
-        TextButton(
-          onPressed: onLater,
-          child: Text(
-            '나중에',
-            style: TextStyle(color: Colors.grey[700]),
-          ),
-        ),
-        FilledButton(
-          onPressed: () => _launchUpdate(context),
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.coral,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+          const SizedBox(height: 20),
+          // 버튼들을 세로로 배치
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => _launchUpdate(context),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.coral,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('업데이트'),
             ),
           ),
-          child: const Text('업데이트'),
-        ),
-      ],
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              TextButton(
+                onPressed: onSkip,
+                child: Text(
+                  '건너뛰기',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                ),
+              ),
+              TextButton(
+                onPressed: onLater,
+                child: Text(
+                  '나중에',
+                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
