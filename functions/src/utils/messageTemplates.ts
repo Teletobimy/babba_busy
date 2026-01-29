@@ -92,4 +92,20 @@ export const MessageTemplates = {
       body: "다시 시도하시거나 나중에 확인해주세요",
     };
   },
+
+  // 앨범 공유
+  albumShared: (albumTitle: string, creatorName: string): { title: string; body: string } => ({
+    title: "새 앨범 공유됨",
+    body: `${creatorName}님이 '${albumTitle}' 앨범을 공유했습니다`,
+  }),
+
+  // 앨범에 사진 추가
+  albumPhotosAdded: (
+    albumTitle: string,
+    adderName: string,
+    count: number
+  ): { title: string; body: string } => ({
+    title: "앨범에 사진 추가됨",
+    body: `${adderName}님이 '${albumTitle}' 앨범에 사진 ${count}장을 추가했습니다`,
+  }),
 };

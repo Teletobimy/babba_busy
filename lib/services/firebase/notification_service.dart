@@ -204,6 +204,8 @@ class NotificationService {
         return NotificationChannelId.todoChannel;
       case 'event':
         return NotificationChannelId.eventChannel;
+      case 'album':
+        return NotificationChannelId.defaultChannel;
       case 'business_review':
         return NotificationChannelId.businessChannel;
       case 'analysis_complete':
@@ -355,6 +357,10 @@ class NotificationService {
             debugPrint('🔔 사업 분석 알림 → /tools/business/history');
             context.go('/tools/business/history');
           }
+          break;
+        case 'album':
+          debugPrint('🔔 앨범 알림 → /home');
+          context.go('/home');
           break;
         default:
           debugPrint('🔔 기본 알림 → /home');
