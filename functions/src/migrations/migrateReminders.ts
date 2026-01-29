@@ -9,7 +9,7 @@ function calculateNextReminderAt(
   reminderMinutes: number[],
   remindersSent: number[]
 ): Date | null {
-  const pendingMinutes = reminderMinutes.filter(m => !remindersSent.includes(m));
+  const pendingMinutes = reminderMinutes.filter((m) => !remindersSent.includes(m));
   if (pendingMinutes.length === 0) return null;
 
   const maxMinutes = Math.max(...pendingMinutes);

@@ -61,7 +61,7 @@ export async function sendNotification(
         continue;
       }
 
-      const userData = userDoc.data()!;
+      const userData = userDoc.data() as admin.firestore.DocumentData;
 
       // 알림 설정 확인 (기본값: true)
       const notificationSettings = userData.notificationSettings || {};
