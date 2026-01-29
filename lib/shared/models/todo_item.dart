@@ -187,6 +187,7 @@ class TodoItem {
   // 알림 설정
   final List<int> reminderMinutes;     // 알림 시간 목록 (분 단위, 복수 설정 가능)
   final List<int> remindersSent;       // 발송 완료된 알림 (중복 방지)
+  final DateTime? nextReminderAt;      // 다음 알림 시간 (인덱스용)
 
   TodoItem({
     required this.id,
@@ -222,6 +223,7 @@ class TodoItem {
     // 알림 설정
     this.reminderMinutes = const [],
     this.remindersSent = const [],
+    this.nextReminderAt,
   });
 
   /// 시간이 지정된 할일인지 여부
@@ -306,6 +308,7 @@ class TodoItem {
       remindersSent: data['remindersSent'] != null
           ? List<int>.from(data['remindersSent'])
           : [],
+      nextReminderAt: (data['nextReminderAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -385,6 +388,9 @@ class TodoItem {
       // 알림 설정
       'reminderMinutes': reminderMinutes.isEmpty ? null : reminderMinutes,
       'remindersSent': remindersSent.isEmpty ? null : remindersSent,
+      'nextReminderAt': nextReminderAt != null
+          ? Timestamp.fromDate(nextReminderAt!)
+          : null,
     };
   }
 
@@ -422,6 +428,7 @@ class TodoItem {
     // 알림 설정
     List<int>? reminderMinutes,
     List<int>? remindersSent,
+    DateTime? nextReminderAt,
   }) {
     return TodoItem(
       id: id ?? this.id,
@@ -457,6 +464,7 @@ class TodoItem {
       // 알림 설정
       reminderMinutes: reminderMinutes ?? this.reminderMinutes,
       remindersSent: remindersSent ?? this.remindersSent,
+      nextReminderAt: nextReminderAt ?? this.nextReminderAt,
     );
   }
 }

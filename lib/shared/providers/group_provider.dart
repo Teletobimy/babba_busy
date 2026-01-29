@@ -168,14 +168,16 @@ final groupMembershipsProvider = StreamProvider<List<Membership>>((ref) {
 });
 
 /// 온보딩 완료 여부 (한 번이라도 봤으면 true)
-final onboardingCompletedProvider = StateProvider<bool>((ref) {
-  final prefs = ref.watch(sharedPrefsProvider);
-  return prefs.getString('onboarding_status') == 'completed';
-});
+/// 초기값 false, completeOnboarding() 호출 시 true로 변경
+/// 앱 시작 시 initOnboardingState()로 SharedPreferences에서 복원
+final onboardingCompletedProvider = StateProvider<bool>((ref) => false);
 
-final sharedPrefsProvider = Provider<SharedPreferences>((ref) {
-  throw UnimplementedError();
-});
+/// 앱 시작 시 온보딩 상태 복원 (main.dart에서 호출)
+Future<void> initOnboardingState(ProviderContainer container) async {
+  final prefs = await SharedPreferences.getInstance();
+  final isCompleted = prefs.getString('onboarding_status') == 'completed';
+  container.read(onboardingCompletedProvider.notifier).state = isCompleted;
+}
 
 /// 온보딩 완료 표시
 Future<void> completeOnboarding(dynamic ref) async {

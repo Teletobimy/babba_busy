@@ -80,12 +80,16 @@ final smartTodayTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(smartTodosProvider);
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final tomorrow = today.add(const Duration(days: 1));
 
   return todos.where((todo) {
     if (todo.dueDate == null) return false;
-    return todo.dueDate!.isAfter(today.subtract(const Duration(seconds: 1))) &&
-           todo.dueDate!.isBefore(tomorrow);
+    // normalizeDate 적용: 시간 정보 제거 후 비교
+    final normalizedDueDate = DateTime(
+      todo.dueDate!.year,
+      todo.dueDate!.month,
+      todo.dueDate!.day,
+    );
+    return normalizedDueDate.isAtSameMomentAs(today);
   }).toList();
 });
 
@@ -162,20 +166,35 @@ final smartCalendarGroupsProvider = Provider<List<CalendarGroup>>((ref) {
   return ref.watch(calendarGroupsProvider).value ?? [];
 });
 
-/// 선택된 캘린더 그룹 ID 목록
-final selectedCalendarGroupsProvider = StateProvider<Set<String>>((ref) {
-  // 기본값: 모든 캘린더 그룹 선택
+/// 모든 캘린더 그룹 ID (computed provider)
+/// selectedCalendarGroupsProvider의 기본값으로 사용
+final _allCalendarGroupIdsProvider = Provider<Set<String>>((ref) {
   final groups = ref.watch(smartCalendarGroupsProvider);
   return groups.map((g) => g.id).toSet();
 });
 
+/// 선택된 캘린더 그룹 ID 목록
+/// 주의: StateProvider에서 다른 provider를 watch하면 무한 루프 위험
+/// 빈 Set으로 초기화하고, 빈 경우 전체 선택으로 처리
+final selectedCalendarGroupsProvider = StateProvider<Set<String>>((ref) {
+  // 빈 Set = 전체 선택 (filteredTodosProvider에서 처리)
+  return <String>{};
+});
+
+/// 실제 선택된 그룹 ID (빈 경우 전체 반환)
+final effectiveSelectedCalendarGroupsProvider = Provider<Set<String>>((ref) {
+  final selected = ref.watch(selectedCalendarGroupsProvider);
+  if (selected.isEmpty) {
+    return ref.watch(_allCalendarGroupIdsProvider);
+  }
+  return selected;
+});
+
 /// 필터링된 Todo (선택된 캘린더 그룹 기반)
+/// effectiveSelectedCalendarGroupsProvider 사용으로 빈 Set 처리 통일
 final filteredTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(smartTodosProvider);
-  final selectedGroups = ref.watch(selectedCalendarGroupsProvider);
-
-  // 모든 그룹이 선택되었거나 선택이 비어있으면 전체 반환
-  if (selectedGroups.isEmpty) return todos;
+  final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
 
   return todos.where((todo) {
     // calendarGroupId가 없는 todo는 가족 그룹으로 간주
@@ -263,6 +282,7 @@ final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
 });
 
 /// 다가오는 할일 (7일 이내, 반복 확장 포함, 필터 적용)
+/// effectiveSelectedCalendarGroupsProvider 사용으로 빈 Set 처리 통일
 final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -274,17 +294,12 @@ final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
     month: now.month,
   )));
 
-  // Apply calendar group filter
-  final selectedGroups = ref.watch(selectedCalendarGroupsProvider);
-  List<TodoItem> todos;
-  if (selectedGroups.isEmpty) {
-    todos = expandedTodos;
-  } else {
-    todos = expandedTodos.where((todo) {
-      final groupId = todo.calendarGroupId ?? 'cal_family';
-      return selectedGroups.contains(groupId);
-    }).toList();
-  }
+  // Apply calendar group filter (effectiveSelectedCalendarGroupsProvider 사용)
+  final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
+  final todos = expandedTodos.where((todo) {
+    final groupId = todo.calendarGroupId ?? 'cal_family';
+    return selectedGroups.contains(groupId);
+  }).toList();
 
   // Filter to upcoming only
   return todos.where((todo) {

@@ -101,12 +101,12 @@ final todayTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(todosProvider).value ?? [];
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  final tomorrow = today.add(const Duration(days: 1));
 
   return todos.where((todo) {
     if (todo.dueDate == null) return false;
-    return todo.dueDate!.isAfter(today.subtract(const Duration(seconds: 1))) &&
-           todo.dueDate!.isBefore(tomorrow);
+    // normalizeDate 적용: 시간 정보 제거 후 비교
+    final normalizedDueDate = date_utils.normalizeDate(todo.dueDate!);
+    return normalizedDueDate.isAtSameMomentAs(today);
   }).toList();
 });
 
@@ -439,6 +439,25 @@ class TodoService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
+  /// 다음 알림 시간 계산 (미발송 알림 중 가장 빠른 시간)
+  static Timestamp? _calculateNextReminderAt(
+    DateTime? eventTime,
+    List<int> reminderMinutes,
+    List<int> remindersSent,
+  ) {
+    if (eventTime == null || reminderMinutes.isEmpty) return null;
+
+    final pendingMinutes = reminderMinutes
+        .where((m) => !remindersSent.contains(m))
+        .toList();
+    if (pendingMinutes.isEmpty) return null;
+
+    // 미발송 알림 중 가장 빠른 시간 찾기 (가장 큰 minutes 값)
+    final maxMinutes = pendingMinutes.reduce((a, b) => a > b ? a : b);
+    final nextTime = eventTime.subtract(Duration(minutes: maxMinutes));
+    return Timestamp.fromDate(nextTime);
+  }
+
   String? get _groupId => _ref.read(currentMembershipProvider)?.groupId;
   String? get _userId => _ref.read(currentUserProvider)?.uid;
 
@@ -520,6 +539,11 @@ class TodoService {
       // 알림 설정
       'reminderMinutes': reminderMinutes.isEmpty ? null : reminderMinutes,
       'remindersSent': null,
+      'nextReminderAt': _calculateNextReminderAt(
+        startTime ?? dueDate,
+        reminderMinutes,
+        [],
+      ),
     };
 
     // users/{userId}/todos에 저장 (CollectionGroup 쿼리로 다른 사용자가 조회)
@@ -552,6 +576,7 @@ class TodoService {
   }
 
   /// 할일 수정 (Phase 2: 사용자 레벨)
+  /// 데이터 무결성: startTime/dueDate/reminderMinutes 변경 시 nextReminderAt 자동 재계산
   Future<void> updateTodo(String todoId, {
     String? title,
     String? note,
@@ -611,10 +636,51 @@ class TodoService {
     // Phase 2 필드
     if (visibility != null) updates['visibility'] = visibility.value;
     if (sharedGroups != null) updates['sharedGroups'] = sharedGroups;
-    // 알림 설정
+
+    // 알림 관련 필드 변경 시 nextReminderAt 재계산 필요
+    final needsReminderRecalc = reminderMinutes != null ||
+        startTime != null ||
+        dueDate != null;
+
     if (reminderMinutes != null) {
       updates['reminderMinutes'] = reminderMinutes.isEmpty ? null : reminderMinutes;
-      updates['remindersSent'] = null; // 알림 시간 변경 시 발송 기록 초기화
+      updates['remindersSent'] = []; // 알림 시간 변경 시 발송 기록 초기화
+    }
+
+    // nextReminderAt 재계산 (데이터 무결성 보장)
+    if (needsReminderRecalc) {
+      // 현재 문서 조회하여 기존 값과 병합
+      final currentDoc = await userTodosRef.doc(todoId).get();
+      if (currentDoc.exists) {
+        final currentData = currentDoc.data() as Map<String, dynamic>;
+
+        // 이벤트 시간 결정 (새 값 우선, 없으면 기존 값)
+        final effectiveStartTime = startTime ??
+            (currentData['startTime'] as Timestamp?)?.toDate();
+        final effectiveDueDate = dueDate ??
+            (currentData['dueDate'] as Timestamp?)?.toDate();
+        final eventTime = effectiveStartTime ?? effectiveDueDate;
+
+        // 알림 설정 결정
+        final effectiveReminderMinutes = reminderMinutes ??
+            (currentData['reminderMinutes'] != null
+                ? List<int>.from(currentData['reminderMinutes'])
+                : <int>[]);
+
+        // remindersSent (reminderMinutes 변경 시 초기화됨)
+        final effectiveRemindersSent = reminderMinutes != null
+            ? <int>[]
+            : (currentData['remindersSent'] != null
+                ? List<int>.from(currentData['remindersSent'])
+                : <int>[]);
+
+        // nextReminderAt 재계산
+        updates['nextReminderAt'] = _calculateNextReminderAt(
+          eventTime,
+          effectiveReminderMinutes,
+          effectiveRemindersSent,
+        );
+      }
     }
 
     if (updates.isNotEmpty) {
