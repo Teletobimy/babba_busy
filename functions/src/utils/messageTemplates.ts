@@ -14,6 +14,11 @@ export const MessageTemplates = {
     body: "📷 사진을 보냈습니다",
   }),
 
+  chatFileMessage: (senderName: string, fileName: string): { title: string; body: string } => ({
+    title: senderName,
+    body: `📎 ${fileName}`,
+  }),
+
   // 미리 알림
   todoReminder: (title: string, minutesBefore: number): { title: string; body: string } => {
     let timeLabel: string;

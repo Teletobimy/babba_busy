@@ -5,6 +5,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/memo_provider.dart';
+import '../memo_category_utils.dart';
+import 'create_memo_category_dialog.dart';
 
 /// 빠른 메모 추가 바텀시트
 class AddMemoSheet extends ConsumerStatefulWidget {
@@ -29,15 +31,19 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
   }
 
   Future<void> _saveMemo() async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
+    final titleInput = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    if (titleInput.isEmpty && content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('제목을 입력해주세요')),
+        const SnackBar(content: Text('메모 제목 또는 내용을 입력해주세요')),
       );
       return;
     }
 
-    final content = _contentController.text.trim();
+    final title = deriveMemoTitle(
+      titleInput: titleInput,
+      contentInput: content,
+    );
 
     setState(() => _isLoading = true);
 
@@ -68,9 +74,23 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
     }
   }
 
+  Future<void> _createCategory() async {
+    final created = await showCreateMemoCategoryDialog(
+      context: context,
+      ref: ref,
+    );
+    if (!mounted || created == null) return;
+
+    setState(() {
+      _selectedCategoryId = created.id;
+      _selectedCategoryName = created.name;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    ref.watch(memoCategoryBootstrapProvider);
     final categories = ref.watch(smartMemoCategoriesProvider);
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
@@ -151,7 +171,7 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
                 ),
                 const SizedBox(width: 8),
                 ...categories.map((category) {
-                  final color = _parseColor(category.color);
+                  final color = parseMemoCategoryColor(category.color);
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: _buildCategoryChip(
@@ -169,6 +189,15 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
                     ),
                   );
                 }),
+                _buildCategoryChip(
+                  context,
+                  label: '카테고리+',
+                  isSelected: false,
+                  color: AppColors.memoColor,
+                  onTap: () {
+                    _createCategory();
+                  },
+                ),
               ],
             ),
           ),
@@ -285,7 +314,7 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
           children: [
             if (icon != null) ...[
               Icon(
-                _getIconData(icon),
+                memoCategoryIconData(icon),
                 size: 14,
                 color: isSelected ? Colors.white : color,
               ),
@@ -303,28 +332,5 @@ class _AddMemoSheetState extends ConsumerState<AddMemoSheet> {
         ),
       ),
     );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF64B5F6);
-    }
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'book_1':
-        return Iconsax.book_1;
-      case 'note_1':
-        return Iconsax.note_1;
-      case 'lamp_charge':
-        return Iconsax.lamp_charge;
-      case 'task_square':
-        return Iconsax.task_square;
-      default:
-        return Iconsax.note;
-    }
   }
 }

@@ -453,7 +453,13 @@ class AiApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return MemoAnalysisResult(
-          analysis: data['analysis'] ?? '',
+          analysis: (data['analysis'] ?? '').toString(),
+          summary: (data['summary'] ?? '').toString(),
+          validationPoints: _normalizeStringList(data['validation_points']),
+          suggestedCategory: _normalizeNullableString(
+            data['suggested_category'],
+          ),
+          suggestedTags: _normalizeStringList(data['suggested_tags'], max: 5),
           cached: data['cached'] ?? false,
         );
       } else {
@@ -466,6 +472,22 @@ class AiApiService {
       if (e is AiApiException) rethrow;
       throw AiApiException('네트워크 오류: $e');
     }
+  }
+
+  List<String> _normalizeStringList(dynamic raw, {int max = 6}) {
+    if (raw is! List) return <String>[];
+    return raw
+        .map((item) => item.toString().trim())
+        .where((item) => item.isNotEmpty)
+        .take(max)
+        .toList();
+  }
+
+  String? _normalizeNullableString(dynamic raw) {
+    if (raw == null) return null;
+    final value = raw.toString().trim();
+    if (value.isEmpty) return null;
+    return value;
   }
 
   /// 사업 아이디어 분석 스트리밍 (7개 에이전트 진행 상황)
@@ -612,9 +634,20 @@ class AiApiException implements Exception {
 /// 메모 분석 결과
 class MemoAnalysisResult {
   final String analysis;
+  final String summary;
+  final List<String> validationPoints;
+  final String? suggestedCategory;
+  final List<String> suggestedTags;
   final bool cached;
 
-  MemoAnalysisResult({required this.analysis, this.cached = false});
+  MemoAnalysisResult({
+    required this.analysis,
+    this.summary = '',
+    this.validationPoints = const [],
+    this.suggestedCategory,
+    this.suggestedTags = const [],
+    this.cached = false,
+  });
 }
 
 /// AI 요약 결과

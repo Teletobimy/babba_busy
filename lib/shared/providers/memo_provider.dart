@@ -82,8 +82,19 @@ final memoServiceProvider = Provider<MemoService>((ref) {
   return MemoService(ref);
 });
 
+/// 메모 카테고리 기본값 보장 Provider
+final memoCategoryBootstrapProvider = FutureProvider<void>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (user == null || firestore == null) return;
+
+  await ref.read(memoServiceProvider).ensureDefaultCategoriesIfEmpty();
+});
+
 /// 메모 서비스
 class MemoService {
+  static const Object _unset = Object();
+
   final Ref _ref;
 
   MemoService(this._ref);
@@ -110,6 +121,8 @@ class MemoService {
     String? categoryName,
     List<String> tags = const [],
     bool isPinned = false,
+    String? aiAnalysis,
+    DateTime? analyzedAt,
   }) async {
     final memosRef = _memosCollection;
     if (memosRef == null || _userId == null) return null;
@@ -122,8 +135,8 @@ class MemoService {
       'categoryName': categoryName,
       'tags': tags,
       'isPinned': isPinned,
-      'aiAnalysis': null,
-      'analyzedAt': null,
+      'aiAnalysis': aiAnalysis,
+      'analyzedAt': analyzedAt != null ? Timestamp.fromDate(analyzedAt) : null,
       'createdBy': _userId,
       'createdAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -133,15 +146,16 @@ class MemoService {
   }
 
   /// 메모 수정
-  Future<void> updateMemo(String memoId, {
-    String? title,
-    String? content,
-    String? categoryId,
-    String? categoryName,
-    List<String>? tags,
-    bool? isPinned,
-    String? aiAnalysis,
-    DateTime? analyzedAt,
+  Future<void> updateMemo(
+    String memoId, {
+    Object? title = _unset,
+    Object? content = _unset,
+    Object? categoryId = _unset,
+    Object? categoryName = _unset,
+    Object? tags = _unset,
+    Object? isPinned = _unset,
+    Object? aiAnalysis = _unset,
+    Object? analyzedAt = _unset,
   }) async {
     final memosRef = _memosCollection;
     if (memosRef == null) return;
@@ -150,14 +164,20 @@ class MemoService {
       'updatedAt': FieldValue.serverTimestamp(),
     };
 
-    if (title != null) updates['title'] = title;
-    if (content != null) updates['content'] = content;
-    if (categoryId != null) updates['categoryId'] = categoryId;
-    if (categoryName != null) updates['categoryName'] = categoryName;
-    if (tags != null) updates['tags'] = tags;
-    if (isPinned != null) updates['isPinned'] = isPinned;
-    if (aiAnalysis != null) updates['aiAnalysis'] = aiAnalysis;
-    if (analyzedAt != null) updates['analyzedAt'] = Timestamp.fromDate(analyzedAt);
+    if (!identical(title, _unset)) updates['title'] = title;
+    if (!identical(content, _unset)) updates['content'] = content;
+    if (!identical(categoryId, _unset)) updates['categoryId'] = categoryId;
+    if (!identical(categoryName, _unset)) {
+      updates['categoryName'] = categoryName;
+    }
+    if (!identical(tags, _unset)) updates['tags'] = tags;
+    if (!identical(isPinned, _unset)) updates['isPinned'] = isPinned;
+    if (!identical(aiAnalysis, _unset)) updates['aiAnalysis'] = aiAnalysis;
+    if (!identical(analyzedAt, _unset)) {
+      updates['analyzedAt'] = analyzedAt == null
+          ? null
+          : Timestamp.fromDate(analyzedAt as DateTime);
+    }
 
     await memosRef.doc(memoId).update(updates);
   }
@@ -257,10 +277,28 @@ class MemoService {
     if (categoriesRef == null || _userId == null) return;
 
     final defaults = DefaultMemoCategories.createDefaults(_userId!);
+    final batch = _firestore!.batch();
 
     for (final category in defaults) {
-      await categoriesRef.doc(category.id).set(category.toFirestore());
+      batch.set(
+        categoriesRef.doc(category.id),
+        category.toFirestore(),
+        SetOptions(merge: true),
+      );
     }
+
+    await batch.commit();
+  }
+
+  /// 카테고리가 비어 있으면 기본 카테고리를 자동 생성
+  Future<void> ensureDefaultCategoriesIfEmpty() async {
+    final categoriesRef = _categoriesCollection;
+    if (categoriesRef == null) return;
+
+    final snapshot = await categoriesRef.limit(1).get();
+    if (snapshot.docs.isNotEmpty) return;
+
+    await createDefaultCategories();
   }
 
   /// 다음 카테고리 정렬 순서 가져오기

@@ -1,11 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 채팅 메시지 타입
-enum MessageType {
-  text,
-  image,
-  system,
-}
+enum MessageType { text, image, file, system }
 
 /// 채팅 메시지 모델
 class ChatMessage {
@@ -16,6 +12,10 @@ class ChatMessage {
   final String? senderAvatarUrl;
   final String content;
   final String? imageUrl;
+  final String? attachmentUrl;
+  final String? attachmentName;
+  final String? attachmentMimeType;
+  final int? attachmentSizeBytes;
   final MessageType type;
   final DateTime createdAt;
   final List<String> readBy;
@@ -28,6 +28,10 @@ class ChatMessage {
     this.senderAvatarUrl,
     required this.content,
     this.imageUrl,
+    this.attachmentUrl,
+    this.attachmentName,
+    this.attachmentMimeType,
+    this.attachmentSizeBytes,
     required this.type,
     required this.createdAt,
     required this.readBy,
@@ -43,6 +47,10 @@ class ChatMessage {
       senderAvatarUrl: data['senderAvatarUrl'],
       content: data['content'] ?? '',
       imageUrl: data['imageUrl'],
+      attachmentUrl: data['attachmentUrl'],
+      attachmentName: data['attachmentName'],
+      attachmentMimeType: data['attachmentMimeType'],
+      attachmentSizeBytes: (data['attachmentSizeBytes'] as num?)?.toInt(),
       type: _parseMessageType(data['type']),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       readBy: List<String>.from(data['readBy'] ?? []),
@@ -57,6 +65,10 @@ class ChatMessage {
       'senderAvatarUrl': senderAvatarUrl,
       'content': content,
       'imageUrl': imageUrl,
+      'attachmentUrl': attachmentUrl,
+      'attachmentName': attachmentName,
+      'attachmentMimeType': attachmentMimeType,
+      'attachmentSizeBytes': attachmentSizeBytes,
       'type': type.name,
       'createdAt': Timestamp.fromDate(createdAt),
       'readBy': readBy,
@@ -71,6 +83,10 @@ class ChatMessage {
     String? senderAvatarUrl,
     String? content,
     String? imageUrl,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentMimeType,
+    int? attachmentSizeBytes,
     MessageType? type,
     DateTime? createdAt,
     List<String>? readBy,
@@ -83,6 +99,10 @@ class ChatMessage {
       senderAvatarUrl: senderAvatarUrl ?? this.senderAvatarUrl,
       content: content ?? this.content,
       imageUrl: imageUrl ?? this.imageUrl,
+      attachmentUrl: attachmentUrl ?? this.attachmentUrl,
+      attachmentName: attachmentName ?? this.attachmentName,
+      attachmentMimeType: attachmentMimeType ?? this.attachmentMimeType,
+      attachmentSizeBytes: attachmentSizeBytes ?? this.attachmentSizeBytes,
       type: type ?? this.type,
       createdAt: createdAt ?? this.createdAt,
       readBy: readBy ?? this.readBy,
@@ -93,6 +113,8 @@ class ChatMessage {
     switch (type) {
       case 'image':
         return MessageType.image;
+      case 'file':
+        return MessageType.file;
       case 'system':
         return MessageType.system;
       default:

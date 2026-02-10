@@ -1,11 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../services/ai/ai_api_service.dart';
 import '../../../../shared/models/analysis_job.dart';
 import '../../../../shared/providers/analysis_job_provider.dart';
+import '../../../../shared/providers/auth_provider.dart';
+import '../../../../shared/providers/psychology_result_provider.dart';
 
 /// 분석 요청 접수 확인 화면
 class RequestAcceptedScreen extends ConsumerStatefulWidget {
@@ -21,7 +26,8 @@ class RequestAcceptedScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<RequestAcceptedScreen> createState() => _RequestAcceptedScreenState();
+  ConsumerState<RequestAcceptedScreen> createState() =>
+      _RequestAcceptedScreenState();
 }
 
 class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
@@ -33,23 +39,19 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
     final jobAsync = ref.watch(analysisJobProvider(widget.jobId));
 
     // 완료 시 자동 네비게이션
-    ref.listen<AsyncValue<AnalysisJob?>>(
-      analysisJobProvider(widget.jobId),
-      (previous, next) {
-        if (_hasNavigated) return;
+    ref.listen<AsyncValue<AnalysisJob?>>(analysisJobProvider(widget.jobId), (
+      previous,
+      next,
+    ) {
+      if (_hasNavigated) return;
 
-        next.whenData((job) {
-          if (job != null && job.status == AnalysisJobStatus.completed) {
-            _hasNavigated = true;
-            // 완료 시 이력 화면으로 자동 이동
-            final route = job.jobType == AnalysisJobType.psychologyTest
-                ? '/tools/psychology/history'
-                : '/tools/business/history';
-            context.go(route);
-          }
-        });
-      },
-    );
+      next.whenData((job) {
+        if (job != null && job.status == AnalysisJobStatus.completed) {
+          _hasNavigated = true;
+          unawaited(_handleCompletedJob(job));
+        }
+      });
+    });
 
     return Scaffold(
       backgroundColor: AppColors.grayScale[50],
@@ -91,9 +93,9 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
               // 메인 텍스트
               Text(
                 '분석 요청이 접수되었어요',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ).animate().fadeIn(delay: 200.ms),
               const SizedBox(height: 12),
@@ -110,7 +112,10 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
 
               // 예상 시간
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.coral[50],
                   borderRadius: BorderRadius.circular(20),
@@ -135,30 +140,33 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
               const SizedBox(height: 24),
 
               // 진행 상태 카드
-              jobAsync.when(
-                data: (job) {
-                  if (job == null) return const SizedBox.shrink();
-                  return _buildProgressCard(context, job);
-                },
-                loading: () => _buildProgressCard(
-                  context,
-                  AnalysisJob(
-                    id: widget.jobId,
-                    userId: '',
-                    jobType: AnalysisJobType.businessReview,
-                    status: AnalysisJobStatus.pending,
-                    input: {},
-                    progress: AnalysisJobProgress(
-                      currentStep: 0,
-                      totalSteps: 5,
-                      percentage: 0.0,
+              jobAsync
+                  .when(
+                    data: (job) {
+                      if (job == null) return const SizedBox.shrink();
+                      return _buildProgressCard(context, job);
+                    },
+                    loading: () => _buildProgressCard(
+                      context,
+                      AnalysisJob(
+                        id: widget.jobId,
+                        userId: '',
+                        jobType: AnalysisJobType.businessReview,
+                        status: AnalysisJobStatus.pending,
+                        input: {},
+                        progress: AnalysisJobProgress(
+                          currentStep: 0,
+                          totalSteps: 5,
+                          percentage: 0.0,
+                        ),
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                      ),
                     ),
-                    createdAt: DateTime.now(),
-                    updatedAt: DateTime.now(),
-                  ),
-                ),
-                error: (_, __) => const SizedBox.shrink(),
-              ).animate().fadeIn(delay: 500.ms),
+                    error: (_, __) => const SizedBox.shrink(),
+                  )
+                  .animate()
+                  .fadeIn(delay: 500.ms),
 
               const Spacer(),
 
@@ -214,6 +222,60 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
     );
   }
 
+  Future<void> _handleCompletedJob(AnalysisJob job) async {
+    if (job.jobType == AnalysisJobType.psychologyTest) {
+      await _syncPsychologyResult(job);
+    }
+
+    if (!mounted) return;
+    final route = job.jobType == AnalysisJobType.psychologyTest
+        ? '/tools/psychology/history'
+        : '/tools/business/history';
+    context.go(route);
+  }
+
+  Future<void> _syncPsychologyResult(AnalysisJob job) async {
+    final sessionId = job.resultId;
+    final user = ref.read(currentUserProvider);
+    if (sessionId == null || sessionId.isEmpty || user == null) {
+      return;
+    }
+
+    try {
+      final aiApiService = ref.read(aiApiServiceProvider);
+      final resultService = ref.read(psychologyResultServiceProvider);
+      final apiResult = await aiApiService.getPsychologyResult(
+        userId: user.uid,
+        sessionId: sessionId,
+      );
+
+      final testType = apiResult.testType.isNotEmpty
+          ? apiResult.testType
+          : (job.input['testType']?.toString() ??
+                job.input['test_type']?.toString() ??
+                '');
+      if (testType.isEmpty) return;
+
+      final resultPayload = <String, dynamic>{
+        ...apiResult.result,
+        if (apiResult.summary.isNotEmpty) 'summary': apiResult.summary,
+        if (apiResult.recommendations.isNotEmpty)
+          'recommendations': apiResult.recommendations,
+        'jobId': job.id,
+        'sessionId': sessionId,
+      };
+
+      await resultService.saveResultFromSession(
+        sessionId: sessionId,
+        testType: testType,
+        answers: const [],
+        result: resultPayload,
+      );
+    } catch (_) {
+      // 저장 실패 시에도 화면 이동은 유지
+    }
+  }
+
   Widget _buildProgressCard(BuildContext context, AnalysisJob job) {
     final steps = [
       ('시장 조사', Iconsax.chart),
@@ -256,8 +318,8 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
                 job.status == AnalysisJobStatus.pending
                     ? '대기 중...'
                     : job.status == AnalysisJobStatus.processing
-                        ? '분석 중...'
-                        : job.status.displayName,
+                    ? '분석 중...'
+                    : job.status.displayName,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: AppColors.grayScale[700],
@@ -290,9 +352,11 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
           // 단계 표시
           ...List.generate(steps.length, (index) {
             final isCompleted = index < job.progress.currentStep;
-            final isCurrent = index == job.progress.currentStep - 1 ||
-                (job.progress.currentStep == 0 && index == 0 &&
-                 job.status == AnalysisJobStatus.processing);
+            final isCurrent =
+                index == job.progress.currentStep - 1 ||
+                (job.progress.currentStep == 0 &&
+                    index == 0 &&
+                    job.status == AnalysisJobStatus.processing);
 
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),

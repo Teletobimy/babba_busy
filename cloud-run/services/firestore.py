@@ -285,6 +285,43 @@ class FirestoreCache:
             FirestoreCache._save_business_review_sync, user_id, review_data
         )
 
+    @staticmethod
+    def _save_psychology_result_sync(
+        user_id: str,
+        result_data: dict,
+        result_id: Optional[str] = None,
+    ) -> str:
+        """심리검사 결과 저장 (동기)"""
+        if result_id:
+            doc_ref = (
+                db.collection("users")
+                .document(user_id)
+                .collection("psychology_results")
+                .document(result_id)
+            )
+            doc_ref.set(result_data, merge=True)
+        else:
+            doc_ref = (
+                db.collection("users")
+                .document(user_id)
+                .collection("psychology_results")
+                .document()
+            )
+            doc_ref.set(result_data)
+
+        return doc_ref.id
+
+    @staticmethod
+    async def save_psychology_result(
+        user_id: str,
+        result_data: dict,
+        result_id: Optional[str] = None,
+    ) -> str:
+        """심리검사 결과 저장"""
+        return await asyncio.to_thread(
+            FirestoreCache._save_psychology_result_sync, user_id, result_data, result_id
+        )
+
 
 class FirebaseAuth:
     """Firebase 인증 서비스"""

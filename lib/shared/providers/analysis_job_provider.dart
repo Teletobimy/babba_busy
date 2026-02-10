@@ -18,9 +18,10 @@ final pendingAnalysisJobsProvider = StreamProvider<List<AnalysisJob>>((ref) {
       .where('status', whereIn: ['pending', 'processing'])
       .orderBy('createdAt', descending: true)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => AnalysisJob.fromFirestore(doc))
-          .toList());
+      .map(
+        (snapshot) =>
+            snapshot.docs.map((doc) => AnalysisJob.fromFirestore(doc)).toList(),
+      );
 });
 
 /// 사용자의 모든 분석 작업 목록 StreamProvider (최근 50개)
@@ -38,13 +39,17 @@ final allAnalysisJobsProvider = StreamProvider<List<AnalysisJob>>((ref) {
       .orderBy('createdAt', descending: true)
       .limit(50)
       .snapshots()
-      .map((snapshot) => snapshot.docs
-          .map((doc) => AnalysisJob.fromFirestore(doc))
-          .toList());
+      .map(
+        (snapshot) =>
+            snapshot.docs.map((doc) => AnalysisJob.fromFirestore(doc)).toList(),
+      );
 });
 
 /// 특정 분석 작업 실시간 StreamProvider
-final analysisJobProvider = StreamProvider.family<AnalysisJob?, String>((ref, jobId) {
+final analysisJobProvider = StreamProvider.family<AnalysisJob?, String>((
+  ref,
+  jobId,
+) {
   final firestore = ref.watch(firestoreProvider);
 
   if (firestore == null) {
@@ -62,8 +67,9 @@ final analysisJobProvider = StreamProvider.family<AnalysisJob?, String>((ref, jo
 final hasPendingBusinessJobProvider = Provider<bool>((ref) {
   final pendingJobs = ref.watch(pendingAnalysisJobsProvider);
   return pendingJobs.when(
-    data: (jobs) => jobs.any((job) => job.jobType == AnalysisJobType.businessReview),
-    loading: () => false,
+    data: (jobs) =>
+        jobs.any((job) => job.jobType == AnalysisJobType.businessReview),
+    loading: () => true,
     error: (_, __) => false,
   );
 });
@@ -72,8 +78,9 @@ final hasPendingBusinessJobProvider = Provider<bool>((ref) {
 final hasPendingPsychologyJobProvider = Provider<bool>((ref) {
   final pendingJobs = ref.watch(pendingAnalysisJobsProvider);
   return pendingJobs.when(
-    data: (jobs) => jobs.any((job) => job.jobType == AnalysisJobType.psychologyTest),
-    loading: () => false,
+    data: (jobs) =>
+        jobs.any((job) => job.jobType == AnalysisJobType.psychologyTest),
+    loading: () => true,
     error: (_, __) => false,
   );
 });
@@ -126,7 +133,10 @@ class AnalysisJobService {
     if (_firestore == null) return null;
 
     try {
-      final doc = await _firestore!.collection('analysis_jobs').doc(jobId).get();
+      final doc = await _firestore!
+          .collection('analysis_jobs')
+          .doc(jobId)
+          .get();
       if (doc.exists) {
         return AnalysisJob.fromFirestore(doc);
       }

@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/memo.dart';
+import '../../../shared/providers/smart_provider.dart';
+import '../memo_category_utils.dart';
 
 /// 메모 카드 위젯
 class MemoCard extends ConsumerWidget {
@@ -24,7 +26,10 @@ class MemoCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final categoryColor = _getCategoryColor(memo.categoryId);
+    final categories = ref.watch(smartMemoCategoriesProvider);
+    final matchedCategory = findMemoCategoryById(categories, memo.categoryId);
+    final categoryColor = parseMemoCategoryColor(matchedCategory?.color);
+    final categoryName = matchedCategory?.name ?? memo.categoryName;
 
     return GestureDetector(
       onTap: onTap,
@@ -52,7 +57,7 @@ class MemoCard extends ConsumerWidget {
               child: Row(
                 children: [
                   // 카테고리 태그
-                  if (memo.categoryName != null)
+                  if (categoryName != null && categoryName.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -63,7 +68,7 @@ class MemoCard extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                       ),
                       child: Text(
-                        memo.categoryName!,
+                        categoryName,
                         style: TextStyle(
                           color: categoryColor,
                           fontSize: 11,
@@ -209,21 +214,6 @@ class MemoCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Color _getCategoryColor(String? categoryId) {
-    switch (categoryId) {
-      case 'diary':
-        return const Color(0xFFFFB74D); // Orange
-      case 'note':
-        return const Color(0xFF64B5F6); // Blue
-      case 'idea':
-        return const Color(0xFFBA68C8); // Purple
-      case 'todo_memo':
-        return const Color(0xFF4DB6AC); // Teal
-      default:
-        return const Color(0xFF64B5F6); // Blue
-    }
   }
 
   String _formatDate(DateTime date) {

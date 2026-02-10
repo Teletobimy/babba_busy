@@ -52,7 +52,9 @@ final selectedAlbumTypeProvider = StateProvider<AlbumType?>((ref) => null);
 final selectedPersonProvider = StateProvider<String?>((ref) => null);
 
 /// 앨범 목록 표시 형식 (그리드/리스트)
-final albumDisplayModeProvider = StateProvider<bool>((ref) => true); // true = 그리드
+final albumDisplayModeProvider = StateProvider<bool>(
+  (ref) => true,
+); // true = 그리드
 
 /// 사용자의 모든 앨범 스트림 (본인이 만든 앨범)
 final userAlbumsProvider = StreamProvider<List<Album>>((ref) {
@@ -66,8 +68,10 @@ final userAlbumsProvider = StreamProvider<List<Album>>((ref) {
       .collection('albums')
       .orderBy('date', descending: true)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => Album.fromFirestore(doc)).toList());
+      .map(
+        (snapshot) =>
+            snapshot.docs.map((doc) => Album.fromFirestore(doc)).toList(),
+      );
 });
 
 /// 현재 그룹에 공유된 앨범 스트림
@@ -82,8 +86,10 @@ final sharedAlbumsProvider = StreamProvider<List<Album>>((ref) {
       .where('sharedGroups', arrayContains: membership.groupId)
       .orderBy('date', descending: true)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => Album.fromFirestore(doc)).toList());
+      .map(
+        (snapshot) =>
+            snapshot.docs.map((doc) => Album.fromFirestore(doc)).toList(),
+      );
 });
 
 /// 통합 앨범 목록 (내 앨범 + 공유된 앨범, 중복 제거)
@@ -122,8 +128,9 @@ final filteredAlbumsProvider = Provider<List<Album>>((ref) {
 
   // 사람별 보기에서 사람 필터
   if (viewMode == AlbumViewMode.person && selectedPerson != null) {
-    filtered =
-        filtered.where((a) => a.participants.contains(selectedPerson)).toList();
+    filtered = filtered
+        .where((a) => a.participants.contains(selectedPerson))
+        .toList();
   }
 
   // 장소별 보기에서는 위치 있는 것만
@@ -140,8 +147,10 @@ final smartAlbumsProvider = Provider<List<Album>>((ref) {
 });
 
 /// 타입별 앨범 목록
-final albumsByTypeProvider =
-    Provider.family<List<Album>, AlbumType?>((ref, type) {
+final albumsByTypeProvider = Provider.family<List<Album>, AlbumType?>((
+  ref,
+  type,
+) {
   final albums = ref.watch(combinedAlbumsProvider);
   if (type == null) return albums;
   return albums.where((a) => a.albumType == type).toList();
@@ -170,7 +179,9 @@ final albumsByLocationProvider = Provider<Map<String, List<Album>>>((ref) {
   final albums = ref.watch(combinedAlbumsProvider);
   final groupedAlbums = <String, List<Album>>{};
 
-  for (final album in albums.where((a) => a.hasLocation && a.placeName != null)) {
+  for (final album in albums.where(
+    (a) => a.hasLocation && a.placeName != null,
+  )) {
     groupedAlbums.putIfAbsent(album.placeName!, () => []).add(album);
   }
 
@@ -191,24 +202,27 @@ final albumsByMonthProvider = Provider<Map<String, List<Album>>>((ref) {
 });
 
 /// 특정 앨범의 댓글 스트림
-final albumCommentsProvider =
-    StreamProvider.family<List<AlbumComment>, (String userId, String albumId)>(
-        (ref, params) {
-  final (userId, albumId) = params;
-  final firestore = ref.watch(firestoreProvider);
-  if (firestore == null) return Stream.value([]);
+final albumCommentsProvider = StreamProvider.family<List<AlbumComment>, String>(
+  (ref, albumId) {
+    final membership = ref.watch(currentMembershipProvider);
+    final firestore = ref.watch(firestoreProvider);
+    if (membership == null || firestore == null) return Stream.value([]);
 
-  return firestore
-      .collection('users')
-      .doc(userId)
-      .collection('albums')
-      .doc(albumId)
-      .collection('comments')
-      .orderBy('createdAt')
-      .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => AlbumComment.fromFirestore(doc)).toList());
-});
+    return firestore
+        .collection('families')
+        .doc(membership.groupId)
+        .collection('album_comments')
+        .where('albumId', isEqualTo: albumId)
+        .snapshots()
+        .map((snapshot) {
+          final comments = snapshot.docs
+              .map((doc) => AlbumComment.fromFirestore(doc))
+              .toList();
+          comments.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return comments;
+        });
+  },
+);
 
 /// 앨범 서비스 Provider
 final albumServiceProvider = Provider<AlbumService>((ref) {
@@ -223,10 +237,19 @@ class AlbumService {
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
   String? get _userId => _ref.read(currentUserProvider)?.uid;
+  String? get _groupId => _ref.read(currentMembershipProvider)?.groupId;
 
   CollectionReference? get _albumsCollection {
     if (_userId == null || _firestore == null) return null;
     return _firestore!.collection('users').doc(_userId).collection('albums');
+  }
+
+  CollectionReference? get _albumCommentsCollection {
+    if (_groupId == null || _firestore == null) return null;
+    return _firestore!
+        .collection('families')
+        .doc(_groupId)
+        .collection('album_comments');
   }
 
   /// 앨범 추가
@@ -379,10 +402,10 @@ class AlbumService {
 
   /// 댓글 추가
   Future<void> addComment(String albumId, String text) async {
-    final albumsRef = _albumsCollection;
-    if (albumsRef == null || _userId == null) return;
+    final commentsRef = _albumCommentsCollection;
+    if (commentsRef == null || _userId == null) return;
 
-    await albumsRef.doc(albumId).collection('comments').add({
+    await commentsRef.add({
       'albumId': albumId,
       'userId': _userId,
       'text': text,
@@ -392,14 +415,11 @@ class AlbumService {
 
   /// 댓글 삭제
   Future<void> deleteComment(String albumId, String commentId) async {
-    final albumsRef = _albumsCollection;
-    if (albumsRef == null) return;
+    final commentsRef = _albumCommentsCollection;
+    if (commentsRef == null) return;
+    if (albumId.isEmpty) return;
 
-    await albumsRef
-        .doc(albumId)
-        .collection('comments')
-        .doc(commentId)
-        .delete();
+    await commentsRef.doc(commentId).delete();
   }
 
   /// 이미지 파일들을 Firebase Storage에 업로드하고 URL 목록 반환
@@ -424,7 +444,8 @@ class AlbumService {
 
         // 고유한 파일명 생성 (userId/albums/timestamp_index.ext)
         final ext = path.split('.').last.toLowerCase();
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${urls.length}.$ext';
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${urls.length}.$ext';
         final ref = storage.ref('users/$_userId/albums/$fileName');
 
         // 표준 MIME 타입으로 업로드
@@ -436,7 +457,9 @@ class AlbumService {
         // 진행률 콜백 (구독 저장)
         if (onProgress != null) {
           progressSubscription = uploadTask.snapshotEvents.listen((event) {
-            final progress = (completed + (event.bytesTransferred / event.totalBytes)) / localPaths.length;
+            final progress =
+                (completed + (event.bytesTransferred / event.totalBytes)) /
+                localPaths.length;
             onProgress(progress);
           });
         }

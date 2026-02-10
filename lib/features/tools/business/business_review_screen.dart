@@ -8,6 +8,7 @@ import '../../../services/ai/ai_api_service.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/business_review_provider.dart';
 import '../../../shared/providers/analysis_job_provider.dart';
+import '../../../shared/models/analysis_job.dart';
 import '../../../shared/models/business_review.dart';
 import 'widgets/request_accepted_screen.dart';
 
@@ -16,7 +17,8 @@ class BusinessReviewScreen extends ConsumerStatefulWidget {
   const BusinessReviewScreen({super.key});
 
   @override
-  ConsumerState<BusinessReviewScreen> createState() => _BusinessReviewScreenState();
+  ConsumerState<BusinessReviewScreen> createState() =>
+      _BusinessReviewScreenState();
 }
 
 class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
@@ -88,7 +90,16 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     }
 
     // 이미 진행 중인 분석이 있는지 확인
-    final hasPending = ref.read(hasPendingBusinessJobProvider);
+    final pendingJobsAsync = ref.read(pendingAnalysisJobsProvider);
+    if (pendingJobsAsync.isLoading) {
+      setState(() => _error = '진행 중 작업을 확인 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    final hasPending =
+        pendingJobsAsync.valueOrNull?.any(
+          (job) => job.jobType == AnalysisJobType.businessReview,
+        ) ??
+        false;
     if (hasPending) {
       _showPendingJobDialog();
       return;
@@ -162,14 +173,16 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
         budget: _selectedBudget,
       )) {
         // 스텝 이름을 에이전트 이름으로 변환
-        final agentName = _stepToAgentName[progress.agentName] ?? progress.agentName;
+        final agentName =
+            _stepToAgentName[progress.agentName] ?? progress.agentName;
 
         setState(() {
           _analysisProgress[agentName] = progress.status;
         });
 
         // 최종 결과 처리
-        if (progress.agentName == 'final_report' && progress.status == 'completed') {
+        if (progress.agentName == 'final_report' &&
+            progress.status == 'completed') {
           final data = progress.result as Map<String, dynamic>?;
           if (data != null) {
             final report = data['report'] as Map<String, dynamic>? ?? {};
@@ -177,12 +190,15 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
             // next_steps 파싱: [{step, action, timeline}] -> [action string]
             final nextStepsRaw = report['next_steps'] as List<dynamic>? ?? [];
-            final nextSteps = nextStepsRaw.map((item) {
-              if (item is Map<String, dynamic>) {
-                return item['action']?.toString() ?? '';
-              }
-              return item.toString();
-            }).where((s) => s.isNotEmpty).toList();
+            final nextSteps = nextStepsRaw
+                .map((item) {
+                  if (item is Map<String, dynamic>) {
+                    return item['action']?.toString() ?? '';
+                  }
+                  return item.toString();
+                })
+                .where((s) => s.isNotEmpty)
+                .toList();
 
             finalResult = BusinessAnalysisResult(
               analysis: data['analysis'] as Map<String, dynamic>? ?? {},
@@ -352,16 +368,16 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           // 헤더
           Text(
             '💡 사업 아이디어를 입력하세요',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             'AI가 시장조사, 경쟁사 분석, 상품 기획, 재무 분석을 수행합니다',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.grayScale[600],
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: AppColors.grayScale[600]),
           ),
           const SizedBox(height: 24),
 
@@ -392,7 +408,8 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                 }
               },
               decoration: InputDecoration(
-                hintText: '예: 반려동물 산책 매칭 서비스를 만들고 싶어요.\n'
+                hintText:
+                    '예: 반려동물 산책 매칭 서비스를 만들고 싶어요.\n'
                     '견주들이 시간이 없을 때 근처 산책 도우미를 찾을 수 있고,\n'
                     '산책 도우미는 부수입을 얻을 수 있는 플랫폼입니다.',
                 hintStyle: TextStyle(color: AppColors.grayScale[400]),
@@ -412,9 +429,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           // 산업 분야 선택
           Text(
             '산업 분야 (선택)',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -433,7 +450,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                 selectedColor: AppColors.coral[100],
                 backgroundColor: Colors.white,
                 labelStyle: TextStyle(
-                  color: isSelected ? AppColors.coral[700] : AppColors.grayScale[700],
+                  color: isSelected
+                      ? AppColors.coral[700]
+                      : AppColors.grayScale[700],
                 ),
               );
             }).toList(),
@@ -443,9 +462,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           // 예산 선택
           Text(
             '예상 예산 (선택)',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -464,7 +483,9 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                 selectedColor: AppColors.sage[100],
                 backgroundColor: Colors.white,
                 labelStyle: TextStyle(
-                  color: isSelected ? AppColors.sage[700] : AppColors.grayScale[700],
+                  color: isSelected
+                      ? AppColors.sage[700]
+                      : AppColors.grayScale[700],
                 ),
               );
             }).toList(),
@@ -521,10 +542,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
             SizedBox(width: 8),
             Text(
               '분석 시작',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -557,10 +575,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
         children: [
           const Text(
             '🔍 5개 전문 에이전트가 분석 중입니다',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 20),
           ...steps.map((step) {
@@ -574,10 +589,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   Icon(step.$3, size: 20, color: AppColors.grayScale[600]),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      step.$2,
-                      style: const TextStyle(fontSize: 13),
-                    ),
+                    child: Text(step.$2, style: const TextStyle(fontSize: 13)),
                   ),
                   Text(
                     _getStatusText(status),
@@ -722,7 +734,10 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [scoreColor.withValues(alpha: 0.1), scoreColor.withValues(alpha: 0.05)],
+          colors: [
+            scoreColor.withValues(alpha: 0.1),
+            scoreColor.withValues(alpha: 0.05),
+          ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
@@ -798,20 +813,14 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
               const SizedBox(width: 8),
               const Text(
                 '핵심 요약',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
           const SizedBox(height: 12),
           Text(
             result.summary,
-            style: TextStyle(
-              color: AppColors.grayScale[700],
-              height: 1.5,
-            ),
+            style: TextStyle(color: AppColors.grayScale[700], height: 1.5),
           ),
         ],
       ),
@@ -840,10 +849,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
               SizedBox(width: 8),
               Text(
                 'SWOT 분석',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -851,11 +857,21 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildSwotItem('💪', '강점', result.strengths, AppColors.sage[100]!),
+                child: _buildSwotItem(
+                  '💪',
+                  '강점',
+                  result.strengths,
+                  AppColors.sage[100]!,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildSwotItem('⚠️', '약점', result.weaknesses, Colors.orange[50]!),
+                child: _buildSwotItem(
+                  '⚠️',
+                  '약점',
+                  result.weaknesses,
+                  Colors.orange[50]!,
+                ),
               ),
             ],
           ),
@@ -863,11 +879,21 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
           Row(
             children: [
               Expanded(
-                child: _buildSwotItem('🚀', '기회', result.opportunities, Colors.blue[50]!),
+                child: _buildSwotItem(
+                  '🚀',
+                  '기회',
+                  result.opportunities,
+                  Colors.blue[50]!,
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildSwotItem('🛡️', '위협', result.threats, Colors.red[50]!),
+                child: _buildSwotItem(
+                  '🛡️',
+                  '위협',
+                  result.threats,
+                  Colors.red[50]!,
+                ),
               ),
             ],
           ),
@@ -876,7 +902,12 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1);
   }
 
-  Widget _buildSwotItem(String emoji, String title, List<String> items, Color bgColor) {
+  Widget _buildSwotItem(
+    String emoji,
+    String title,
+    List<String> items,
+    Color bgColor,
+  ) {
     final hasMore = items.length > 3 || items.any((item) => item.length > 50);
 
     return GestureDetector(
@@ -902,22 +933,30 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   ),
                 ),
                 if (hasMore)
-                  Icon(Iconsax.arrow_right_3, size: 14, color: AppColors.grayScale[400]),
+                  Icon(
+                    Iconsax.arrow_right_3,
+                    size: 14,
+                    color: AppColors.grayScale[400],
+                  ),
               ],
             ),
             const SizedBox(height: 8),
-            ...items.take(3).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '• $item',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.grayScale[700],
+            ...items
+                .take(3)
+                .map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $item',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.grayScale[700],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                )),
+                ),
             if (items.length > 3)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -983,7 +1022,10 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                     const SizedBox(width: 12),
                     Text(
                       title,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -1048,10 +1090,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
               const SizedBox(width: 8),
               const Text(
                 '다음 단계',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -1086,9 +1125,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
                   Expanded(
                     child: Text(
                       step,
-                      style: TextStyle(
-                        color: AppColors.grayScale[700],
-                      ),
+                      style: TextStyle(color: AppColors.grayScale[700]),
                     ),
                   ),
                 ],

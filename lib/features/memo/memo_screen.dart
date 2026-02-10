@@ -5,10 +5,14 @@ import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/models/memo.dart';
+import '../../shared/models/memo_category.dart';
 import '../../shared/providers/smart_provider.dart';
+import '../../shared/providers/memo_provider.dart';
+import 'memo_category_utils.dart';
 import 'widgets/memo_card.dart';
 import 'widgets/memo_category_chip.dart';
 import 'widgets/add_memo_sheet.dart';
+import 'widgets/create_memo_category_dialog.dart';
 import 'memo_detail_screen.dart';
 
 /// 메모 뷰 모드 (목록/그리드)
@@ -60,6 +64,7 @@ class _MemoContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isGridView = ref.watch(memoViewModeProvider);
+    ref.watch(memoCategoryBootstrapProvider);
     final selectedCategoryId = ref.watch(smartSelectedMemoCategoryIdProvider);
     final categories = ref.watch(smartMemoCategoriesProvider);
     final allMemos = ref.watch(smartMemosProvider);
@@ -113,7 +118,7 @@ class _MemoContent extends ConsumerWidget {
                   const SizedBox(width: 8),
                   ...categories.map((category) {
                     final count = allMemos.where((m) => m.categoryId == category.id).length;
-                    final color = _parseColor(category.color);
+                    final color = parseMemoCategoryColor(category.color);
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: MemoCategoryChip(
@@ -126,6 +131,47 @@ class _MemoContent extends ConsumerWidget {
                       ),
                     );
                   }),
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => _createCategory(context, ref),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.memoColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusFull,
+                          ),
+                          border: Border.all(
+                            color: AppColors.memoColor.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Iconsax.add_circle,
+                              size: 14,
+                              color: AppColors.memoColor,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '카테고리+',
+                              style: TextStyle(
+                                color: AppColors.memoColor,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -133,7 +179,13 @@ class _MemoContent extends ConsumerWidget {
             // 콘텐츠
             Expanded(
               child: isGridView
-                  ? _buildGridView(context, ref, pinnedMemos, unpinnedMemos)
+                  ? _buildGridView(
+                      context,
+                      ref,
+                      pinnedMemos,
+                      unpinnedMemos,
+                      categories,
+                    )
                   : _buildListView(context, ref, pinnedMemos, unpinnedMemos),
             ),
           ],
@@ -197,6 +249,7 @@ class _MemoContent extends ConsumerWidget {
     WidgetRef ref,
     List<Memo> pinnedMemos,
     List<Memo> unpinnedMemos,
+    List<MemoCategory> categories,
   ) {
     if (pinnedMemos.isEmpty && unpinnedMemos.isEmpty) {
       return _buildEmptyState(context);
@@ -219,7 +272,9 @@ class _MemoContent extends ConsumerWidget {
         }
 
         final memo = allMemos[index];
-        final categoryColor = _getCategoryColor(memo.categoryId);
+        final matchedCategory = findMemoCategoryById(categories, memo.categoryId);
+        final categoryColor = parseMemoCategoryColor(matchedCategory?.color);
+        final categoryName = matchedCategory?.name ?? memo.categoryName;
         final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return GestureDetector(
@@ -240,7 +295,7 @@ class _MemoContent extends ConsumerWidget {
                 // 상단: 카테고리 + 고정
                 Row(
                   children: [
-                    if (memo.categoryName != null)
+                    if (categoryName != null && categoryName.isNotEmpty)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
@@ -251,7 +306,7 @@ class _MemoContent extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                         ),
                         child: Text(
-                          memo.categoryName!,
+                          categoryName,
                           style: TextStyle(
                             color: categoryColor,
                             fontSize: 10,
@@ -362,6 +417,19 @@ class _MemoContent extends ConsumerWidget {
     );
   }
 
+  Future<void> _createCategory(BuildContext context, WidgetRef ref) async {
+    final created = await showCreateMemoCategoryDialog(
+      context: context,
+      ref: ref,
+    );
+    if (!context.mounted || created == null) return;
+
+    ref.read(smartSelectedMemoCategoryIdProvider.notifier).state = created.id;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('"${created.name}" 카테고리를 추가했습니다')));
+  }
+
   void _showAddMemoSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -378,28 +446,5 @@ class _MemoContent extends ConsumerWidget {
         builder: (context) => MemoDetailScreen(memo: memo),
       ),
     );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF64B5F6);
-    }
-  }
-
-  Color _getCategoryColor(String? categoryId) {
-    switch (categoryId) {
-      case 'diary':
-        return const Color(0xFFFFB74D);
-      case 'note':
-        return const Color(0xFF64B5F6);
-      case 'idea':
-        return const Color(0xFFBA68C8);
-      case 'todo_memo':
-        return const Color(0xFF4DB6AC);
-      default:
-        return const Color(0xFF64B5F6);
-    }
   }
 }

@@ -486,6 +486,48 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
 
         await FirestoreCache.set_psychology_session(user_id, session_id, session)
 
+        # psychology_results 컬렉션에 결과 저장 (히스토리 화면 동기화)
+        final_report = result.get("final_report", {})
+        answer_indexes = []
+        for item in answers:
+            if isinstance(item, dict):
+                index = item.get("answer_index")
+                if isinstance(index, int):
+                    answer_indexes.append(index)
+            elif isinstance(item, int):
+                answer_indexes.append(item)
+
+        result_payload = {}
+        if isinstance(final_report, dict):
+            nested_result = final_report.get("result")
+            if isinstance(nested_result, dict):
+                result_payload.update(nested_result)
+
+            summary = final_report.get("summary")
+            if summary is not None:
+                result_payload["summary"] = summary
+
+            recommendations = final_report.get("recommendations")
+            if isinstance(recommendations, list):
+                result_payload["recommendations"] = recommendations
+        else:
+            result_payload["summary"] = str(final_report)
+
+        await FirestoreCache.save_psychology_result(
+            user_id,
+            {
+                "userId": user_id,
+                "testType": test_type_str,
+                "answers": answer_indexes,
+                "result": result_payload,
+                "completedAt": datetime.utcnow(),
+                "isShared": False,
+                "jobId": job_id,
+                "sessionId": session_id,
+            },
+            result_id=session_id,
+        )
+
         # 작업 완료 상태로 업데이트
         await FirestoreCache.update_analysis_job(job_id, {
             "status": AnalysisJobStatus.COMPLETED.value,

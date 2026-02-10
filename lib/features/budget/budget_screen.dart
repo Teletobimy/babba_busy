@@ -22,7 +22,7 @@ class BudgetScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentTab = ref.watch(budgetTabProvider);
-    
+
     // Smart Provider 사용
     final transactions = ref.watch(smartThisMonthTransactionsProvider);
     final summary = ref.watch(smartMonthSummaryProvider);
@@ -59,7 +59,9 @@ class BudgetScreen extends ConsumerWidget {
 
             // 요약 카드
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: AppCard(
                 padding: const EdgeInsets.all(AppTheme.spacingL),
                 child: Column(
@@ -77,10 +79,11 @@ class BudgetScreen extends ConsumerWidget {
                         Container(
                           width: 1,
                           height: 40,
-                          color: (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                          color:
+                              (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                  .withValues(alpha: 0.2),
                         ),
                         Expanded(
                           child: _SummaryItem(
@@ -92,17 +95,18 @@ class BudgetScreen extends ConsumerWidget {
                         Container(
                           width: 1,
                           height: 40,
-                          color: (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                          color:
+                              (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                  .withValues(alpha: 0.2),
                         ),
                         Expanded(
                           child: _SummaryItem(
                             label: '잔액',
                             amount: summary.balance,
-                            color: summary.balance >= 0 
-                                ? AppColors.budgetColor 
+                            color: summary.balance >= 0
+                                ? AppColors.budgetColor
                                 : AppColors.errorLight,
                           ),
                         ),
@@ -124,12 +128,16 @@ class BudgetScreen extends ConsumerWidget {
                                   sectionsSpace: 2,
                                   centerSpaceRadius: 30,
                                   sections: summary.categoryExpenses.entries
-                                      .map((entry) => PieChartSectionData(
-                                            value: entry.value.toDouble(),
-                                            color: AppColors.getCategoryColor(entry.key),
-                                            radius: 25,
-                                            showTitle: false,
-                                          ))
+                                      .map(
+                                        (entry) => PieChartSectionData(
+                                          value: entry.value.toDouble(),
+                                          color: AppColors.getCategoryColor(
+                                            entry.key,
+                                          ),
+                                          radius: 25,
+                                          showTitle: false,
+                                        ),
+                                      )
                                       .toList(),
                                 ),
                               ),
@@ -141,15 +149,26 @@ class BudgetScreen extends ConsumerWidget {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: summary.categoryExpenses.entries
                                     .take(5)
-                                    .map((entry) => Padding(
-                                          padding: const EdgeInsets.only(bottom: 6),
-                                          child: _LegendItem(
-                                            color: AppColors.getCategoryColor(entry.key),
-                                            label: models.TransactionCategory.getLabel(entry.key),
-                                            amount: entry.value,
-                                            percentage: summary.getCategoryPercentage(entry.key),
+                                    .map(
+                                      (entry) => Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 6,
+                                        ),
+                                        child: _LegendItem(
+                                          color: AppColors.getCategoryColor(
+                                            entry.key,
                                           ),
-                                        ))
+                                          label:
+                                              models
+                                                  .TransactionCategory.getLabel(
+                                                entry.key,
+                                              ),
+                                          amount: entry.value,
+                                          percentage: summary
+                                              .getCategoryPercentage(entry.key),
+                                        ),
+                                      ),
+                                    )
                                     .toList(),
                               ),
                             ),
@@ -162,11 +181,12 @@ class BudgetScreen extends ConsumerWidget {
                         alignment: Alignment.center,
                         child: Text(
                           '이번 달 지출 내역이 없습니다',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
+                              ),
                         ),
                       ),
                   ],
@@ -177,11 +197,15 @@ class BudgetScreen extends ConsumerWidget {
 
             // 탭 바
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: Container(
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.surfaceDark : AppColors.backgroundLight,
+                  color: isDark
+                      ? AppColors.surfaceDark
+                      : AppColors.backgroundLight,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 ),
                 child: Row(
@@ -190,13 +214,15 @@ class BudgetScreen extends ConsumerWidget {
                       label: '거래 내역',
                       count: transactions.length,
                       isSelected: currentTab == 0,
-                      onTap: () => ref.read(budgetTabProvider.notifier).state = 0,
+                      onTap: () =>
+                          ref.read(budgetTabProvider.notifier).state = 0,
                     ),
                     _TabButton(
                       label: '고정 지출',
                       count: recurringTransactions.length,
                       isSelected: currentTab == 1,
-                      onTap: () => ref.read(budgetTabProvider.notifier).state = 1,
+                      onTap: () =>
+                          ref.read(budgetTabProvider.notifier).state = 1,
                     ),
                   ],
                 ),
@@ -254,10 +280,7 @@ class _SummaryItem extends StatelessWidget {
 
     return Column(
       children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        Text(label, style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 4),
         FittedBox(
           fit: BoxFit.scaleDown,
@@ -297,23 +320,17 @@ class _LegendItem extends StatelessWidget {
         Container(
           width: 10,
           height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          child: Text(label, style: Theme.of(context).textTheme.bodySmall),
         ),
         Text(
           '${numberFormat.format(amount)}원',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            fontWeight: FontWeight.w500,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
         ),
         const SizedBox(width: 4),
         Text(
@@ -369,9 +386,12 @@ class _TabButton extends StatelessWidget {
               if (count > 0) ...[
                 const SizedBox(width: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected 
+                    color: isSelected
                         ? Colors.white.withValues(alpha: 0.2)
                         : AppColors.budgetColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
@@ -398,10 +418,7 @@ class _TransactionList extends StatelessWidget {
   final List<models.BudgetTransaction> transactions;
   final List members;
 
-  const _TransactionList({
-    required this.transactions,
-    required this.members,
-  });
+  const _TransactionList({required this.transactions, required this.members});
 
   @override
   Widget build(BuildContext context) {
@@ -413,13 +430,30 @@ class _TransactionList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
       itemCount: transactions.length,
       itemBuilder: (context, index) {
+        final transaction = transactions[index];
         return TransactionCard(
-          transaction: transactions[index],
-        ).animate().fadeIn(
+              transaction: transaction,
+              onTap: () => _showEditTransactionSheet(context, transaction),
+            )
+            .animate()
+            .fadeIn(
               duration: 300.ms,
               delay: Duration(milliseconds: 50 * (index % 10)),
-            ).slideX(begin: 0.05);
+            )
+            .slideX(begin: 0.05);
       },
+    );
+  }
+
+  void _showEditTransactionSheet(
+    BuildContext context,
+    models.BudgetTransaction transaction,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddTransactionSheet(transaction: transaction),
     );
   }
 }
@@ -428,10 +462,7 @@ class _RecurringList extends StatelessWidget {
   final List<models.BudgetTransaction> transactions;
   final List members;
 
-  const _RecurringList({
-    required this.transactions,
-    required this.members,
-  });
+  const _RecurringList({required this.transactions, required this.members});
 
   @override
   Widget build(BuildContext context) {
@@ -485,17 +516,35 @@ class _RecurringList extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
             itemCount: transactions.length,
             itemBuilder: (context, index) {
+              final transaction = transactions[index];
               return TransactionCard(
-                transaction: transactions[index],
-                showRecurringBadge: true,
-              ).animate().fadeIn(
+                    transaction: transaction,
+                    showRecurringBadge: true,
+                    onTap: () =>
+                        _showEditTransactionSheet(context, transaction),
+                  )
+                  .animate()
+                  .fadeIn(
                     duration: 300.ms,
                     delay: Duration(milliseconds: 50 * index),
-                  ).slideX(begin: 0.05);
+                  )
+                  .slideX(begin: 0.05);
             },
           ),
         ),
       ],
+    );
+  }
+
+  void _showEditTransactionSheet(
+    BuildContext context,
+    models.BudgetTransaction transaction,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddTransactionSheet(transaction: transaction),
     );
   }
 }

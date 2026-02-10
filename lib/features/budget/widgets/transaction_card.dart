@@ -11,11 +11,13 @@ import '../../../shared/providers/budget_provider.dart';
 class TransactionCard extends ConsumerWidget {
   final models.BudgetTransaction transaction;
   final bool showRecurringBadge;
+  final VoidCallback? onTap;
 
   const TransactionCard({
     super.key,
     required this.transaction,
     this.showRecurringBadge = false,
+    this.onTap,
   });
 
   @override
@@ -34,10 +36,7 @@ class TransactionCard extends ConsumerWidget {
           color: AppColors.errorLight,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         ),
-        child: const Icon(
-          Iconsax.trash,
-          color: Colors.white,
-        ),
+        child: const Icon(Iconsax.trash, color: Colors.white),
       ),
       confirmDismiss: (direction) async {
         final confirmed = await showDialog<bool>(
@@ -60,13 +59,15 @@ class TransactionCard extends ConsumerWidget {
 
         if (confirmed == true) {
           try {
-            await ref.read(budgetServiceProvider).deleteTransaction(transaction.id);
+            await ref
+                .read(budgetServiceProvider)
+                .deleteTransaction(transaction.id);
             return true;
           } catch (e) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('삭제 실패: $e')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
             }
             return false;
           }
@@ -74,100 +75,117 @@ class TransactionCard extends ConsumerWidget {
 
         return false;
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(AppTheme.spacingM),
-          child: Row(
-            children: [
-              // 카테고리 아이콘
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.getCategoryColor(transaction.category)
-                      .withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-                child: Icon(
-                  _getCategoryIcon(transaction.category),
-                  color: AppColors.getCategoryColor(transaction.category),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              // 내용
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+          child: Container(
+            margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              boxShadow: isDark
+                  ? AppTheme.softShadowDark
+                  : AppTheme.softShadowLight,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(AppTheme.spacingM),
+              child: Row(
+                children: [
+                  // 카테고리 아이콘
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.getCategoryColor(
+                        transaction.category,
+                      ).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                    ),
+                    child: Icon(
+                      _getCategoryIcon(transaction.category),
+                      color: AppColors.getCategoryColor(transaction.category),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  // 내용
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          models.TransactionCategory.getLabel(transaction.category),
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        if (showRecurringBadge && transaction.isRecurring) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.budgetColor.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '매월',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.budgetColor,
-                                fontWeight: FontWeight.w600,
+                        Row(
+                          children: [
+                            Text(
+                              models.TransactionCategory.getLabel(
+                                transaction.category,
                               ),
+                              style: Theme.of(context).textTheme.titleSmall,
                             ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          DateFormat('M/d').format(transaction.date),
-                          style: Theme.of(context).textTheme.bodySmall,
+                            if (showRecurringBadge &&
+                                transaction.isRecurring) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.budgetColor.withValues(
+                                    alpha: 0.15,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '매월',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.budgetColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        if (transaction.memo != null &&
-                            transaction.memo!.isNotEmpty) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              transaction.memo!,
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Text(
+                              DateFormat('M/d').format(transaction.date),
                               style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                            if (transaction.memo != null &&
+                                transaction.memo!.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  transaction.memo!,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                  // 금액
+                  Text(
+                    '${isIncome ? '+' : '-'}${numberFormat.format(transaction.amount)}원',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: isIncome
+                          ? AppColors.successLight
+                          : AppColors.errorLight,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
-              // 금액
-              Text(
-                '${isIncome ? '+' : '-'}${numberFormat.format(transaction.amount)}원',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: isIncome ? AppColors.successLight : AppColors.errorLight,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),

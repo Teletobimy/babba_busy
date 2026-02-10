@@ -6,12 +6,15 @@ import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/providers/people_provider.dart';
 import '../../shared/models/person.dart';
+import '../../shared/services/contact_import_service.dart';
 import 'widgets/add_person_sheet.dart';
 import 'widgets/person_card.dart';
 import 'widgets/person_detail_sheet.dart';
 
 /// 사람들 탭 컬러
 const Color peopleColor = Color(0xFF5B8DEF);
+
+enum _ContactImportMode { single, all }
 
 class PeopleScreen extends ConsumerWidget {
   const PeopleScreen({super.key});
@@ -47,8 +50,9 @@ class PeopleScreen extends ConsumerWidget {
                         )
                       : null,
                   filled: true,
-                  fillColor:
-                      isDark ? AppColors.surfaceDark : AppColors.backgroundLight,
+                  fillColor: isDark
+                      ? AppColors.surfaceDark
+                      : AppColors.backgroundLight,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     borderSide: BorderSide.none,
@@ -64,14 +68,18 @@ class PeopleScreen extends ConsumerWidget {
             // 관계 필터
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: Row(
                 children: [
                   _RelationshipChip(
                     label: '전체',
                     isSelected: selectedRelationship == null,
                     onTap: () {
-                      ref.read(selectedRelationshipFilterProvider.notifier).state =
+                      ref
+                              .read(selectedRelationshipFilterProvider.notifier)
+                              .state =
                           null;
                     },
                   ),
@@ -84,8 +92,11 @@ class PeopleScreen extends ConsumerWidget {
                         isSelected: selectedRelationship == rel,
                         onTap: () {
                           ref
-                              .read(selectedRelationshipFilterProvider.notifier)
-                              .state = rel;
+                                  .read(
+                                    selectedRelationshipFilterProvider.notifier,
+                                  )
+                                  .state =
+                              rel;
                         },
                       ),
                     );
@@ -98,7 +109,9 @@ class PeopleScreen extends ConsumerWidget {
             // 다가오는 생일 (있을 경우)
             if (upcomingBirthdays.isNotEmpty && selectedRelationship == null)
               Container(
-                margin: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
                 padding: const EdgeInsets.all(AppTheme.spacingM),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -114,13 +127,16 @@ class PeopleScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(Iconsax.cake, size: 18, color: Color(0xFFFF6B6B)),
+                        const Icon(
+                          Iconsax.cake,
+                          size: 18,
+                          color: Color(0xFFFF6B6B),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           '다가오는 생일',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                color: const Color(0xFFFF6B6B),
-                              ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(color: const Color(0xFFFF6B6B)),
                         ),
                       ],
                     ),
@@ -145,15 +161,17 @@ class PeopleScreen extends ConsumerWidget {
                                 color: isDark
                                     ? AppColors.surfaceDark
                                     : Colors.white,
-                                borderRadius:
-                                    BorderRadius.circular(AppTheme.radiusSmall),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusSmall,
+                                ),
                               ),
                               child: Row(
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor:
-                                        peopleColor.withValues(alpha: 0.2),
+                                    backgroundColor: peopleColor.withValues(
+                                      alpha: 0.2,
+                                    ),
                                     child: Text(
                                       person.name[0],
                                       style: TextStyle(
@@ -165,7 +183,8 @@ class PeopleScreen extends ConsumerWidget {
                                   const SizedBox(width: 8),
                                   Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         person.name,
@@ -177,9 +196,7 @@ class PeopleScreen extends ConsumerWidget {
                                             ),
                                       ),
                                       Text(
-                                        daysLeft == 0
-                                            ? '오늘!'
-                                            : 'D-$daysLeft',
+                                        daysLeft == 0 ? '오늘!' : 'D-$daysLeft',
                                         style: TextStyle(
                                           color: daysLeft <= 7
                                               ? const Color(0xFFFF6B6B)
@@ -222,9 +239,9 @@ class PeopleScreen extends ConsumerWidget {
                           person: person,
                           onTap: () => _showPersonDetail(context, person),
                         ).animate().fadeIn(
-                              duration: 200.ms,
-                              delay: Duration(milliseconds: 50 * (index % 10)),
-                            );
+                          duration: 200.ms,
+                          delay: Duration(milliseconds: 50 * (index % 10)),
+                        );
                       },
                     ),
             ),
@@ -241,8 +258,436 @@ class PeopleScreen extends ConsumerWidget {
             child: const Icon(Iconsax.user_add),
           ).animate().scale(delay: 400.ms, duration: 300.ms),
         ),
+        Positioned(
+          right: AppTheme.spacingL,
+          bottom: AppTheme.spacingL + 72,
+          child: FloatingActionButton.small(
+            heroTag: 'people_import_fab',
+            tooltip: '연락처 가져오기',
+            onPressed: () => _importFromContacts(context, ref),
+            backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
+            foregroundColor: peopleColor,
+            child: const Icon(Icons.contacts),
+          ).animate().scale(delay: 350.ms, duration: 250.ms),
+        ),
       ],
     );
+  }
+
+  Future<void> _importFromContacts(BuildContext context, WidgetRef ref) async {
+    final mode = await _showImportModeSheet(context);
+    if (!context.mounted || mode == null) return;
+
+    switch (mode) {
+      case _ContactImportMode.single:
+        await _importSingleContact(context, ref);
+        return;
+      case _ContactImportMode.all:
+        await _importAllContacts(context, ref);
+        return;
+    }
+  }
+
+  Future<_ContactImportMode?> _showImportModeSheet(BuildContext context) {
+    return showModalBottomSheet<_ContactImportMode>(
+      context: context,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Iconsax.user),
+                title: const Text('연락처 1명 선택'),
+                subtitle: const Text('원하는 연락처를 직접 선택해서 추가'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop(_ContactImportMode.single);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.contacts),
+                title: const Text('연락처 전체 가져오기'),
+                subtitle: const Text('기기 연락처를 한 번에 추가 (중복 제외)'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop(_ContactImportMode.all);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _importSingleContact(BuildContext context, WidgetRef ref) async {
+    final importService = ref.read(contactImportServiceProvider);
+    final result = await importService.pickSingleContact();
+    if (!context.mounted) return;
+
+    switch (result.status) {
+      case ContactImportStatus.success:
+        final imported = result.contact;
+        if (imported == null) return;
+        await _saveImportedContacts(context, ref, [imported]);
+        return;
+      case ContactImportStatus.permissionDenied:
+        _showSnackBar(context, '연락처 권한이 필요합니다. 권한을 허용해주세요.');
+        return;
+      case ContactImportStatus.unsupported:
+        _showSnackBar(context, result.message ?? '이 플랫폼에서는 지원되지 않습니다.');
+        return;
+      case ContactImportStatus.failed:
+        _showSnackBar(context, result.message ?? '연락처 가져오기에 실패했습니다.');
+        return;
+      case ContactImportStatus.cancelled:
+        return;
+    }
+  }
+
+  Future<void> _importAllContacts(BuildContext context, WidgetRef ref) async {
+    final importService = ref.read(contactImportServiceProvider);
+
+    _showLoadingDialog(context, '연락처를 불러오는 중...');
+    final result = await importService.getAllContacts();
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
+    if (!context.mounted) return;
+
+    switch (result.status) {
+      case ContactImportStatus.success:
+        if (result.contacts.isEmpty) {
+          _showSnackBar(context, '가져올 연락처가 없습니다.');
+          return;
+        }
+
+        final selectedContacts = await _showBulkPreviewSheet(
+          context,
+          result.contacts,
+        );
+        if (!context.mounted || selectedContacts == null) return;
+        if (selectedContacts.isEmpty) {
+          _showSnackBar(context, '선택된 연락처가 없습니다.');
+          return;
+        }
+
+        await _saveImportedContacts(
+          context,
+          ref,
+          selectedContacts,
+          isBulk: true,
+        );
+        return;
+      case ContactImportStatus.permissionDenied:
+        _showSnackBar(context, '연락처 권한이 필요합니다. 권한을 허용해주세요.');
+        return;
+      case ContactImportStatus.unsupported:
+        _showSnackBar(context, result.message ?? '이 플랫폼에서는 지원되지 않습니다.');
+        return;
+      case ContactImportStatus.failed:
+        _showSnackBar(context, result.message ?? '연락처 가져오기에 실패했습니다.');
+        return;
+      case ContactImportStatus.cancelled:
+        return;
+    }
+  }
+
+  Future<List<ImportedContact>?> _showBulkPreviewSheet(
+    BuildContext context,
+    List<ImportedContact> contacts,
+  ) {
+    final selectedIndexes = <int>{...List.generate(contacts.length, (i) => i)};
+
+    return showModalBottomSheet<List<ImportedContact>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            final selectedCount = selectedIndexes.length;
+            final isAllSelected = selectedCount == contacts.length;
+
+            return FractionallySizedBox(
+              heightFactor: 0.9,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '연락처 미리보기',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '총 ${contacts.length}명 중 $selectedCount명 선택됨',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: [
+                        TextButton.icon(
+                          onPressed: () {
+                            setSheetState(() {
+                              if (isAllSelected) {
+                                selectedIndexes.clear();
+                              } else {
+                                selectedIndexes
+                                  ..clear()
+                                  ..addAll(
+                                    List.generate(contacts.length, (i) => i),
+                                  );
+                              }
+                            });
+                          },
+                          icon: Icon(
+                            isAllSelected ? Icons.deselect : Icons.select_all,
+                          ),
+                          label: Text(isAllSelected ? '전체 해제' : '전체 선택'),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          child: const Text('취소'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: contacts.length,
+                      itemBuilder: (itemContext, index) {
+                        final contact = contacts[index];
+                        final isSelected = selectedIndexes.contains(index);
+
+                        return CheckboxListTile(
+                          value: isSelected,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          activeColor: peopleColor,
+                          title: Text(
+                            contact.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: Text(
+                            _buildContactSubtitle(contact),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onChanged: (value) {
+                            setSheetState(() {
+                              if (value == true) {
+                                selectedIndexes.add(index);
+                              } else {
+                                selectedIndexes.remove(index);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                    child: SizedBox(
+                      height: 48,
+                      child: ElevatedButton(
+                        onPressed: selectedCount == 0
+                            ? null
+                            : () {
+                                final selected = selectedIndexes.toList()
+                                  ..sort();
+                                Navigator.of(sheetContext).pop(
+                                  selected
+                                      .map((index) => contacts[index])
+                                      .toList(),
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: peopleColor,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text('선택한 $selectedCount명 가져오기'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _saveImportedContacts(
+    BuildContext context,
+    WidgetRef ref,
+    List<ImportedContact> importedContacts, {
+    bool isBulk = false,
+  }) async {
+    if (importedContacts.isEmpty) {
+      _showSnackBar(context, '가져올 연락처가 없습니다.');
+      return;
+    }
+
+    final existingPeople = ref.read(smartPeopleProvider);
+    final existingKeys = existingPeople
+        .map(_buildPersonKey)
+        .whereType<String>()
+        .toSet();
+    final currentBatchKeys = <String>{};
+    final toSave = <Person>[];
+    var skipped = 0;
+
+    for (final imported in importedContacts) {
+      final name = imported.name.trim();
+      if (name.isEmpty) {
+        skipped++;
+        continue;
+      }
+
+      final person = Person(
+        id: '',
+        familyId: '',
+        name: name,
+        birthday: imported.birthday,
+        phone: _optional(imported.phone),
+        email: _optional(imported.email),
+        company: _optional(imported.company),
+        createdAt: DateTime.now(),
+        createdBy: '',
+      );
+
+      final key = _buildPersonKey(person);
+      if (key != null &&
+          (existingKeys.contains(key) || currentBatchKeys.contains(key))) {
+        skipped++;
+        continue;
+      }
+
+      if (key != null) {
+        currentBatchKeys.add(key);
+      }
+      toSave.add(person);
+    }
+
+    if (toSave.isEmpty) {
+      _showSnackBar(context, '추가할 연락처가 없습니다. (중복 또는 빈 데이터)');
+      return;
+    }
+
+    try {
+      if (isBulk) {
+        _showLoadingDialog(context, '연락처를 저장하는 중...');
+      }
+
+      await ref.read(peopleServiceProvider).addPeople(toSave);
+
+      if (!context.mounted) return;
+      if (isBulk) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+
+      final message = isBulk
+          ? '${toSave.length}명을 가져왔습니다'
+          : '${toSave.first.name}님을 연락처에서 가져왔습니다';
+      final suffix = skipped > 0 ? ' (중복/제외 $skipped명)' : '';
+      _showSnackBar(context, '$message$suffix', backgroundColor: peopleColor);
+    } catch (e) {
+      if (!context.mounted) return;
+      if (isBulk) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      _showSnackBar(
+        context,
+        '연락처 저장 실패: $e',
+        backgroundColor: AppColors.errorLight,
+      );
+    }
+  }
+
+  String? _buildPersonKey(Person person) {
+    final phone = _normalizePhone(person.phone);
+    if (phone != null) return 'p:$phone';
+
+    final email = person.email?.trim().toLowerCase();
+    if (email != null && email.isNotEmpty) return 'e:$email';
+
+    final name = person.name.trim().toLowerCase();
+    if (name.isEmpty) return null;
+    final company = person.company?.trim().toLowerCase() ?? '';
+    return 'n:$name|c:$company';
+  }
+
+  String? _normalizePhone(String? phone) {
+    if (phone == null) return null;
+    final normalized = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    if (normalized.isEmpty) return null;
+    return normalized;
+  }
+
+  void _showLoadingDialog(BuildContext context, String message) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          content: Row(
+            children: [
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: Text(message)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSnackBar(
+    BuildContext context,
+    String message, {
+    Color? backgroundColor,
+  }) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: backgroundColor),
+    );
+  }
+
+  String _buildContactSubtitle(ImportedContact contact) {
+    final lines = <String>[];
+    if (contact.phone != null && contact.phone!.trim().isNotEmpty) {
+      lines.add(contact.phone!.trim());
+    }
+    if (contact.email != null && contact.email!.trim().isNotEmpty) {
+      lines.add(contact.email!.trim());
+    }
+    if (contact.company != null && contact.company!.trim().isNotEmpty) {
+      lines.add(contact.company!.trim());
+    }
+    if (lines.isEmpty) return '연락처 정보 없음';
+    return lines.join('  •  ');
+  }
+
+  String? _optional(String? value) {
+    if (value == null) return null;
+    final normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
   }
 
   void _showAddPersonSheet(BuildContext context) {
@@ -303,10 +748,7 @@ class _EmptyState extends StatelessWidget {
   final String searchQuery;
   final VoidCallback onAdd;
 
-  const _EmptyState({
-    required this.searchQuery,
-    required this.onAdd,
-  });
+  const _EmptyState({required this.searchQuery, required this.onAdd});
 
   @override
   Widget build(BuildContext context) {
@@ -329,16 +771,14 @@ class _EmptyState extends StatelessWidget {
             Text(
               searchQuery.isNotEmpty ? '검색 결과가 없습니다' : '등록된 사람이 없습니다',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight,
-                  ),
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
             ),
             const SizedBox(height: AppTheme.spacingS),
             Text(
-              searchQuery.isNotEmpty
-                  ? '다른 검색어로 시도해보세요'
-                  : '주변 사람들의 정보를 기록해보세요',
+              searchQuery.isNotEmpty ? '다른 검색어로 시도해보세요' : '주변 사람들의 정보를 기록해보세요',
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),

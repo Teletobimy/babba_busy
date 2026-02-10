@@ -43,6 +43,7 @@ export const onChatMessageCreated = functions.firestore
       const senderName = messageData.senderName || "사용자";
       const messageType = messageData.type || "text";
       const messageContent = messageData.content || "";
+      const attachmentName = messageData.attachmentName || "파일";
       const readBy = messageData.readBy || [];
 
       // 그룹 멤버 조회 (최적화됨)
@@ -57,9 +58,16 @@ export const onChatMessageCreated = functions.firestore
       }
 
       // 알림 전송 (tag로 같은 채팅방 알림 덮어쓰기)
-      const { title, body } = messageType === "image" ?
-        MessageTemplates.chatImageMessage(senderName) :
-        MessageTemplates.chatMessage(senderName, messageContent);
+      let notification;
+      if (messageType === "image") {
+        notification = MessageTemplates.chatImageMessage(senderName);
+      } else if (messageType === "file") {
+        notification = MessageTemplates.chatFileMessage(senderName, attachmentName);
+      } else {
+        notification = MessageTemplates.chatMessage(senderName, messageContent);
+      }
+
+      const { title, body } = notification;
       await sendNotification(memberIds, {
         title,
         body,

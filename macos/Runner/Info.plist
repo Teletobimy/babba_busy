@@ -28,5 +28,7 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSContactsUsageDescription</key>
+	<string>사람들 기능에서 연락처를 가져오기 위해 접근 권한이 필요합니다.</string>
 </dict>
 </plist>

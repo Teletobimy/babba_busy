@@ -42,8 +42,8 @@ class AlbumScreen extends ConsumerWidget {
                       Text(
                         '${albums.length}개의 앨범',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.memoryColor,
-                            ),
+                          color: AppColors.memoryColor,
+                        ),
                       ),
                     ],
                   ).animate().fadeIn(duration: 300.ms),
@@ -54,29 +54,31 @@ class AlbumScreen extends ConsumerWidget {
                       ref.read(albumViewModeProvider.notifier).state = mode;
                     },
                     itemBuilder: (context) => AlbumViewMode.values
-                        .map((mode) => PopupMenuItem(
-                              value: mode,
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    _getViewModeIcon(mode),
-                                    size: 20,
+                        .map(
+                          (mode) => PopupMenuItem(
+                            value: mode,
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _getViewModeIcon(mode),
+                                  size: 20,
+                                  color: viewMode == mode
+                                      ? AppColors.memoryColor
+                                      : null,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  mode.label,
+                                  style: TextStyle(
                                     color: viewMode == mode
                                         ? AppColors.memoryColor
                                         : null,
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    mode.label,
-                                    style: TextStyle(
-                                      color: viewMode == mode
-                                          ? AppColors.memoryColor
-                                          : null,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ))
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
                         .toList(),
                   ),
                 ],
@@ -86,7 +88,9 @@ class AlbumScreen extends ConsumerWidget {
             // 타입 필터
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: Row(
                 children: [
                   _AlbumTypeChip(
@@ -99,17 +103,18 @@ class AlbumScreen extends ConsumerWidget {
                   ),
                   const SizedBox(width: 8),
                   ...AlbumType.values.map((type) {
-                    final count =
-                        allAlbums.where((a) => a.albumType == type).length;
+                    final count = allAlbums
+                        .where((a) => a.albumType == type)
+                        .length;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: _AlbumTypeChip(
                         label: type.label,
                         count: count,
                         isSelected: selectedType == type,
-                        onTap: () => ref
-                            .read(selectedAlbumTypeProvider.notifier)
-                            .state = type,
+                        onTap: () =>
+                            ref.read(selectedAlbumTypeProvider.notifier).state =
+                                type,
                       ),
                     );
                   }),
@@ -119,9 +124,7 @@ class AlbumScreen extends ConsumerWidget {
             const SizedBox(height: AppTheme.spacingM),
 
             // 콘텐츠
-            Expanded(
-              child: _buildContent(context, ref, viewMode, albums),
-            ),
+            Expanded(child: _buildContent(context, ref, viewMode, albums)),
           ],
         ),
       ),
@@ -134,7 +137,11 @@ class AlbumScreen extends ConsumerWidget {
   }
 
   Widget _buildContent(
-      BuildContext context, WidgetRef ref, AlbumViewMode viewMode, List<Album> albums) {
+    BuildContext context,
+    WidgetRef ref,
+    AlbumViewMode viewMode,
+    List<Album> albums,
+  ) {
     switch (viewMode) {
       case AlbumViewMode.timeline:
         return _TimelineView(albums: albums);
@@ -272,8 +279,8 @@ class _TimelineView extends ConsumerWidget {
                   Text(
                     entry.key,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: AppColors.memoryColor,
-                        ),
+                      color: AppColors.memoryColor,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -283,9 +290,9 @@ class _TimelineView extends ConsumerWidget {
                 ],
               ),
             ).animate().fadeIn(
-                  duration: 300.ms,
-                  delay: Duration(milliseconds: 100 * index),
-                ),
+              duration: 300.ms,
+              delay: Duration(milliseconds: 100 * index),
+            ),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -340,10 +347,10 @@ class _PersonView extends ConsumerWidget {
             Text(
               '참여자 정보가 있는 앨범이 없습니다',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight,
-                  ),
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
             ),
           ],
         ),
@@ -363,11 +370,10 @@ class _PersonView extends ConsumerWidget {
         if (personId == '_other') {
           personName = '기타';
         } else {
-          final member = members.firstWhere(
-            (m) => m.id == personId,
-            orElse: () => members.isNotEmpty ? members.first : throw Exception('No members'),
-          );
-          personName = member.name;
+          final matchedMembers = members.where((m) => m.id == personId);
+          personName = matchedMembers.isNotEmpty
+              ? matchedMembers.first.name
+              : '알 수 없음';
         }
 
         return Column(
@@ -438,10 +444,10 @@ class _LocationView extends ConsumerWidget {
             Text(
               '위치 정보가 있는 앨범이 없습니다',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight,
-                  ),
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
             ),
             const SizedBox(height: AppTheme.spacingS),
             Text(
@@ -523,7 +529,9 @@ class AlbumCard extends ConsumerWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
+          boxShadow: isDark
+              ? AppTheme.softShadowDark
+              : AppTheme.softShadowLight,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
@@ -561,9 +569,14 @@ class AlbumCard extends ConsumerWidget {
                 top: 8,
                 left: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: _getTypeColor(album.albumType).withValues(alpha: 0.9),
+                    color: _getTypeColor(
+                      album.albumType,
+                    ).withValues(alpha: 0.9),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -654,7 +667,10 @@ class AlbumCard extends ConsumerWidget {
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(4),
@@ -689,11 +705,7 @@ class AlbumCard extends ConsumerWidget {
   Widget _buildPlaceholder(AlbumType type) {
     return Container(
       color: _getTypeColor(type).withValues(alpha: 0.3),
-      child: Icon(
-        _getTypeIcon(type),
-        size: 32,
-        color: Colors.white54,
-      ),
+      child: Icon(_getTypeIcon(type), size: 32, color: Colors.white54),
     );
   }
 
@@ -756,10 +768,10 @@ class AlbumEmptyState extends StatelessWidget {
           Text(
             '아직 앨범이 없어요',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text(

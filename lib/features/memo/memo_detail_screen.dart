@@ -9,6 +9,8 @@ import '../../shared/providers/memo_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../services/ai/ai_api_service.dart';
+import 'memo_category_utils.dart';
+import 'widgets/create_memo_category_dialog.dart';
 
 /// 메모 상세/편집 화면
 class MemoDetailScreen extends ConsumerStatefulWidget {
@@ -29,6 +31,12 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   bool _isLoading = false;
   bool _isAnalyzing = false;
   String? _aiAnalysis;
+  String? _aiSummary;
+  List<String> _aiValidationPoints = const [];
+  String? _aiSuggestedCategory;
+  List<String> _aiSuggestedTags = const [];
+  DateTime? _analyzedAt;
+  bool _isAiStale = false;
   bool _hasChanges = false;
 
   bool get _isNewMemo => widget.memo == null;
@@ -44,6 +52,8 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     _selectedCategoryName = widget.memo?.categoryName;
     _isPinned = widget.memo?.isPinned ?? false;
     _aiAnalysis = widget.memo?.aiAnalysis;
+    _analyzedAt = widget.memo?.analyzedAt;
+    _restoreAiSectionsFromPersisted();
 
     _titleController.addListener(_onTextChanged);
     _contentController.addListener(_onTextChanged);
@@ -59,21 +69,58 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   }
 
   void _onTextChanged() {
-    if (!_hasChanges) {
-      setState(() => _hasChanges = true);
+    final hasSavedAi = _aiAnalysis != null && _aiAnalysis!.isNotEmpty;
+    if (!_hasChanges || (hasSavedAi && !_isAiStale)) {
+      setState(() {
+        _hasChanges = true;
+        if (hasSavedAi) {
+          _isAiStale = true;
+          _analyzedAt = null;
+        }
+      });
     }
   }
 
+  void _restoreAiSectionsFromPersisted() {
+    final raw = _aiAnalysis;
+    if (raw == null || raw.trim().isEmpty) return;
+
+    String? summary;
+    List<String> validationPoints = const [];
+
+    for (final line in raw.split('\n').map((line) => line.trim())) {
+      if (line.startsWith('요약:')) {
+        summary = line.substring('요약:'.length).trim();
+      } else if (line.startsWith('검증:')) {
+        validationPoints = line
+            .substring('검증:'.length)
+            .split('/')
+            .map((item) => item.trim())
+            .where((item) => item.isNotEmpty)
+            .toList();
+      }
+    }
+
+    _aiSummary = summary;
+    _aiValidationPoints = validationPoints;
+  }
+
   Future<void> _saveMemo() async {
-    final title = _titleController.text.trim();
-    if (title.isEmpty) {
+    final titleInput = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    if (titleInput.isEmpty && content.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('제목을 입력해주세요')));
+      ).showSnackBar(const SnackBar(content: Text('메모 제목 또는 내용을 입력해주세요')));
       return;
     }
 
-    final content = _contentController.text.trim();
+    final title = deriveMemoTitle(
+      titleInput: titleInput,
+      contentInput: content,
+    );
+    final aiAnalysisToSave = _isAiStale ? null : _aiAnalysis;
+    final analyzedAtToSave = _isAiStale ? null : _analyzedAt;
 
     setState(() => _isLoading = true);
 
@@ -87,6 +134,8 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
           categoryId: _selectedCategoryId,
           categoryName: _selectedCategoryName,
           isPinned: _isPinned,
+          aiAnalysis: aiAnalysisToSave,
+          analyzedAt: analyzedAtToSave,
         );
       } else {
         await memoService.updateMemo(
@@ -96,6 +145,8 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
           categoryId: _selectedCategoryId,
           categoryName: _selectedCategoryName,
           isPinned: _isPinned,
+          aiAnalysis: aiAnalysisToSave,
+          analyzedAt: analyzedAtToSave,
         );
       }
 
@@ -186,24 +237,54 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
         categoryName: _selectedCategoryName,
       );
 
-      if (result.analysis.isNotEmpty) {
-        setState(() {
-          _aiAnalysis = result.analysis;
-          _hasChanges = true;
-        });
+      final analysisText = result.analysis.trim();
+      final summaryText = result.summary.trim();
+      final validationPoints = result.validationPoints
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
+      final suggestedCategory = result.suggestedCategory?.trim();
+      final suggestedTags = result.suggestedTags
+          .map((item) => item.trim())
+          .where((item) => item.isNotEmpty)
+          .toList();
 
-        // 기존 메모인 경우 분석 결과 저장
-        if (!_isNewMemo) {
-          await ref
-              .read(memoServiceProvider)
-              .saveAiAnalysis(widget.memo!.id, result.analysis);
-        }
-      } else {
+      final composedAnalysis = _composeAiAnalysisText(
+        analysis: analysisText,
+        summary: summaryText,
+        validationPoints: validationPoints,
+      );
+
+      if (composedAnalysis.isEmpty && summaryText.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('AI 분석을 수행할 수 없습니다')));
         }
+      } else {
+        final categories = ref.read(smartMemoCategoriesProvider);
+        final matchedCategory = findMemoCategoryByName(
+          categories,
+          suggestedCategory,
+        );
+
+        setState(() {
+          _aiAnalysis = composedAnalysis.isNotEmpty ? composedAnalysis : summaryText;
+          _aiSummary = summaryText;
+          _aiValidationPoints = validationPoints;
+          _aiSuggestedCategory =
+              suggestedCategory != null && suggestedCategory.isNotEmpty
+                  ? suggestedCategory
+                  : null;
+          _aiSuggestedTags = suggestedTags;
+          _analyzedAt = DateTime.now();
+          _isAiStale = false;
+          if (matchedCategory != null) {
+            _selectedCategoryId = matchedCategory.id;
+            _selectedCategoryName = matchedCategory.name;
+          }
+          _hasChanges = true;
+        });
       }
     } on AiApiException catch (e) {
       if (mounted) {
@@ -233,6 +314,27 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       builder: (context) => _CategoryPickerSheet(
         categories: categories,
         selectedCategoryId: _selectedCategoryId,
+        onCreateCategory: () async {
+          final created = await showCreateMemoCategoryDialog(
+            context: context,
+            ref: ref,
+          );
+          if (!mounted || created == null) return;
+
+          setState(() {
+            _selectedCategoryId = created.id;
+            _selectedCategoryName = created.name;
+            _hasChanges = true;
+            if (_aiAnalysis != null && _aiAnalysis!.isNotEmpty) {
+              _isAiStale = true;
+              _analyzedAt = null;
+            }
+          });
+
+          if (context.mounted) {
+            Navigator.pop(context);
+          }
+        },
         onSelect: (category) {
           setState(() {
             if (category == null) {
@@ -243,6 +345,10 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
               _selectedCategoryName = category.name;
             }
             _hasChanges = true;
+            if (_aiAnalysis != null && _aiAnalysis!.isNotEmpty) {
+              _isAiStale = true;
+              _analyzedAt = null;
+            }
           });
           Navigator.pop(context);
         },
@@ -253,7 +359,12 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final categoryColor = _getCategoryColor(_selectedCategoryId);
+    ref.watch(memoCategoryBootstrapProvider);
+    final categories = ref.watch(smartMemoCategoriesProvider);
+    final selectedCategory = findMemoCategoryById(categories, _selectedCategoryId);
+    final selectedCategoryLabel = selectedCategory?.name ?? _selectedCategoryName;
+    final categoryColor = parseMemoCategoryColor(selectedCategory?.color);
+    final categoryIconName = selectedCategory?.icon ?? 'note_1';
 
     return Scaffold(
       appBar: AppBar(
@@ -292,7 +403,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
           IconButton(
             onPressed: _showCategoryPicker,
             icon: Icon(
-              _getIconData(_getCategoryIcon(_selectedCategoryId)),
+              memoCategoryIconData(categoryIconName),
               color: categoryColor,
             ),
             tooltip: '카테고리',
@@ -338,7 +449,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       body: Column(
         children: [
           // 카테고리 표시
-          if (_selectedCategoryName != null)
+          if (selectedCategoryLabel != null && selectedCategoryLabel.isNotEmpty)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(
@@ -349,13 +460,13 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
               child: Row(
                 children: [
                   Icon(
-                    _getIconData(_getCategoryIcon(_selectedCategoryId)),
+                    memoCategoryIconData(categoryIconName),
                     size: 16,
                     color: categoryColor,
                   ),
                   const SizedBox(width: AppTheme.spacingS),
                   Text(
-                    _selectedCategoryName!,
+                    selectedCategoryLabel,
                     style: TextStyle(
                       color: categoryColor,
                       fontWeight: FontWeight.w500,
@@ -408,6 +519,30 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                     ),
                   ),
                   // AI 분석 결과
+                  if (_isAiStale &&
+                      _aiAnalysis != null &&
+                      _aiAnalysis!.isNotEmpty) ...[
+                    const SizedBox(height: AppTheme.spacingL),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppTheme.spacingS),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                        border: Border.all(
+                          color: Colors.orange.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        '내용이 변경되어 AI 결과가 최신이 아닙니다. 다시 분석해 주세요.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Colors.orange[800],
+                            ),
+                      ),
+                    ),
+                  ],
                   if (_aiAnalysis != null && _aiAnalysis!.isNotEmpty) ...[
                     const SizedBox(height: AppTheme.spacingXL),
                     Container(
@@ -433,7 +568,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                               ),
                               const SizedBox(width: AppTheme.spacingS),
                               Text(
-                                'AI 분석',
+                                'AI 요약/검증',
                                 style: TextStyle(
                                   color: AppColors.primaryLight,
                                   fontWeight: FontWeight.w600,
@@ -441,11 +576,117 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: AppTheme.spacingS),
-                          Text(
-                            _aiAnalysis!,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
+                          if (_aiSummary != null && _aiSummary!.isNotEmpty) ...[
+                            const SizedBox(height: AppTheme.spacingS),
+                            Text(
+                              _aiSummary!,
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                          if (_aiValidationPoints.isNotEmpty) ...[
+                            const SizedBox(height: AppTheme.spacingM),
+                            Text(
+                              '검증 포인트',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 6),
+                            ..._aiValidationPoints.map(
+                              (point) => Padding(
+                                padding: const EdgeInsets.only(bottom: 4),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Iconsax.tick_circle,
+                                      size: 14,
+                                      color: AppColors.primaryLight,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        point,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                          if ((_aiSuggestedCategory != null &&
+                                  _aiSuggestedCategory!.isNotEmpty) ||
+                              _aiSuggestedTags.isNotEmpty) ...[
+                            const SizedBox(height: AppTheme.spacingM),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                if (_aiSuggestedCategory != null &&
+                                    _aiSuggestedCategory!.isNotEmpty)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.memoColor.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusSmall,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '추천 카테고리: ${_aiSuggestedCategory!}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.memoColor,
+                                          ),
+                                    ),
+                                  ),
+                                ..._aiSuggestedTags.take(5).map(
+                                  (tag) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryLight.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        AppTheme.radiusSmall,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '#$tag',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.primaryLight,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (_aiSummary == null ||
+                              _aiSummary!.isEmpty ||
+                              _aiAnalysis!.trim() != _aiSummary!.trim()) ...[
+                            const SizedBox(height: AppTheme.spacingM),
+                            Text(
+                              _aiAnalysis!,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -510,50 +751,6 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     );
   }
 
-  Color _getCategoryColor(String? categoryId) {
-    switch (categoryId) {
-      case 'diary':
-        return const Color(0xFFFFB74D);
-      case 'note':
-        return const Color(0xFF64B5F6);
-      case 'idea':
-        return const Color(0xFFBA68C8);
-      case 'todo_memo':
-        return const Color(0xFF4DB6AC);
-      default:
-        return const Color(0xFF64B5F6);
-    }
-  }
-
-  String _getCategoryIcon(String? categoryId) {
-    switch (categoryId) {
-      case 'diary':
-        return 'book_1';
-      case 'note':
-        return 'note_1';
-      case 'idea':
-        return 'lamp_charge';
-      case 'todo_memo':
-        return 'task_square';
-      default:
-        return 'note_1';
-    }
-  }
-
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'book_1':
-        return Iconsax.book_1;
-      case 'note_1':
-        return Iconsax.note_1;
-      case 'lamp_charge':
-        return Iconsax.lamp_charge;
-      case 'task_square':
-        return Iconsax.task_square;
-      default:
-        return Iconsax.note;
-    }
-  }
 }
 
 /// 카테고리 선택 시트
@@ -561,11 +758,13 @@ class _CategoryPickerSheet extends StatelessWidget {
   final List<MemoCategory> categories;
   final String? selectedCategoryId;
   final Function(MemoCategory?) onSelect;
+  final Future<void> Function()? onCreateCategory;
 
   const _CategoryPickerSheet({
     required this.categories,
     required this.selectedCategoryId,
     required this.onSelect,
+    this.onCreateCategory,
   });
 
   @override
@@ -606,6 +805,13 @@ class _CategoryPickerSheet extends StatelessWidget {
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
+          if (onCreateCategory != null)
+            ListTile(
+              leading: Icon(Iconsax.add_circle, color: AppColors.memoColor),
+              title: const Text('카테고리 추가'),
+              onTap: () => onCreateCategory!(),
+            ),
+          if (onCreateCategory != null) const Divider(),
           // 선택 안함
           ListTile(
             leading: Icon(
@@ -623,11 +829,11 @@ class _CategoryPickerSheet extends StatelessWidget {
           const Divider(),
           // 카테고리 목록
           ...categories.map((category) {
-            final color = _parseColor(category.color);
+            final color = parseMemoCategoryColor(category.color);
             final isSelected = category.id == selectedCategoryId;
             return ListTile(
               leading: Icon(
-                _getIconData(category.icon ?? 'note'),
+                memoCategoryIconData(category.icon),
                 color: color,
               ),
               title: Text(category.name),
@@ -642,29 +848,24 @@ class _CategoryPickerSheet extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Color _parseColor(String colorHex) {
-    try {
-      return Color(int.parse(colorHex.replaceFirst('#', '0xFF')));
-    } catch (e) {
-      return const Color(0xFF64B5F6);
+      );
     }
   }
 
-  IconData _getIconData(String iconName) {
-    switch (iconName) {
-      case 'book_1':
-        return Iconsax.book_1;
-      case 'note_1':
-        return Iconsax.note_1;
-      case 'lamp_charge':
-        return Iconsax.lamp_charge;
-      case 'task_square':
-        return Iconsax.task_square;
-      default:
-        return Iconsax.note;
+  String _composeAiAnalysisText({
+    required String analysis,
+    required String summary,
+    required List<String> validationPoints,
+  }) {
+    final buffer = StringBuffer();
+    if (summary.isNotEmpty) {
+      buffer.writeln('요약: $summary');
     }
+    if (validationPoints.isNotEmpty) {
+      buffer.writeln('검증: ${validationPoints.join(' / ')}');
+    }
+    if (analysis.isNotEmpty) {
+      buffer.writeln('인사이트: $analysis');
+    }
+    return buffer.toString().trim();
   }
-}

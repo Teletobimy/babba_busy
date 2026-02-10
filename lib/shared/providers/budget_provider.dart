@@ -17,8 +17,11 @@ final transactionsProvider = StreamProvider<List<BudgetTransaction>>((ref) {
       .orderBy('date', descending: true)
       .limit(100) // 비용 최적화: 최근 100개만 구독
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => BudgetTransaction.fromFirestore(doc)).toList());
+      .map(
+        (snapshot) => snapshot.docs
+            .map((doc) => BudgetTransaction.fromFirestore(doc))
+            .toList(),
+      );
 });
 
 /// 이번 달 거래 목록
@@ -30,7 +33,7 @@ final thisMonthTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
 
   return transactions.where((t) {
     return t.date.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-           t.date.isBefore(endOfMonth.add(const Duration(seconds: 1)));
+        t.date.isBefore(endOfMonth.add(const Duration(seconds: 1)));
   }).toList();
 });
 
@@ -47,7 +50,7 @@ final monthSummaryProvider = Provider<MonthSummary>((ref) {
       totalIncome += t.amount;
     } else {
       totalExpense += t.amount;
-      categoryExpenses[t.category] = 
+      categoryExpenses[t.category] =
           (categoryExpenses[t.category] ?? 0) + t.amount;
     }
   }
@@ -67,11 +70,11 @@ final recurringTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
 });
 
 /// 카테고리별 거래 목록
-final transactionsByCategoryProvider = 
+final transactionsByCategoryProvider =
     Provider.family<List<BudgetTransaction>, String>((ref, category) {
-  final transactions = ref.watch(thisMonthTransactionsProvider);
-  return transactions.where((t) => t.category == category).toList();
-});
+      final transactions = ref.watch(thisMonthTransactionsProvider);
+      return transactions.where((t) => t.category == category).toList();
+    });
 
 /// 월 요약 모델
 class MonthSummary {
@@ -111,7 +114,10 @@ class BudgetService {
 
   CollectionReference? get _transactionsRef {
     if (_familyId == null || _firestore == null) return null;
-    return _firestore!.collection('families').doc(_familyId).collection('transactions');
+    return _firestore!
+        .collection('families')
+        .doc(_familyId)
+        .collection('transactions');
   }
 
   /// 거래 추가
@@ -142,7 +148,8 @@ class BudgetService {
   }
 
   /// 거래 수정
-  Future<void> updateTransaction(String transactionId, {
+  Future<void> updateTransaction(
+    String transactionId, {
     String? type,
     int? amount,
     String? category,
@@ -153,15 +160,22 @@ class BudgetService {
   }) async {
     final transactionsRef = _transactionsRef;
     if (transactionsRef == null) return;
-    
+
     final updates = <String, dynamic>{};
     if (type != null) updates['type'] = type;
     if (amount != null) updates['amount'] = amount;
     if (category != null) updates['category'] = category;
-    if (memo != null) updates['memo'] = memo;
+    if (memo != null) updates['memo'] = memo.isEmpty ? null : memo;
     if (date != null) updates['date'] = Timestamp.fromDate(date);
-    if (isRecurring != null) updates['isRecurring'] = isRecurring;
-    if (recurringType != null) updates['recurringType'] = recurringType;
+    if (isRecurring != null) {
+      updates['isRecurring'] = isRecurring;
+      if (!isRecurring && recurringType == null) {
+        updates['recurringType'] = null;
+      }
+    }
+    if (recurringType != null) {
+      updates['recurringType'] = recurringType.isEmpty ? null : recurringType;
+    }
 
     if (updates.isNotEmpty) {
       await transactionsRef.doc(transactionId).update(updates);

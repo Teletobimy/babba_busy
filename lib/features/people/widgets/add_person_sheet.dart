@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/person.dart';
+import '../../../shared/providers/people_provider.dart';
 
 const Color peopleColor = Color(0xFF5B8DEF);
 
@@ -30,6 +31,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   String? _mbti;
   String? _relationship;
   final List<String> _tags = [];
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -96,8 +98,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '이름 *',
                       prefixIcon: const Icon(Iconsax.user),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     validator: (value) {
@@ -116,15 +119,13 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '관계',
                       prefixIcon: const Icon(Iconsax.people),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('선택 안함'),
-                      ),
+                      const DropdownMenuItem(value: null, child: Text('선택 안함')),
                       ...PersonRelationship.all.map((rel) {
                         return DropdownMenuItem(
                           value: rel,
@@ -174,20 +175,15 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: 'MBTI',
                       prefixIcon: const Icon(Iconsax.personalcard),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     items: [
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('선택 안함'),
-                      ),
+                      const DropdownMenuItem(value: null, child: Text('선택 안함')),
                       ...MbtiType.all.map((mbti) {
-                        return DropdownMenuItem(
-                          value: mbti,
-                          child: Text(mbti),
-                        );
+                        return DropdownMenuItem(value: mbti, child: Text(mbti));
                       }),
                     ],
                     onChanged: (value) {
@@ -203,8 +199,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '전화번호',
                       prefixIcon: const Icon(Iconsax.call),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     keyboardType: TextInputType.phone,
@@ -218,8 +215,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '이메일',
                       prefixIcon: const Icon(Iconsax.sms),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     keyboardType: TextInputType.emailAddress,
@@ -233,8 +231,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '회사/학교',
                       prefixIcon: const Icon(Iconsax.building),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                   ),
@@ -247,8 +246,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '주소',
                       prefixIcon: const Icon(Iconsax.location),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                   ),
@@ -261,8 +261,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '성격/특징',
                       prefixIcon: const Icon(Iconsax.heart),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     maxLines: 2,
@@ -276,8 +277,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       labelText: '메모',
                       prefixIcon: const Icon(Iconsax.note),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
                     maxLines: 3,
@@ -294,8 +296,9 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                             labelText: '태그 추가',
                             prefixIcon: const Icon(Iconsax.hashtag),
                             border: OutlineInputBorder(
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusMedium),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
+                              ),
                             ),
                           ),
                           onFieldSubmitted: _addTag,
@@ -329,23 +332,33 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
                   // 저장 버튼
                   ElevatedButton(
-                    onPressed: _savePerson,
+                    onPressed: _isSaving ? null : _savePerson,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: peopleColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                     ),
-                    child: const Text(
-                      '저장하기',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            '저장하기',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: AppTheme.spacingM),
                 ],
@@ -367,17 +380,57 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
     }
   }
 
-  void _savePerson() {
+  Future<void> _savePerson() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // TODO: Firebase에 저장
-    // 데모 모드에서는 그냥 닫기
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_nameController.text}님이 추가되었습니다'),
-        backgroundColor: peopleColor,
-      ),
-    );
-    Navigator.of(context).pop();
+    setState(() => _isSaving = true);
+
+    try {
+      final person = Person(
+        id: '',
+        familyId: '',
+        name: _nameController.text.trim(),
+        birthday: _birthday,
+        mbti: _mbti,
+        phone: _optional(_phoneController.text),
+        email: _optional(_emailController.text),
+        address: _optional(_addressController.text),
+        personality: _optional(_personalityController.text),
+        relationship: _relationship,
+        company: _optional(_companyController.text),
+        note: _optional(_noteController.text),
+        tags: List<String>.from(_tags),
+        createdAt: DateTime.now(),
+        createdBy: '',
+      );
+
+      await ref.read(peopleServiceProvider).addPerson(person);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_nameController.text}님이 추가되었습니다'),
+          backgroundColor: peopleColor,
+        ),
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('저장 중 오류가 발생했습니다: $e'),
+          backgroundColor: AppColors.errorLight,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  String? _optional(String value) {
+    final normalized = value.trim();
+    return normalized.isEmpty ? null : normalized;
   }
 }

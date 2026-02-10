@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Android 13+ 알림 권한 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 연락처 가져오기 권한 -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
         android:label="family_hub"

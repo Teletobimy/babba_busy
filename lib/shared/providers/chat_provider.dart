@@ -1,8 +1,11 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
-import 'auth_provider.dart';
 import 'group_provider.dart';
+import 'auth_provider.dart';
+import '../utils/chat_attachment_policy.dart';
 
 /// 현재 그룹의 채팅 메시지 목록 (최근 100개)
 final chatMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
@@ -17,8 +20,10 @@ final chatMessagesProvider = StreamProvider<List<ChatMessage>>((ref) {
       .orderBy('createdAt', descending: false)
       .limitToLast(100)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList());
+      .map(
+        (snapshot) =>
+            snapshot.docs.map((doc) => ChatMessage.fromFirestore(doc)).toList(),
+      );
 });
 
 /// 읽지 않은 메시지 수
@@ -45,11 +50,16 @@ class ChatService {
   ChatService(this._ref);
 
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
+  FirebaseStorage get _storage => FirebaseStorage.instance;
 
   /// 메시지 전송
   Future<void> sendMessage({
     required String content,
     String? imageUrl,
+    String? attachmentUrl,
+    String? attachmentName,
+    String? attachmentMimeType,
+    int? attachmentSizeBytes,
     MessageType type = MessageType.text,
   }) async {
     final membership = _ref.read(currentMembershipProvider);
@@ -58,6 +68,9 @@ class ChatService {
     final firestore = _firestore;
 
     if (membership == null || user == null || firestore == null) return;
+
+    final normalizedContent = content.trim();
+    if (type == MessageType.text && normalizedContent.isEmpty) return;
 
     final senderName = membership.name.isNotEmpty
         ? membership.name
@@ -69,8 +82,12 @@ class ChatService {
       senderId: user.uid,
       senderName: senderName,
       senderAvatarUrl: userData?.avatarUrl ?? user.photoURL,
-      content: content,
+      content: normalizedContent,
       imageUrl: imageUrl,
+      attachmentUrl: attachmentUrl,
+      attachmentName: attachmentName,
+      attachmentMimeType: attachmentMimeType,
+      attachmentSizeBytes: attachmentSizeBytes,
       type: type,
       createdAt: DateTime.now(),
       readBy: [user.uid], // 보낸 사람은 자동으로 읽음 처리
@@ -81,6 +98,86 @@ class ChatService {
         .doc(membership.groupId)
         .collection('chat_messages')
         .add(message.toFirestore());
+  }
+
+  /// 첨부 파일 업로드 후 메시지 전송
+  Future<void> sendAttachmentMessage({
+    required Uint8List bytes,
+    required String fileName,
+    String? caption,
+    void Function(double progress)? onProgress,
+  }) async {
+    final membership = _ref.read(currentMembershipProvider);
+    final user = _ref.read(currentUserProvider);
+    if (membership == null || user == null) {
+      throw StateError('로그인 또는 그룹 정보가 없습니다.');
+    }
+
+    final normalizedName = fileName.trim();
+    if (normalizedName.isEmpty) {
+      throw ArgumentError('파일명이 비어 있습니다.');
+    }
+    if (ChatAttachmentPolicy.isBlocked(normalizedName)) {
+      throw ArgumentError('보안상 허용되지 않는 파일 형식입니다.');
+    }
+    if (!ChatAttachmentPolicy.isAllowed(normalizedName)) {
+      throw ArgumentError('지원하지 않는 파일 형식입니다.');
+    }
+    if (!ChatAttachmentPolicy.isWithinSizeLimit(bytes.length)) {
+      throw ArgumentError(
+        '파일 용량은 ${ChatAttachmentPolicy.formatBytes(ChatAttachmentPolicy.maxAttachmentBytes)} 이하만 허용됩니다.',
+      );
+    }
+
+    final safeFileName = _sanitizeFileName(normalizedName);
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final storagePath =
+        'families/${membership.groupId}/chat/${user.uid}/${timestamp}_$safeFileName';
+    final mimeType = ChatAttachmentPolicy.mimeTypeForFile(normalizedName);
+    final fileRef = _storage.ref(storagePath);
+
+    final uploadTask = fileRef.putData(
+      bytes,
+      SettableMetadata(
+        contentType: mimeType,
+        customMetadata: {
+          'familyId': membership.groupId,
+          'senderId': user.uid,
+          'originalFileName': normalizedName,
+        },
+      ),
+    );
+
+    final subscription = uploadTask.snapshotEvents.listen((snapshot) {
+      if (onProgress == null || snapshot.totalBytes <= 0) return;
+      onProgress(snapshot.bytesTransferred / snapshot.totalBytes);
+    });
+
+    try {
+      final taskSnapshot = await uploadTask;
+      final downloadUrl = await taskSnapshot.ref.getDownloadURL();
+      final isImage = ChatAttachmentPolicy.isImage(normalizedName);
+      final trimmedCaption = caption?.trim() ?? '';
+
+      await sendMessage(
+        content: trimmedCaption,
+        imageUrl: isImage ? downloadUrl : null,
+        attachmentUrl: downloadUrl,
+        attachmentName: normalizedName,
+        attachmentMimeType: mimeType,
+        attachmentSizeBytes: bytes.length,
+        type: isImage ? MessageType.image : MessageType.file,
+      );
+
+      onProgress?.call(1.0);
+    } finally {
+      await subscription.cancel();
+    }
+  }
+
+  String _sanitizeFileName(String fileName) {
+    final cleaned = fileName.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
+    return cleaned.isEmpty ? 'attachment' : cleaned;
   }
 
   /// 시스템 메시지 전송 (입장/퇴장 등)
@@ -120,8 +217,8 @@ class ChatService {
         .collection('chat_messages')
         .doc(messageId)
         .update({
-      'readBy': FieldValue.arrayUnion([user.uid]),
-    });
+          'readBy': FieldValue.arrayUnion([user.uid]),
+        });
   }
 
   /// 모든 메시지 읽음 처리 (Batch 사용으로 성능 최적화)
@@ -132,7 +229,9 @@ class ChatService {
     final firestore = _firestore;
     if (user == null || membership == null || firestore == null) return;
 
-    final unreadMessages = messages.where((msg) => !msg.isReadBy(user.uid)).toList();
+    final unreadMessages = messages
+        .where((msg) => !msg.isReadBy(user.uid))
+        .toList();
     if (unreadMessages.isEmpty) return;
 
     // Firestore batch 사용: 최대 500개 작업을 한 번의 네트워크 요청으로 처리

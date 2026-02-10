@@ -19,7 +19,7 @@ Firestore Root
 |
 +-- families/{groupId}                      # 그룹(가족) 정보
 |   +-- /todos/{todoId}                     # 그룹 레벨 할일 (Legacy)
-|   +-- /messages/{messageId}               # 채팅 메시지
+|   +-- /chat_messages/{messageId}          # 채팅 메시지
 |   +-- /transactions/{txId}                # 가계부 거래
 |   +-- /persons/{personId}                 # 연락처/인맥
 |   +-- /calendar_groups/{groupId}          # 캘린더 그룹
@@ -233,7 +233,7 @@ Memory를 대체하며 멀티 그룹 공유를 지원합니다.
 
 ### 2.7 ChatMessage (채팅)
 
-**컬렉션 경로**: `families/{groupId}/messages/{messageId}`
+**컬렉션 경로**: `families/{groupId}/chat_messages/{messageId}`
 
 | 필드 | 타입 | 필수 | 설명 |
 |------|------|------|------|
@@ -243,7 +243,11 @@ Memory를 대체하며 멀티 그룹 공유를 지원합니다.
 | senderAvatarUrl | string | - | 발신자 프로필 사진 |
 | content | string | O | 메시지 내용 |
 | imageUrl | string | - | 이미지 URL (이미지 메시지) |
-| type | string | O | 'text' / 'image' / 'system' |
+| attachmentUrl | string | - | 첨부 파일 URL |
+| attachmentName | string | - | 첨부 파일 이름 |
+| attachmentMimeType | string | - | 첨부 파일 MIME 타입 |
+| attachmentSizeBytes | number | - | 첨부 파일 크기 (byte) |
+| type | string | O | 'text' / 'image' / 'file' / 'system' |
 | createdAt | timestamp | O | 전송 시간 |
 | readBy | array<string> | O | 읽은 사용자 ID 목록 |
 

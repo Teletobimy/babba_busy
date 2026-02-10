@@ -10,10 +10,13 @@ import '../../../shared/providers/budget_provider.dart';
 
 /// 거래 추가 바텀 시트
 class AddTransactionSheet extends ConsumerStatefulWidget {
-  const AddTransactionSheet({super.key});
+  final models.BudgetTransaction? transaction;
+
+  const AddTransactionSheet({super.key, this.transaction});
 
   @override
-  ConsumerState<AddTransactionSheet> createState() => _AddTransactionSheetState();
+  ConsumerState<AddTransactionSheet> createState() =>
+      _AddTransactionSheetState();
 }
 
 class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
@@ -25,6 +28,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   bool _isRecurring = false;
   bool _isLoading = false;
 
+  bool get _isEditMode => widget.transaction != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final transaction = widget.transaction;
+    if (transaction == null) return;
+
+    _isExpense = transaction.isExpense;
+    _selectedCategory = transaction.isIncome ? 'income' : transaction.category;
+    _selectedDate = transaction.date;
+    _isRecurring = transaction.isRecurring;
+    _amountController.text = NumberFormat('#,###').format(transaction.amount);
+    _memoController.text = transaction.memo ?? '';
+  }
+
   @override
   void dispose() {
     _amountController.dispose();
@@ -32,7 +51,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
     super.dispose();
   }
 
-  Future<void> _handleAdd() async {
+  Future<void> _handleSubmit() async {
     final amount = int.tryParse(_amountController.text.replaceAll(',', ''));
     if (amount == null || amount <= 0) return;
 
@@ -40,15 +59,34 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
     try {
       final budgetService = ref.read(budgetServiceProvider);
-      await budgetService.addTransaction(
-        type: _isExpense ? 'expense' : 'income',
-        amount: amount,
-        category: _isExpense ? _selectedCategory : 'income',
-        memo: _memoController.text.trim().isEmpty ? null : _memoController.text.trim(),
-        date: _selectedDate,
-        isRecurring: _isRecurring,
-        recurringType: _isRecurring ? 'monthly' : null,
-      );
+      final memo = _memoController.text.trim();
+      final type = _isExpense ? 'expense' : 'income';
+      final category = _isExpense ? _selectedCategory : 'income';
+      final isRecurring = _isExpense ? _isRecurring : false;
+      final recurringType = isRecurring ? 'monthly' : '';
+
+      if (_isEditMode) {
+        await budgetService.updateTransaction(
+          widget.transaction!.id,
+          type: type,
+          amount: amount,
+          category: category,
+          memo: memo,
+          date: _selectedDate,
+          isRecurring: isRecurring,
+          recurringType: recurringType,
+        );
+      } else {
+        await budgetService.addTransaction(
+          type: type,
+          amount: amount,
+          category: category,
+          memo: memo.isEmpty ? null : memo,
+          date: _selectedDate,
+          isRecurring: isRecurring,
+          recurringType: isRecurring ? 'monthly' : null,
+        );
+      }
       if (mounted) {
         Navigator.of(context).pop();
       }
@@ -60,11 +98,21 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
   }
 
   Future<void> _selectDate() async {
+    final minDate = DateTime(2000, 1, 1);
+    final maxDate = DateTime.now().add(const Duration(days: 3650));
+    var initialDate = _selectedDate;
+    if (initialDate.isBefore(minDate)) {
+      initialDate = minDate;
+    }
+    if (initialDate.isAfter(maxDate)) {
+      initialDate = maxDate;
+    }
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
+      initialDate: initialDate,
+      firstDate: minDate,
+      lastDate: maxDate,
     );
     if (picked != null) {
       setState(() => _selectedDate = picked);
@@ -102,13 +150,23 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: (isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight)
-                      .withValues(alpha: 0.3),
+                  color:
+                      (isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight)
+                          .withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            Text(
+              _isEditMode ? '거래 수정' : '거래 추가',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: AppTheme.spacingM),
 
@@ -116,7 +174,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             Container(
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                color: isDark
+                    ? AppColors.backgroundDark
+                    : AppColors.backgroundLight,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               ),
               child: Row(
@@ -147,7 +207,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               controller: _amountController,
               keyboardType: TextInputType.number,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: _isExpense ? AppColors.errorLight : AppColors.successLight,
+                color: _isExpense
+                    ? AppColors.errorLight
+                    : AppColors.successLight,
               ),
               textAlign: TextAlign.center,
               inputFormatters: [
@@ -157,10 +219,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               decoration: InputDecoration(
                 hintText: '0',
                 hintStyle: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: (isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight)
-                      .withValues(alpha: 0.5),
+                  color:
+                      (isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight)
+                          .withValues(alpha: 0.5),
                 ),
                 suffixText: '원',
                 border: InputBorder.none,
@@ -170,15 +233,14 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
 
             // 카테고리 선택 (지출일 때만)
             if (_isExpense) ...[
-              Text(
-                '카테고리',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              Text('카테고리', style: Theme.of(context).textTheme.titleSmall),
               const SizedBox(height: AppTheme.spacingS),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: models.TransactionCategory.expenseCategories.map((category) {
+                children: models.TransactionCategory.expenseCategories.map((
+                  category,
+                ) {
                   final isSelected = _selectedCategory == category;
                   return GestureDetector(
                     onTap: () => setState(() => _selectedCategory = category),
@@ -191,16 +253,22 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                       decoration: BoxDecoration(
                         color: isSelected
                             ? AppColors.getCategoryColor(category)
-                            : AppColors.getCategoryColor(category).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                            : AppColors.getCategoryColor(
+                                category,
+                              ).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusFull,
+                        ),
                       ),
-                    child: Text(
-                      models.TransactionCategory.getLabel(category),
+                      child: Text(
+                        models.TransactionCategory.getLabel(category),
                         style: TextStyle(
                           color: isSelected
                               ? Colors.white
                               : AppColors.getCategoryColor(category),
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           fontSize: 13,
                         ),
                       ),
@@ -217,7 +285,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
               child: Container(
                 padding: const EdgeInsets.all(AppTheme.spacingM),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                  color: isDark
+                      ? AppColors.backgroundDark
+                      : AppColors.backgroundLight,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 ),
                 child: Row(
@@ -252,7 +322,9 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                   vertical: AppTheme.spacingS,
                 ),
                 decoration: BoxDecoration(
-                  color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+                  color: isDark
+                      ? AppColors.backgroundDark
+                      : AppColors.backgroundLight,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 ),
                 child: Row(
@@ -263,8 +335,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                     const Spacer(),
                     Switch(
                       value: _isRecurring,
-                      onChanged: (value) => setState(() => _isRecurring = value),
-                      activeTrackColor: AppColors.budgetColor.withValues(alpha: 0.5),
+                      onChanged: (value) =>
+                          setState(() => _isRecurring = value),
+                      activeTrackColor: AppColors.budgetColor.withValues(
+                        alpha: 0.5,
+                      ),
                       activeThumbColor: AppColors.budgetColor,
                     ),
                   ],
@@ -276,7 +351,7 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
             SizedBox(
               height: 48,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleAdd,
+                onPressed: _isLoading ? null : _handleSubmit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isExpense
                       ? AppColors.errorLight
@@ -291,7 +366,11 @@ class _AddTransactionSheetState extends ConsumerState<AddTransactionSheet> {
                           color: Colors.white,
                         ),
                       )
-                    : Text(_isExpense ? '지출 추가' : '수입 추가'),
+                    : Text(
+                        _isEditMode
+                            ? '수정 저장'
+                            : (_isExpense ? '지출 추가' : '수입 추가'),
+                      ),
               ),
             ),
           ],

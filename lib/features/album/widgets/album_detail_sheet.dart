@@ -63,9 +63,7 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.errorLight,
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.errorLight),
             child: const Text('삭제'),
           ),
         ],
@@ -85,7 +83,8 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final currentUserId = ref.watch(currentUserProvider)?.uid;
     final members = ref.watch(smartMembersProvider);
-    final comments = ref.watch(albumCommentsProvider((currentUserId ?? '', widget.album.id))).value ?? [];
+    final comments =
+        ref.watch(albumCommentsProvider(widget.album.id)).value ?? [];
     final isOwner = widget.album.createdBy == currentUserId;
 
     return Container(
@@ -109,10 +108,11 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: (isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight)
-                      .withValues(alpha: 0.3),
+                  color:
+                      (isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight)
+                          .withValues(alpha: 0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -121,7 +121,9 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
 
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -135,22 +137,26 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                           return Container(
                             margin: const EdgeInsets.symmetric(horizontal: 4),
                             decoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusMedium),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
+                              ),
                             ),
                             child: ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppTheme.radiusMedium),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
+                              ),
                               child: CachedNetworkImage(
                                 imageUrl: widget.album.photoUrls[index],
                                 fit: BoxFit.cover,
                                 placeholder: (context, url) => Container(
-                                  color:
-                                      AppColors.memoryColor.withValues(alpha: 0.2),
+                                  color: AppColors.memoryColor.withValues(
+                                    alpha: 0.2,
+                                  ),
                                 ),
                                 errorWidget: (context, url, error) => Container(
-                                  color:
-                                      AppColors.memoryColor.withValues(alpha: 0.2),
+                                  color: AppColors.memoryColor.withValues(
+                                    alpha: 0.2,
+                                  ),
                                   child: const Icon(
                                     Iconsax.gallery,
                                     color: AppColors.memoryColor,
@@ -167,8 +173,9 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                       height: 200,
                       decoration: BoxDecoration(
                         color: AppColors.memoryColor.withValues(alpha: 0.2),
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                       ),
                       child: const Center(
                         child: Icon(
@@ -212,9 +219,8 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                         const SizedBox(width: 4),
                         Text(
                           widget.album.placeName!,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: AppColors.memoryColor,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: AppColors.memoryColor),
                         ),
                         const SizedBox(width: 16),
                       ],
@@ -240,11 +246,14 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.memoryColor.withValues(alpha: 0.1),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusFull),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusFull,
+                          ),
                         ),
                         child: Text(
                           widget.album.albumType.label,
@@ -258,11 +267,16 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                       if (widget.album.sharedGroups.isNotEmpty)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: AppColors.primaryLight.withValues(alpha: 0.1),
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusFull),
+                            color: AppColors.primaryLight.withValues(
+                              alpha: 0.1,
+                            ),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusFull,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -296,13 +310,16 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                       children: widget.album.tags.map((tag) {
                         return Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: isDark
                                 ? AppColors.backgroundDark
                                 : AppColors.backgroundLight,
-                            borderRadius:
-                                BorderRadius.circular(AppTheme.radiusSmall),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
                           ),
                           child: Text(
                             tag,
@@ -316,23 +333,26 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                   // 참여자
                   if (widget.album.participants.isNotEmpty) ...[
                     const SizedBox(height: AppTheme.spacingM),
-                    Text(
-                      '참여자',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
+                    Text('참여자', style: Theme.of(context).textTheme.titleSmall),
                     const SizedBox(height: AppTheme.spacingS),
                     Wrap(
                       spacing: 8,
                       children: widget.album.participants.map((participantId) {
-                        final member = members.firstWhere(
+                        final matchedMembers = members.where(
                           (m) => m.id == participantId,
-                          orElse: () => members.isNotEmpty
-                              ? members.first
-                              : throw Exception('No members'),
                         );
+                        final member = matchedMembers.isNotEmpty
+                            ? matchedMembers.first
+                            : null;
+                        final participantName = member?.name ?? '알 수 없음';
+
                         return Chip(
-                          avatar: MemberAvatar(member: member, size: 24),
-                          label: Text(member.name),
+                          avatar: MemberAvatar(
+                            member: member,
+                            name: participantName,
+                            size: 24,
+                          ),
+                          label: Text(participantName),
                         );
                       }).toList(),
                     ),
@@ -361,18 +381,24 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
 
                   // 댓글 목록
                   ...comments.map((comment) {
-                    final author = members.firstWhere(
+                    final matchedAuthors = members.where(
                       (m) => m.id == comment.userId,
-                      orElse: () => members.isNotEmpty
-                          ? members.first
-                          : throw Exception('No members'),
                     );
+                    final author = matchedAuthors.isNotEmpty
+                        ? matchedAuthors.first
+                        : null;
+                    final authorName = author?.name ?? '알 수 없음';
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: AppTheme.spacingM),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          MemberAvatar(member: author, size: 32),
+                          MemberAvatar(
+                            member: author,
+                            name: authorName,
+                            size: 32,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
@@ -381,16 +407,19 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                                 Row(
                                   children: [
                                     Text(
-                                      author.name,
-                                      style:
-                                          Theme.of(context).textTheme.titleSmall,
+                                      authorName,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
                                     ),
                                     const SizedBox(width: 8),
                                     Text(
-                                      DateFormat('M/d HH:mm')
-                                          .format(comment.createdAt),
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
+                                      DateFormat(
+                                        'M/d HH:mm',
+                                      ).format(comment.createdAt),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
                                     ),
                                   ],
                                 ),
@@ -419,7 +448,8 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
               left: AppTheme.spacingL,
               right: AppTheme.spacingL,
               top: AppTheme.spacingS,
-              bottom: MediaQuery.of(context).viewInsets.bottom + AppTheme.spacingM,
+              bottom:
+                  MediaQuery.of(context).viewInsets.bottom + AppTheme.spacingM,
             ),
             decoration: BoxDecoration(
               color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
@@ -443,8 +473,9 @@ class _AlbumDetailSheetState extends ConsumerState<AlbumDetailSheet> {
                         vertical: 12,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(AppTheme.radiusFull),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusFull,
+                        ),
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
