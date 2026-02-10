@@ -44,7 +44,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _emailController.text.trim(),
         _passwordController.text,
       );
-
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       String message = '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.';
@@ -94,6 +93,76 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _showPasswordResetDialog(BuildContext context) async {
+    final emailController = TextEditingController(text: _emailController.text);
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('비밀번호 재설정'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('가입한 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: '이메일',
+                prefixIcon: Icon(Iconsax.sms),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(context, emailController.text.trim()),
+            child: const Text('전송'),
+          ),
+        ],
+      ),
+    );
+
+    emailController.dispose();
+
+    if (result != null && result.isNotEmpty) {
+      try {
+        await FirebaseAuth.instance.sendPasswordResetEmail(email: result);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('비밀번호 재설정 이메일을 전송했습니다. 이메일을 확인해주세요.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      } on FirebaseAuthException catch (e) {
+        if (!context.mounted) return;
+        String message = '이메일 전송에 실패했습니다.';
+        if (e.code == 'user-not-found') {
+          message = '해당 이메일로 가입된 계정이 없습니다.';
+        } else if (e.code == 'invalid-email') {
+          message = '유효하지 않은 이메일 형식입니다.';
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('이메일 전송 중 오류가 발생했습니다.')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -108,7 +177,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: AppTheme.spacingXXL),
-                
+
                 // 로고 및 타이틀
                 Icon(
                   Iconsax.home_hashtag5,
@@ -125,13 +194,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Text(
                   '바쁜 일상을 함께',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark 
-                        ? AppColors.textSecondaryDark 
+                    color: isDark
+                        ? AppColors.textSecondaryDark
                         : AppColors.textSecondaryLight,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                
+
                 const SizedBox(height: AppTheme.spacingXXL),
 
                 // 에러 메시지
@@ -140,7 +209,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     padding: const EdgeInsets.all(AppTheme.spacingM),
                     decoration: BoxDecoration(
                       color: AppColors.errorLight.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                      borderRadius: BorderRadius.circular(
+                        AppTheme.radiusMedium,
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -240,27 +311,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     Expanded(
                       child: Divider(
-                        color: isDark 
+                        color: isDark
                             ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
-                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                            : AppColors.textSecondaryLight.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingM),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                      ),
                       child: Text(
                         '또는',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark 
-                              ? AppColors.textSecondaryDark 
+                          color: isDark
+                              ? AppColors.textSecondaryDark
                               : AppColors.textSecondaryLight,
                         ),
                       ),
                     ),
                     Expanded(
                       child: Divider(
-                        color: isDark 
+                        color: isDark
                             ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
-                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                            : AppColors.textSecondaryLight.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                     ),
                   ],
@@ -274,9 +351,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     onPressed: _isGoogleLoading ? null : _handleGoogleLogin,
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
-                        color: isDark 
+                        color: isDark
                             ? AppColors.textSecondaryDark.withValues(alpha: 0.3)
-                            : AppColors.textSecondaryLight.withValues(alpha: 0.3),
+                            : AppColors.textSecondaryLight.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                     ),
                     child: _isGoogleLoading
@@ -314,6 +393,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacingL),
+
+                // 비밀번호 찾기 링크
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => _showPasswordResetDialog(context),
+                    child: Text(
+                      '비밀번호를 잊으셨나요?',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppTheme.spacingS),
 
                 // 회원가입 링크
                 Wrap(

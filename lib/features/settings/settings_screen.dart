@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:iconsax/iconsax.dart';
@@ -102,9 +103,12 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: () {
-                          // 프로필 편집
-                        },
+                        onPressed: () => _showEditProfileDialog(
+                          context,
+                          ref,
+                          currentMember.name,
+                          currentMember.color,
+                        ),
                         icon: const Icon(Iconsax.edit_2),
                       ),
                     ],
@@ -213,11 +217,15 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                           const Spacer(),
                           TextButton.icon(
-                            onPressed: () {
-                              // TODO: 실제 복사 로직 (Clipboard)
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('초대 코드가 복사되었습니다')),
+                            onPressed: () async {
+                              await Clipboard.setData(
+                                ClipboardData(text: currentGroup.inviteCode),
                               );
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('초대 코드가 복사되었습니다')),
+                                );
+                              }
                             },
                             icon: const Icon(Iconsax.copy, size: 16),
                             label: const Text('복사', style: TextStyle(fontSize: 12)),
@@ -320,6 +328,27 @@ class SettingsScreen extends ConsumerWidget {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             side: BorderSide(color: AppColors.primaryLight.withValues(alpha: 0.5)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: AppTheme.spacingS),
+                      // 그룹 나가기 버튼
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showLeaveGroupDialog(
+                            context,
+                            ref,
+                            currentGroup.id,
+                            currentGroup.name,
+                            members.length,
+                          ),
+                          icon: const Icon(Iconsax.logout, size: 18),
+                          label: const Text('이 그룹에서 나가기'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            foregroundColor: AppColors.errorLight,
+                            side: BorderSide(color: AppColors.errorLight.withValues(alpha: 0.5)),
                           ),
                         ),
                       ),
@@ -430,6 +459,13 @@ class SettingsScreen extends ConsumerWidget {
                         }
                       },
                     ),
+                    const Divider(height: 1),
+                    _SettingsTile(
+                      icon: Iconsax.trash,
+                      title: '계정 삭제',
+                      titleColor: AppColors.errorLight,
+                      onTap: () => _showDeleteAccountDialog(context, ref),
+                    ),
                   ],
                 ),
               ).animate().fadeIn(duration: 300.ms, delay: 400.ms).slideY(begin: 0.1),
@@ -492,6 +528,442 @@ class SettingsScreen extends ConsumerWidget {
       }
     }
     controller.dispose();
+  }
+
+  Future<void> _showEditProfileDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String currentName,
+    String currentColor,
+  ) async {
+    final nameController = TextEditingController(text: currentName);
+    String selectedColor = currentColor;
+
+    // 미리 정의된 색상 목록
+    const profileColors = [
+      '#FFCBA4', // Peach
+      '#FF7F7F', // Coral
+      '#FFB347', // Orange
+      '#FFE066', // Yellow
+      '#90EE90', // Light Green
+      '#87CEEB', // Sky Blue
+      '#9B59B6', // Purple
+      '#E6B0AA', // Rose
+    ];
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('프로필 편집'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: '닉네임',
+                  hintText: '이 그룹에서 사용할 이름',
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+              Text(
+                '프로필 색상',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: profileColors.map((color) {
+                  final isSelected = selectedColor.toUpperCase() == color.toUpperCase();
+                  return GestureDetector(
+                    onTap: () => setState(() => selectedColor = color),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Color(int.parse(color.replaceFirst('#', '0xFF'))),
+                        shape: BoxShape.circle,
+                        border: isSelected
+                            ? Border.all(color: AppColors.primaryLight, width: 3)
+                            : null,
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, {
+                'name': nameController.text.trim(),
+                'color': selectedColor,
+              }),
+              child: const Text('저장'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    nameController.dispose();
+
+    if (result != null && result['name']!.isNotEmpty) {
+      final membership = ref.read(currentMembershipProvider);
+      if (membership == null) return;
+
+      final nameChanged = result['name'] != currentName;
+      final colorChanged = result['color']!.toUpperCase() != currentColor.toUpperCase();
+
+      if (!nameChanged && !colorChanged) return;
+
+      try {
+        await updateMembershipProfile(
+          ref,
+          membership.id,
+          name: nameChanged ? result['name'] : null,
+          color: colorChanged ? result['color'] : null,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('프로필이 수정되었습니다')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('수정 실패: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showLeaveGroupDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String groupId,
+    String groupName,
+    int memberCount,
+  ) async {
+    final isLastMember = memberCount <= 1;
+    final warningMessage = isLastMember
+        ? '마지막 멤버이므로 나가면 그룹 "$groupName"이(가) 삭제됩니다.\n\n정말 나가시겠습니까?'
+        : '그룹 "$groupName"에서 나가시겠습니까?\n\n그룹의 데이터는 남아있으며 다시 초대받으면 참여할 수 있습니다.';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              isLastMember ? Iconsax.warning_2 : Iconsax.logout,
+              color: AppColors.errorLight,
+            ),
+            const SizedBox(width: 8),
+            const Text('그룹 나가기'),
+          ],
+        ),
+        content: Text(warningMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.errorLight),
+            child: Text(isLastMember ? '나가고 삭제' : '나가기'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // 로딩 다이얼로그 표시
+    if (context.mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Text('처리 중...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    try {
+      final result = await leaveGroupAndSwitch(ref, groupId);
+
+      // 로딩 다이얼로그 닫기
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (result['success'] == true) {
+        final wasGroupDeleted = result['wasGroupDeleted'] == true;
+        final hasRemainingGroups = result['hasRemainingGroups'] == true;
+
+        if (context.mounted) {
+          String message;
+          if (wasGroupDeleted) {
+            message = '그룹 "$groupName"이(가) 삭제되었습니다.';
+          } else {
+            message = '그룹 "$groupName"에서 나왔습니다.';
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(message)),
+          );
+
+          // 남은 그룹이 없으면 온보딩으로 이동
+          if (!hasRemainingGroups) {
+            // GoRouter가 자동으로 리다이렉트 처리
+          }
+        }
+      } else {
+        throw Exception(result['error'] ?? '알 수 없는 오류');
+      }
+    } catch (e) {
+      // 로딩 다이얼로그 닫기
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('그룹 나가기 실패: $e'),
+            backgroundColor: AppColors.errorLight,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    // 1단계: 경고 다이얼로그
+    final firstConfirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Iconsax.warning_2, color: AppColors.errorLight),
+            const SizedBox(width: 8),
+            const Text('계정 삭제'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '정말로 계정을 삭제하시겠습니까?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 12),
+            Text('삭제되는 데이터:'),
+            SizedBox(height: 4),
+            Text('• 모든 할일, 일정, 메모'),
+            Text('• 업로드한 사진과 앨범'),
+            Text('• 가계부 기록'),
+            Text('• 그룹 멤버십'),
+            Text('• AI 분석 데이터'),
+            SizedBox(height: 12),
+            Text(
+              '이 작업은 되돌릴 수 없습니다.',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.errorLight),
+            child: const Text('계속'),
+          ),
+        ],
+      ),
+    );
+
+    if (firstConfirm != true || !context.mounted) return;
+
+    // 2단계: 재인증 및 최종 확인
+    final user = ref.read(currentUserProvider);
+    final isGoogleUser = user?.providerData.any((p) => p.providerId == 'google.com') ?? false;
+
+    bool reauthenticated = false;
+
+    if (isGoogleUser) {
+      // Google 사용자: Google 재인증
+      final confirmReauth = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('본인 확인'),
+          content: const Text('계정 삭제를 진행하려면 Google 계정으로 다시 로그인해주세요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Google로 확인'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmReauth == true && context.mounted) {
+        reauthenticated = await ref.read(authServiceProvider).reauthenticateWithGoogle();
+      }
+    } else {
+      // 이메일 사용자: 비밀번호 입력
+      final passwordController = TextEditingController();
+      final password = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('본인 확인'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('계정 삭제를 진행하려면 비밀번호를 입력해주세요.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: '비밀번호',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, passwordController.text),
+              child: const Text('확인'),
+            ),
+          ],
+        ),
+      );
+
+      passwordController.dispose();
+
+      if (password != null && password.isNotEmpty && context.mounted) {
+        reauthenticated = await ref.read(authServiceProvider).reauthenticateWithPassword(password);
+      }
+    }
+
+    if (!reauthenticated) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('본인 확인에 실패했습니다. 다시 시도해주세요.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    // 3단계: 최종 확인
+    if (!context.mounted) return;
+    final finalConfirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Iconsax.danger, color: AppColors.errorLight),
+            const SizedBox(width: 8),
+            const Text('최종 확인'),
+          ],
+        ),
+        content: const Text(
+          '계정을 영구적으로 삭제합니다.\n\n삭제 후에는 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.errorLight,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('계정 삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (finalConfirm != true || !context.mounted) return;
+
+    // 로딩 다이얼로그 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('계정을 삭제하는 중...\n잠시만 기다려주세요.')),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await ref.read(authServiceProvider).deleteAccount();
+
+      // 로딩 다이얼로그 닫기
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('계정이 삭제되었습니다.')),
+        );
+      }
+      // 로그인 화면으로 이동 (GoRouter가 자동 처리)
+    } catch (e) {
+      // 로딩 다이얼로그 닫기
+      if (context.mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('계정 삭제 실패: $e'),
+            backgroundColor: AppColors.errorLight,
+          ),
+        );
+      }
+    }
   }
 }
 

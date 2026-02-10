@@ -15,8 +15,14 @@ import '../../../shared/models/recurrence.dart';
 class AddTodoSheet extends ConsumerStatefulWidget {
   final String? todoId;
   final DateTime? initialDate;
+  final bool isQuickMode;
 
-  const AddTodoSheet({super.key, this.todoId, this.initialDate});
+  const AddTodoSheet({
+    super.key,
+    this.todoId,
+    this.initialDate,
+    this.isQuickMode = false,
+  });
 
   @override
   ConsumerState<AddTodoSheet> createState() => _AddTodoSheetState();
@@ -26,6 +32,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   final _titleController = TextEditingController();
   final _noteController = TextEditingController();
   final _locationController = TextEditingController();
+  final _titleFocusNode = FocusNode();
   String? _selectedAssigneeId;
   DateTime? _dueDate;
   TimeOfDay? _startTime;
@@ -34,6 +41,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   bool _isLoading = false;
   bool _showNoteField = false;
   TodoEventType _eventType = TodoEventType.todo;
+  bool _isQuickMode = false;
 
   // Event 통합 필드
   final List<String> _selectedParticipants = [];
@@ -54,6 +62,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   @override
   void initState() {
     super.initState();
+    _isQuickMode = widget.isQuickMode;
+
     // initialDate가 있으면 설정
     if (widget.initialDate != null) {
       _dueDate = widget.initialDate;
@@ -136,6 +146,7 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     _titleController.dispose();
     _noteController.dispose();
     _locationController.dispose();
+    _titleFocusNode.dispose();
     super.dispose();
   }
 
@@ -183,7 +194,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
         await todoService.updateTodo(
           widget.todoId!,
           title: _titleController.text.trim(),
-          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+          note: _noteController.text.trim().isEmpty
+              ? null
+              : _noteController.text.trim(),
           assigneeId: _selectedAssigneeId,
           dueDate: _dueDate,
           hasTime: _hasTime,
@@ -191,7 +204,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           endTime: endDateTime,
           eventType: _eventType,
           participants: _selectedParticipants,
-          location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+          location: _locationController.text.trim().isEmpty
+              ? null
+              : _locationController.text.trim(),
           recurrenceType: _recurrenceType,
           recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
           recurrenceEndDate: _recurrenceEndDate,
@@ -207,7 +222,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
         // 추가 모드
         await todoService.addTodo(
           title: _titleController.text.trim(),
-          note: _noteController.text.trim().isEmpty ? null : _noteController.text.trim(),
+          note: _noteController.text.trim().isEmpty
+              ? null
+              : _noteController.text.trim(),
           assigneeId: _selectedAssigneeId,
           dueDate: _dueDate,
           hasTime: _hasTime,
@@ -215,7 +232,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           endTime: endDateTime,
           eventType: _eventType,
           participants: _selectedParticipants,
-          location: _locationController.text.trim().isEmpty ? null : _locationController.text.trim(),
+          location: _locationController.text.trim().isEmpty
+              ? null
+              : _locationController.text.trim(),
           recurrenceType: _recurrenceType,
           recurrenceDays: _recurrenceDays.isEmpty ? null : _recurrenceDays,
           recurrenceEndDate: _recurrenceEndDate,
@@ -279,7 +298,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   }
 
   bool _isEndTimeBeforeStart(TimeOfDay start, TimeOfDay end) {
-    return end.hour < start.hour || (end.hour == start.hour && end.minute <= start.minute);
+    return end.hour < start.hour ||
+        (end.hour == start.hour && end.minute <= start.minute);
   }
 
   String _formatTimeOfDay(TimeOfDay time) {
@@ -314,8 +334,11 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   String _getRecurrenceLabel() {
     if (_recurrenceType == RecurrenceType.none) return '반복';
     String label = _recurrenceType.shortName;
-    if (_recurrenceType == RecurrenceType.weekly && _recurrenceDays.isNotEmpty) {
-      final dayNames = _recurrenceDays.map((d) => Weekdays.getName(d)).join(',');
+    if (_recurrenceType == RecurrenceType.weekly &&
+        _recurrenceDays.isNotEmpty) {
+      final dayNames = _recurrenceDays
+          .map((d) => Weekdays.getName(d))
+          .join(',');
       label += ' ($dayNames)';
     }
     return label;
@@ -346,6 +369,142 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
     return '알림 ${_reminderMinutes.length}개';
   }
 
+  /// 퀵 모드 UI - 제목만 입력하여 빠르게 할일 추가
+  Widget _buildQuickModeUI(BuildContext context, bool isDark) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(AppTheme.radiusLarge),
+        ),
+      ),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: AppTheme.spacingL,
+          right: AppTheme.spacingL,
+          top: AppTheme.spacingM,
+          bottom: MediaQuery.of(context).viewInsets.bottom + AppTheme.spacingL,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // 핸들바
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color:
+                      (isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight)
+                          .withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingM),
+
+            // 제목 + 추가 버튼 (한 줄)
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _titleController,
+                    focusNode: _titleFocusNode,
+                    autofocus: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _handleQuickAdd(),
+                    decoration: InputDecoration(
+                      hintText: '할 일을 빠르게 추가',
+                      prefixIcon: const Icon(Iconsax.tick_square),
+                      suffixIcon: _isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              onPressed: _handleQuickAdd,
+                              icon: Icon(
+                                Iconsax.send_1,
+                                color: AppColors.primaryLight,
+                              ),
+                            ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+
+            // 자세히 편집 링크
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isQuickMode = false;
+                  });
+                },
+                icon: const Icon(Iconsax.setting_4, size: 16),
+                label: const Text('자세히 편집'),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  textStyle: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 퀵 모드에서 빠른 추가 처리
+  Future<void> _handleQuickAdd() async {
+    if (_titleController.text.trim().isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final todoService = ref.read(todoServiceProvider);
+
+      // 기본값으로 빠르게 추가
+      // eventType=todo, visibility=shared, participants=[currentUser]
+      await todoService.addTodo(
+        title: _titleController.text.trim(),
+        eventType: TodoEventType.todo,
+        visibility: _visibility,
+        sharedGroups: _sharedGroups.isEmpty ? null : _sharedGroups,
+        participants: _selectedParticipants,
+        assigneeId: _selectedAssigneeId,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   /// Phase 2: 공개 범위 선택 위젯
   Widget _buildVisibilitySection(BuildContext context, bool isDark) {
     final memberships = ref.watch(filteredUserMembershipsProvider).value ?? [];
@@ -356,10 +515,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
         Text(
           '공개 범위',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-              ),
+            color: isDark
+                ? AppColors.textSecondaryDark
+                : AppColors.textSecondaryLight,
+          ),
         ),
         const SizedBox(height: AppTheme.spacingS),
         // 나만 보기 / 그룹 공유 토글
@@ -376,7 +535,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                   decoration: BoxDecoration(
                     color: _visibility == TodoVisibility.private
                         ? AppColors.primaryLight.withValues(alpha: 0.15)
-                        : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                        : (isDark
+                              ? AppColors.backgroundDark
+                              : AppColors.backgroundLight),
                     borderRadius: const BorderRadius.horizontal(
                       left: Radius.circular(AppTheme.radiusSmall),
                     ),
@@ -384,9 +545,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                       color: _visibility == TodoVisibility.private
                           ? AppColors.primaryLight
                           : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -398,8 +559,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                         color: _visibility == TodoVisibility.private
                             ? AppColors.primaryLight
                             : (isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight),
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -412,8 +573,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                           color: _visibility == TodoVisibility.private
                               ? AppColors.primaryLight
                               : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight),
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
                         ),
                       ),
                     ],
@@ -432,7 +593,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                   decoration: BoxDecoration(
                     color: _visibility == TodoVisibility.shared
                         ? AppColors.primaryLight.withValues(alpha: 0.15)
-                        : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
+                        : (isDark
+                              ? AppColors.backgroundDark
+                              : AppColors.backgroundLight),
                     borderRadius: const BorderRadius.horizontal(
                       right: Radius.circular(AppTheme.radiusSmall),
                     ),
@@ -440,9 +603,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                       color: _visibility == TodoVisibility.shared
                           ? AppColors.primaryLight
                           : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -454,8 +617,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                         color: _visibility == TodoVisibility.shared
                             ? AppColors.primaryLight
                             : (isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight),
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight),
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -468,8 +631,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                           color: _visibility == TodoVisibility.shared
                               ? AppColors.primaryLight
                               : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight),
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
                         ),
                       ),
                     ],
@@ -485,10 +648,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           Text(
             '공유할 그룹',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
           ),
           const SizedBox(height: 4),
           Wrap(
@@ -510,7 +673,10 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                   });
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.primaryLight.withValues(alpha: 0.15)
@@ -520,9 +686,9 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                       color: isSelected
                           ? AppColors.primaryLight
                           : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -544,8 +710,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                           color: isSelected
                               ? AppColors.primaryLight
                               : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight),
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
                         ),
                       ),
                     ],
@@ -563,6 +729,11 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
   Widget build(BuildContext context) {
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 퀵 모드일 경우 간소화된 UI 반환
+    if (_isQuickMode) {
+      return _buildQuickModeUI(context, isDark);
+    }
 
     return Container(
       constraints: BoxConstraints(
@@ -586,247 +757,260 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            // 핸들바
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: (isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight)
-                      .withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
+              // 핸들바
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color:
+                        (isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight)
+                            .withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
+              const SizedBox(height: AppTheme.spacingM),
 
-            // 타이틀
-            Text(
-              widget.todoId != null ? '할일 수정' : '새 할일',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: AppTheme.spacingM),
-
-            // 제목 입력
-            TextField(
-              controller: _titleController,
-              autofocus: true,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _handleAdd(),
-              decoration: const InputDecoration(
-                hintText: '할 일을 입력하세요',
-                prefixIcon: Icon(Iconsax.tick_square),
+              // 타이틀
+              Text(
+                widget.todoId != null ? '할일 수정' : '새 할일',
+                style: Theme.of(context).textTheme.titleMedium,
               ),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
+              const SizedBox(height: AppTheme.spacingM),
 
-            // 타입 선택
-            Row(
-              children: TodoEventType.values.map((type) {
-                final isSelected = _eventType == type;
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _eventType = type),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primaryLight.withValues(alpha: 0.15)
-                              : (isDark ? AppColors.backgroundDark : AppColors.backgroundLight),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                          border: Border.all(
+              // 제목 입력
+              TextField(
+                controller: _titleController,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleAdd(),
+                decoration: const InputDecoration(
+                  hintText: '할 일을 입력하세요',
+                  prefixIcon: Icon(Iconsax.tick_square),
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+
+              // 타입 선택
+              Row(
+                children: TodoEventType.values.map((type) {
+                  final isSelected = _eventType == type;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _eventType = type),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
                             color: isSelected
-                                ? AppColors.primaryLight
+                                ? AppColors.primaryLight.withValues(alpha: 0.15)
                                 : (isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight)
-                                    .withValues(alpha: 0.2),
+                                      ? AppColors.backgroundDark
+                                      : AppColors.backgroundLight),
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusSmall,
+                            ),
+                            border: Border.all(
+                              color: isSelected
+                                  ? AppColors.primaryLight
+                                  : (isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight)
+                                        .withValues(alpha: 0.2),
+                            ),
                           ),
-                        ),
-                        child: Text(
-                          type.label,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                            color: isSelected
-                                ? AppColors.primaryLight
-                                : (isDark
-                                    ? AppColors.textPrimaryDark
-                                    : AppColors.textPrimaryLight),
+                          child: Text(
+                            type.label,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: isSelected
+                                  ? AppColors.primaryLight
+                                  : (isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
-
-            // 노트 입력 (토글)
-            if (_showNoteField) ...[
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  hintText: '메모 (선택)',
-                  prefixIcon: Icon(Iconsax.note_1),
-                ),
+                  );
+                }).toList(),
               ),
               const SizedBox(height: AppTheme.spacingM),
-            ],
 
-            // 위치 입력 (토글)
-            if (_showLocationField) ...[
-              TextField(
-                controller: _locationController,
-                decoration: const InputDecoration(
-                  hintText: '위치 (선택)',
-                  prefixIcon: Icon(Iconsax.location),
+              // 노트 입력 (토글)
+              if (_showNoteField) ...[
+                TextField(
+                  controller: _noteController,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    hintText: '메모 (선택)',
+                    prefixIcon: Icon(Iconsax.note_1),
+                  ),
                 ),
-              ),
-              const SizedBox(height: AppTheme.spacingM),
-            ],
+                const SizedBox(height: AppTheme.spacingM),
+              ],
 
-            // 옵션 버튼들
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  // 노트 추가 버튼
-                  _OptionChip(
-                    icon: Iconsax.note_1,
-                    label: '메모',
-                    isSelected: _showNoteField,
-                    onTap: () => setState(() => _showNoteField = !_showNoteField),
+              // 위치 입력 (토글)
+              if (_showLocationField) ...[
+                TextField(
+                  controller: _locationController,
+                  decoration: const InputDecoration(
+                    hintText: '위치 (선택)',
+                    prefixIcon: Icon(Iconsax.location),
                   ),
-                  const SizedBox(width: 8),
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+              ],
 
-                  // 위치 추가 버튼
-                  _OptionChip(
-                    icon: Iconsax.location,
-                    label: '위치',
-                    isSelected: _showLocationField,
-                    onTap: () => setState(() => _showLocationField = !_showLocationField),
-                  ),
-                  const SizedBox(width: 8),
+              // 옵션 버튼들
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    // 노트 추가 버튼
+                    _OptionChip(
+                      icon: Iconsax.note_1,
+                      label: '메모',
+                      isSelected: _showNoteField,
+                      onTap: () =>
+                          setState(() => _showNoteField = !_showNoteField),
+                    ),
+                    const SizedBox(width: 8),
 
-                  // 날짜 선택
-                  _OptionChip(
-                    icon: Iconsax.calendar_1,
-                    label: _dueDate != null
-                        ? DateFormat('M/d').format(_dueDate!)
-                        : '날짜',
-                    isSelected: _dueDate != null,
-                    onTap: _selectDate,
-                    onClear: _dueDate != null
-                        ? () => setState(() {
+                    // 위치 추가 버튼
+                    _OptionChip(
+                      icon: Iconsax.location,
+                      label: '위치',
+                      isSelected: _showLocationField,
+                      onTap: () => setState(
+                        () => _showLocationField = !_showLocationField,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+
+                    // 날짜 선택
+                    _OptionChip(
+                      icon: Iconsax.calendar_1,
+                      label: _dueDate != null
+                          ? DateFormat('M/d').format(_dueDate!)
+                          : '날짜',
+                      isSelected: _dueDate != null,
+                      onTap: _selectDate,
+                      onClear: _dueDate != null
+                          ? () => setState(() {
                               _dueDate = null;
                               _hasTime = false;
                               _startTime = null;
                               _endTime = null;
                             })
-                        : null,
-                  ),
-                  const SizedBox(width: 8),
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
 
-                  // 시간 선택 (날짜가 선택된 경우에만 표시)
-                  if (_dueDate != null) ...[
-                    _OptionChip(
-                      icon: Iconsax.clock,
-                      label: _hasTime && _startTime != null
-                          ? _formatTimeOfDay(_startTime!)
-                          : '시작',
-                      isSelected: _hasTime,
-                      onTap: _selectStartTime,
-                      onClear: _hasTime
-                          ? () => setState(() {
+                    // 시간 선택 (날짜가 선택된 경우에만 표시)
+                    if (_dueDate != null) ...[
+                      _OptionChip(
+                        icon: Iconsax.clock,
+                        label: _hasTime && _startTime != null
+                            ? _formatTimeOfDay(_startTime!)
+                            : '시작',
+                        isSelected: _hasTime,
+                        onTap: _selectStartTime,
+                        onClear: _hasTime
+                            ? () => setState(() {
                                 _hasTime = false;
                                 _startTime = null;
                                 _endTime = null;
                               })
-                          : null,
-                    ),
-                    const SizedBox(width: 8),
-                    if (_hasTime && _startTime != null) ...[
-                      _OptionChip(
-                        icon: Iconsax.clock_1,
-                        label: _endTime != null
-                            ? _formatTimeOfDay(_endTime!)
-                            : '종료',
-                        isSelected: _endTime != null,
-                        onTap: _selectEndTime,
+                            : null,
                       ),
                       const SizedBox(width: 8),
+                      if (_hasTime && _startTime != null) ...[
+                        _OptionChip(
+                          icon: Iconsax.clock_1,
+                          label: _endTime != null
+                              ? _formatTimeOfDay(_endTime!)
+                              : '종료',
+                          isSelected: _endTime != null,
+                          onTap: _selectEndTime,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                     ],
-                  ],
 
-                  // 반복 설정
-                  if (_dueDate != null) ...[
-                    _OptionChip(
-                      icon: Iconsax.repeat,
-                      label: _getRecurrenceLabel(),
-                      isSelected: _recurrenceType != RecurrenceType.none,
-                      onTap: _showRecurrenceSheet,
-                      onClear: _recurrenceType != RecurrenceType.none
-                          ? () => setState(() {
+                    // 반복 설정
+                    if (_dueDate != null) ...[
+                      _OptionChip(
+                        icon: Iconsax.repeat,
+                        label: _getRecurrenceLabel(),
+                        isSelected: _recurrenceType != RecurrenceType.none,
+                        onTap: _showRecurrenceSheet,
+                        onClear: _recurrenceType != RecurrenceType.none
+                            ? () => setState(() {
                                 _recurrenceType = RecurrenceType.none;
                                 _recurrenceDays.clear();
                                 _recurrenceEndDate = null;
                                 _excludeHolidays = false;
                               })
-                          : null,
-                    ),
-                    const SizedBox(width: 8),
-                  ],
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
 
-                  // 알림 설정
-                  if (_dueDate != null) ...[
-                    _OptionChip(
-                      icon: Iconsax.notification,
-                      label: _getReminderLabel(),
-                      isSelected: _reminderMinutes.isNotEmpty,
-                      onTap: _showReminderSheet,
-                      onClear: _reminderMinutes.isNotEmpty
-                          ? () => setState(() => _reminderMinutes.clear())
-                          : null,
-                    ),
-                    const SizedBox(width: 8),
+                    // 알림 설정
+                    if (_dueDate != null) ...[
+                      _OptionChip(
+                        icon: Iconsax.notification,
+                        label: _getReminderLabel(),
+                        isSelected: _reminderMinutes.isNotEmpty,
+                        onTap: _showReminderSheet,
+                        onClear: _reminderMinutes.isNotEmpty
+                            ? () => setState(() => _reminderMinutes.clear())
+                            : null,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: AppTheme.spacingM),
+              const SizedBox(height: AppTheme.spacingM),
 
-            // Phase 2: 공개 범위 선택
-            _buildVisibilitySection(context, isDark),
-            const SizedBox(height: AppTheme.spacingM),
+              // Phase 2: 공개 범위 선택
+              _buildVisibilitySection(context, isDark),
+              const SizedBox(height: AppTheme.spacingM),
 
-            // 참여자 선택 (다중 선택)
-            Text(
-              '참여자',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight,
-                  ),
-            ),
-            const SizedBox(height: AppTheme.spacingS),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: members
-                    .map((member) => Padding(
+              // 참여자 선택 (다중 선택)
+              Text(
+                '참여자',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: members
+                      .map(
+                        (member) => Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: MemberAvatar(
                             member: member,
                             size: 40,
-                            isSelected: _selectedParticipants.contains(member.id),
+                            isSelected: _selectedParticipants.contains(
+                              member.id,
+                            ),
                             onTap: () {
                               setState(() {
                                 if (_selectedParticipants.contains(member.id)) {
@@ -835,8 +1019,8 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                                   if (_selectedAssigneeId == member.id) {
                                     _selectedAssigneeId =
                                         _selectedParticipants.isNotEmpty
-                                            ? _selectedParticipants.first
-                                            : null;
+                                        ? _selectedParticipants.first
+                                        : null;
                                   }
                                 } else {
                                   _selectedParticipants.add(member.id);
@@ -846,29 +1030,30 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
                               });
                             },
                           ),
-                        ))
-                    .toList(),
-              ),
-            ),
-            const SizedBox(height: AppTheme.spacingL),
-
-            // 추가/저장 버튼
-            SizedBox(
-              height: 48,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _handleAdd,
-                child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
                         ),
                       )
-                    : Text(widget.todoId != null ? '저장' : '추가'),
+                      .toList(),
+                ),
               ),
-            ),
+              const SizedBox(height: AppTheme.spacingL),
+
+              // 추가/저장 버튼
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _handleAdd,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(widget.todoId != null ? '저장' : '추가'),
+                ),
+              ),
             ],
           ),
         ),
@@ -909,9 +1094,9 @@ class _OptionChip extends StatelessWidget {
             color: isSelected
                 ? AppColors.primaryLight
                 : (isDark
-                        ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight)
-                    .withValues(alpha: 0.2),
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight)
+                      .withValues(alpha: 0.2),
           ),
         ),
         child: Row(
@@ -923,8 +1108,8 @@ class _OptionChip extends StatelessWidget {
               color: isSelected
                   ? AppColors.primaryLight
                   : (isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight),
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight),
             ),
             const SizedBox(width: 6),
             Text(
@@ -934,8 +1119,8 @@ class _OptionChip extends StatelessWidget {
                 color: isSelected
                     ? AppColors.primaryLight
                     : (isDark
-                        ? AppColors.textPrimaryDark
-                        : AppColors.textPrimaryLight),
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight),
               ),
             ),
             if (onClear != null) ...[
@@ -1017,7 +1202,10 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
               return GestureDetector(
                 onTap: () => setState(() => _type = type),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.primaryLight.withValues(alpha: 0.15)
@@ -1027,9 +1215,9 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
                       color: isSelected
                           ? AppColors.primaryLight
                           : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
                     ),
                   ),
                   child: Text(
@@ -1038,9 +1226,11 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
                       color: isSelected
                           ? AppColors.primaryLight
                           : (isDark
-                              ? AppColors.textPrimaryDark
-                              : AppColors.textPrimaryLight),
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight),
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -1079,9 +1269,9 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
                         color: isSelected
                             ? AppColors.primaryLight
                             : (isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondaryLight)
-                                .withValues(alpha: 0.2),
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                  .withValues(alpha: 0.2),
                       ),
                     ),
                     child: Center(
@@ -1091,10 +1281,11 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
                           color: isSelected
                               ? Colors.white
                               : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight),
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ),
@@ -1109,24 +1300,32 @@ class _RecurrenceSheetState extends State<_RecurrenceSheet> {
             Row(
               children: [
                 Expanded(
-                  child: Text('반복 종료일',
-                      style: Theme.of(context).textTheme.bodyMedium),
+                  child: Text(
+                    '반복 종료일',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                 ),
                 TextButton(
                   onPressed: () async {
                     final picked = await showDatePicker(
                       context: context,
-                      initialDate: _endDate ?? DateTime.now().add(const Duration(days: 30)),
+                      initialDate:
+                          _endDate ??
+                          DateTime.now().add(const Duration(days: 30)),
                       firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365 * 2)),
+                      lastDate: DateTime.now().add(
+                        const Duration(days: 365 * 2),
+                      ),
                     );
                     if (picked != null) {
                       setState(() => _endDate = picked);
                     }
                   },
-                  child: Text(_endDate != null
-                      ? DateFormat('yyyy/M/d').format(_endDate!)
-                      : '설정 안 함'),
+                  child: Text(
+                    _endDate != null
+                        ? DateFormat('yyyy/M/d').format(_endDate!)
+                        : '설정 안 함',
+                  ),
                 ),
                 if (_endDate != null)
                   IconButton(
@@ -1170,10 +1369,7 @@ class _ReminderSheet extends StatefulWidget {
   final List<int> initialReminders;
   final Function(List<int>) onSave;
 
-  const _ReminderSheet({
-    required this.initialReminders,
-    required this.onSave,
-  });
+  const _ReminderSheet({required this.initialReminders, required this.onSave});
 
   @override
   State<_ReminderSheet> createState() => _ReminderSheetState();
@@ -1261,7 +1457,10 @@ class _ReminderSheetState extends State<_ReminderSheet> {
               return GestureDetector(
                 onTap: () => _toggleReminder(minutes),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? AppColors.primaryLight.withValues(alpha: 0.15)
@@ -1271,9 +1470,9 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                       color: isSelected
                           ? AppColors.primaryLight
                           : (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
                     ),
                   ),
                   child: Row(
@@ -1294,9 +1493,11 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                           color: isSelected
                               ? AppColors.primaryLight
                               : (isDark
-                                  ? AppColors.textPrimaryDark
-                                  : AppColors.textPrimaryLight),
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight),
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ],
@@ -1321,7 +1522,10 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     hintText: '숫자',
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                   ),
                   onSubmitted: (_) => _addCustomReminder(),
                 ),
@@ -1333,10 +1537,11 @@ class _ReminderSheetState extends State<_ReminderSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: (isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight)
-                        .withValues(alpha: 0.2),
+                    color:
+                        (isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight)
+                            .withValues(alpha: 0.2),
                   ),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
@@ -1361,10 +1566,7 @@ class _ReminderSheetState extends State<_ReminderSheet> {
               // 추가 버튼
               IconButton(
                 onPressed: _addCustomReminder,
-                icon: Icon(
-                  Icons.add_circle,
-                  color: AppColors.primaryLight,
-                ),
+                icon: Icon(Icons.add_circle, color: AppColors.primaryLight),
               ),
             ],
           ),
@@ -1379,7 +1581,10 @@ class _ReminderSheetState extends State<_ReminderSheet> {
               runSpacing: 8,
               children: _selectedReminders.map((minutes) {
                 return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.primaryLight.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(AppTheme.radiusFull),

@@ -65,17 +65,33 @@ class _AddAlbumSheetState extends ConsumerState<AddAlbumSheet> {
     }
   }
 
+  double _uploadProgress = 0.0;
+
   Future<void> _handleAdd() async {
     if (_titleController.text.trim().isEmpty) return;
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _uploadProgress = 0.0;
+    });
 
     try {
-      // 실제로는 Firebase Storage에 이미지 업로드 후 URL 획득
-      // 여기서는 로컬 경로를 그대로 사용 (데모용)
-      final photoUrls = _selectedPhotoPaths;
+      final albumService = ref.read(albumServiceProvider);
 
-      await ref.read(albumServiceProvider).addAlbum(
+      // Firebase Storage에 이미지 업로드
+      List<String> photoUrls = [];
+      if (_selectedPhotoPaths.isNotEmpty) {
+        photoUrls = await albumService.uploadPhotos(
+          _selectedPhotoPaths,
+          onProgress: (progress) {
+            if (mounted) {
+              setState(() => _uploadProgress = progress);
+            }
+          },
+        );
+      }
+
+      await albumService.addAlbum(
             title: _titleController.text.trim(),
             description: _descriptionController.text.trim().isEmpty
                 ? null
@@ -97,6 +113,12 @@ class _AddAlbumSheetState extends ConsumerState<AddAlbumSheet> {
 
       if (mounted) {
         Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('앨범 저장 실패: $e')),
+        );
       }
     } finally {
       if (mounted) {
@@ -464,13 +486,26 @@ class _AddAlbumSheetState extends ConsumerState<AddAlbumSheet> {
                   backgroundColor: AppColors.memoryColor,
                 ),
                 child: _isLoading
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                          if (_selectedPhotoPaths.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '업로드 ${(_uploadProgress * 100).toInt()}%',
+                              style: const TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ],
                       )
                     : const Text('앨범 저장'),
               ),

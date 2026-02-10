@@ -1,23 +1,82 @@
 name: Cloud Functions Deploy
 
 on:
-  # functions/ 폴더 변경 시 자동 배포
+  # Functions/Rules 변경 시 자동 배포
   push:
     branches: [main]
     paths:
       - 'functions/**'
       - 'firebase.json'
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'storage.rules'
 
   # 수동 실행
   workflow_dispatch:
 
 jobs:
   deploy:
-    name: Deploy Cloud Functions
+    name: Deploy Firebase Targets
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Detect deploy targets
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            functions_changed=true
+            firestore_changed=true
+            storage_changed=true
+          else
+            before="${{ github.event.before }}"
+            if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
+              before="$(git rev-list --max-count=1 HEAD^ || true)"
+            fi
+
+            if [[ -z "$before" ]]; then
+              changed_files="$(git ls-files)"
+            else
+              changed_files="$(git diff --name-only "$before" "${{ github.sha }}")"
+            fi
+
+            echo "Changed files:"
+            echo "$changed_files"
+
+            functions_changed=false
+            firestore_changed=false
+            storage_changed=false
+
+            if echo "$changed_files" | grep -qE '^functions/'; then
+              functions_changed=true
+            fi
+            if echo "$changed_files" | grep -qE '^(firestore\.rules|firestore\.indexes\.json|firebase\.json)$'; then
+              firestore_changed=true
+            fi
+            if echo "$changed_files" | grep -qE '^storage\.rules$'; then
+              storage_changed=true
+            fi
+          fi
+
+          targets=()
+          [[ "$functions_changed" == "true" ]] && targets+=("functions")
+          [[ "$firestore_changed" == "true" ]] && targets+=("firestore")
+          [[ "$storage_changed" == "true" ]] && targets+=("storage")
+
+          if [[ ${#targets[@]} -eq 0 ]]; then
+            targets=("functions")
+            functions_changed=true
+          fi
+
+          deploy_targets="$(IFS=,; echo "${targets[*]}")"
+
+          echo "functions_changed=$functions_changed" >> "$GITHUB_OUTPUT"
+          echo "deploy_targets=$deploy_targets" >> "$GITHUB_OUTPUT"
+          echo "Deploy targets: $deploy_targets"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -27,16 +86,19 @@ jobs:
           cache-dependency-path: functions/package-lock.json
 
       - name: Install dependencies
+        if: steps.detect.outputs.functions_changed == 'true'
         run: |
           cd functions
           npm ci
 
       - name: Lint
+        if: steps.detect.outputs.functions_changed == 'true'
         run: |
           cd functions
           npm run lint
 
       - name: Build
+        if: steps.detect.outputs.functions_changed == 'true'
         run: |
           cd functions
           npm run build
@@ -46,8 +108,8 @@ jobs:
         with:
           credentials_json: '${{ secrets.APPENGINE_SERVICE_ACCOUNT }}'
 
-      - name: Deploy Cloud Functions
+      - name: Deploy Firebase Targets
         run: |
           npm install -g firebase-tools
           firebase use ***REMOVED_PROJECT_ID***
-          firebase deploy --only functions --force
+          firebase deploy --only ${{ steps.detect.outputs.deploy_targets }} --force

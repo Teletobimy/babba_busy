@@ -10,7 +10,6 @@ import '../../../shared/models/business_review.dart';
 import '../../../shared/models/analysis_job.dart';
 import '../../../shared/providers/business_review_provider.dart';
 import '../../../shared/providers/analysis_job_provider.dart';
-import '../../../services/ai/ai_api_service.dart';
 
 class BusinessHistoryScreen extends ConsumerWidget {
   const BusinessHistoryScreen({super.key});
@@ -38,35 +37,38 @@ class BusinessHistoryScreen extends ConsumerWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
-      body: reviewsAsync.when(
-        data: (reviews) {
-          // 진행 중인 작업 필터링 (사업 검토만)
-          final pendingJobs = pendingJobsAsync.valueOrNull
-                  ?.where((job) => job.jobType == AnalysisJobType.businessReview)
-                  .toList() ??
-              [];
+        body: reviewsAsync.when(
+          data: (reviews) {
+            // 진행 중인 작업 필터링 (사업 검토만)
+            final pendingJobs =
+                pendingJobsAsync.valueOrNull
+                    ?.where(
+                      (job) => job.jobType == AnalysisJobType.businessReview,
+                    )
+                    .toList() ??
+                [];
 
-          if (reviews.isEmpty && pendingJobs.isEmpty) {
-            return _buildEmptyState(context);
-          }
+            if (reviews.isEmpty && pendingJobs.isEmpty) {
+              return _buildEmptyState(context);
+            }
 
-          return _buildContent(context, ref, reviews, pendingJobs);
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Iconsax.warning_2, size: 48, color: AppColors.coral[400]),
-              const SizedBox(height: 16),
-              Text(
-                '이력을 불러올 수 없습니다',
-                style: TextStyle(color: AppColors.grayScale[600]),
-              ),
-            ],
+            return _buildContent(context, ref, reviews, pendingJobs);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (error, _) => Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Iconsax.warning_2, size: 48, color: AppColors.coral[400]),
+                const SizedBox(height: 16),
+                Text(
+                  '이력을 불러올 수 없습니다',
+                  style: TextStyle(color: AppColors.grayScale[600]),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -123,7 +125,11 @@ class BusinessHistoryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildPendingJobCard(BuildContext context, WidgetRef ref, AnalysisJob job) {
+  Widget _buildPendingJobCard(
+    BuildContext context,
+    WidgetRef ref,
+    AnalysisJob job,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -147,13 +153,16 @@ class BusinessHistoryScreen extends ConsumerWidget {
               children: [
                 // 펄스 애니메이션 인디케이터
                 Container(
-                  width: 12,
-                  height: 12,
-                  decoration: BoxDecoration(
-                    color: AppColors.coral[500],
-                    shape: BoxShape.circle,
-                  ),
-                ).animate(onPlay: (c) => c.repeat()).fadeIn(duration: 600.ms).fadeOut(duration: 600.ms),
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: AppColors.coral[500],
+                        shape: BoxShape.circle,
+                      ),
+                    )
+                    .animate(onPlay: (c) => c.repeat())
+                    .fadeIn(duration: 600.ms)
+                    .fadeOut(duration: 600.ms),
                 const SizedBox(width: 8),
                 Text(
                   job.status == AnalysisJobStatus.pending ? '대기 중' : '분석 중',
@@ -168,7 +177,10 @@ class BusinessHistoryScreen extends ConsumerWidget {
                 TextButton(
                   onPressed: () => _showCancelDialog(context, ref, job),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
@@ -187,10 +199,7 @@ class BusinessHistoryScreen extends ConsumerWidget {
             // 아이디어 미리보기
             Text(
               job.businessInput.businessIdea,
-              style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
-              ),
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -252,9 +261,9 @@ class BusinessHistoryScreen extends ConsumerWidget {
               final service = ref.read(analysisJobServiceProvider);
               final success = await service.cancelJob(job.id);
               if (!success && context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('취소에 실패했습니다')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('취소에 실패했습니다')));
               }
             },
             child: Text('예', style: TextStyle(color: AppColors.coral[500])),
@@ -273,19 +282,13 @@ class BusinessHistoryScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Text(
             '아직 검토 이력이 없습니다',
-            style: TextStyle(
-              color: AppColors.grayScale[600],
-              fontSize: 16,
-            ),
+            style: TextStyle(color: AppColors.grayScale[600], fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
             '사업 아이디어를 분석하면\n이곳에 기록됩니다',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.grayScale[500],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: AppColors.grayScale[500], fontSize: 14),
           ),
         ],
       ),
@@ -325,14 +328,20 @@ class BusinessHistoryScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            ...monthReviews.map((review) => _buildReviewCard(context, ref, review)),
+            ...monthReviews.map(
+              (review) => _buildReviewCard(context, ref, review),
+            ),
           ],
         );
       }).toList(),
     );
   }
 
-  Widget _buildReviewCard(BuildContext context, WidgetRef ref, BusinessReview review) {
+  Widget _buildReviewCard(
+    BuildContext context,
+    WidgetRef ref,
+    BusinessReview review,
+  ) {
     Color scoreColor;
     if (review.score >= 75) {
       scoreColor = AppColors.sage[500]!;
@@ -433,7 +442,11 @@ class BusinessHistoryScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              Icon(Iconsax.arrow_right_3, size: 16, color: AppColors.grayScale[400]),
+              Icon(
+                Iconsax.arrow_right_3,
+                size: 16,
+                color: AppColors.grayScale[400],
+              ),
             ],
           ),
         ),
@@ -563,9 +576,11 @@ class BusinessHistoryScreen extends ConsumerWidget {
                     _buildSwotSection(context, review),
                     const SizedBox(height: 16),
                     // 시장 조사
-                    if (review.marketResearch != null && !review.marketResearch!.isEmpty)
+                    if (review.marketResearch != null &&
+                        !review.marketResearch!.isEmpty)
                       _buildMarketResearchSection(review),
-                    if (review.marketResearch != null && !review.marketResearch!.isEmpty)
+                    if (review.marketResearch != null &&
+                        !review.marketResearch!.isEmpty)
                       const SizedBox(height: 16),
                     // 다음 단계
                     _buildNextStepsSection(review),
@@ -592,18 +607,12 @@ class BusinessHistoryScreen extends ConsumerWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const SizedBox(height: 8),
           SelectableText(
             content,
-            style: TextStyle(
-              color: AppColors.grayScale[700],
-              height: 1.5,
-            ),
+            style: TextStyle(color: AppColors.grayScale[700], height: 1.5),
           ),
         ],
       ),
@@ -624,18 +633,12 @@ class BusinessHistoryScreen extends ConsumerWidget {
             children: [
               const Text(
                 '📊 SWOT 분석',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
               ),
               const Spacer(),
               Text(
                 '탭하여 상세보기',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.grayScale[400],
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.grayScale[400]),
               ),
             ],
           ),
@@ -694,7 +697,15 @@ class BusinessHistoryScreen extends ConsumerWidget {
     Color accentColor,
   ) {
     return InkWell(
-      onTap: () => _showSwotDetailSheet(context, type, title, englishTitle, items, bgColor, accentColor),
+      onTap: () => _showSwotDetailSheet(
+        context,
+        type,
+        title,
+        englishTitle,
+        items,
+        bgColor,
+        accentColor,
+      ),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -718,7 +729,10 @@ class BusinessHistoryScreen extends ConsumerWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: accentColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
@@ -737,18 +751,22 @@ class BusinessHistoryScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            ...items.take(2).map((item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '• $item',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.grayScale[700],
+            ...items
+                .take(2)
+                .map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '• $item',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.grayScale[700],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                )),
+                ),
             if (items.length > 2)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -828,7 +846,10 @@ class BusinessHistoryScreen extends ConsumerWidget {
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
                         decoration: BoxDecoration(
                           color: accentColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
@@ -868,7 +889,9 @@ class BusinessHistoryScreen extends ConsumerWidget {
                     decoration: BoxDecoration(
                       color: bgColor,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: accentColor.withValues(alpha: 0.15)),
+                      border: Border.all(
+                        color: accentColor.withValues(alpha: 0.15),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -910,7 +933,12 @@ class BusinessHistoryScreen extends ConsumerWidget {
             ),
             // 하단 안내
             Container(
-              padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 12),
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                MediaQuery.of(context).padding.bottom + 12,
+              ),
               decoration: BoxDecoration(
                 color: AppColors.grayScale[50],
                 border: Border(
@@ -919,7 +947,11 @@ class BusinessHistoryScreen extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(Iconsax.info_circle, size: 16, color: AppColors.grayScale[500]),
+                  Icon(
+                    Iconsax.info_circle,
+                    size: 16,
+                    color: AppColors.grayScale[500],
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -1020,7 +1052,8 @@ class BusinessHistoryScreen extends ConsumerWidget {
           ],
 
           // 타겟 고객
-          if (market.customerSegment != null && market.customerSegment!.isNotEmpty) ...[
+          if (market.customerSegment != null &&
+              market.customerSegment!.isNotEmpty) ...[
             _buildMarketInfoRow(
               icon: Iconsax.people,
               label: '타겟 고객',
@@ -1031,7 +1064,8 @@ class BusinessHistoryScreen extends ConsumerWidget {
           ],
 
           // 진입 장벽
-          if (market.entryBarrier != null && market.entryBarrier!.isNotEmpty) ...[
+          if (market.entryBarrier != null &&
+              market.entryBarrier!.isNotEmpty) ...[
             _buildMarketInfoRow(
               icon: Iconsax.shield_tick,
               label: '진입 장벽',
@@ -1062,21 +1096,28 @@ class BusinessHistoryScreen extends ConsumerWidget {
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: market.competitors.map((comp) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.purple[50],
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.purple[100]!),
-                ),
-                child: Text(
-                  comp,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.purple[700],
-                  ),
-                ),
-              )).toList(),
+              children: market.competitors
+                  .map(
+                    (comp) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.purple[50],
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.purple[100]!),
+                      ),
+                      child: Text(
+                        comp,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.purple[700],
+                        ),
+                      ),
+                    ),
+                  )
+                  .toList(),
             ),
             const SizedBox(height: 12),
           ],
@@ -1099,37 +1140,40 @@ class BusinessHistoryScreen extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 8),
-            ...market.trends.map((trend) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(top: 6, right: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.coral[400],
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  Expanded(
-                    child: SelectableText(
-                      trend,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.grayScale[700],
-                        height: 1.4,
+            ...market.trends.map(
+              (trend) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(top: 6, right: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.coral[400],
+                        shape: BoxShape.circle,
                       ),
                     ),
-                  ),
-                ],
+                    Expanded(
+                      child: SelectableText(
+                        trend,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.grayScale[700],
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            )),
+            ),
           ],
 
           // 시장 기회
-          if (market.targetMarket != null && market.targetMarket!.isNotEmpty) ...[
+          if (market.targetMarket != null &&
+              market.targetMarket!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
@@ -1143,7 +1187,11 @@ class BusinessHistoryScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(Iconsax.lamp_on, size: 14, color: AppColors.coral[600]),
+                      Icon(
+                        Iconsax.lamp_on,
+                        size: 14,
+                        color: AppColors.coral[600],
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         '시장 기회',
@@ -1190,10 +1238,7 @@ class BusinessHistoryScreen extends ConsumerWidget {
             children: [
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.grayScale[500],
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.grayScale[500]),
               ),
               const SizedBox(height: 2),
               SelectableText(
@@ -1336,7 +1381,8 @@ class BusinessHistoryScreen extends ConsumerWidget {
       if (market.marketSize != null) {
         buffer.writeln('📊 시장 규모: ${market.marketSize}');
       }
-      if (market.customerSegment != null && market.customerSegment!.isNotEmpty) {
+      if (market.customerSegment != null &&
+          market.customerSegment!.isNotEmpty) {
         buffer.writeln('👥 타겟 고객: ${market.customerSegment}');
       }
       if (market.competitors.isNotEmpty) {

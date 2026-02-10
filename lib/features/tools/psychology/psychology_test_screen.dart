@@ -13,13 +13,11 @@ import '../business/widgets/request_accepted_screen.dart';
 class PsychologyTestScreen extends ConsumerStatefulWidget {
   final String testType;
 
-  const PsychologyTestScreen({
-    super.key,
-    required this.testType,
-  });
+  const PsychologyTestScreen({super.key, required this.testType});
 
   @override
-  ConsumerState<PsychologyTestScreen> createState() => _PsychologyTestScreenState();
+  ConsumerState<PsychologyTestScreen> createState() =>
+      _PsychologyTestScreenState();
 }
 
 class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
@@ -35,7 +33,6 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
   // 결과 및 상태 추적
   final List<int> _answers = []; // 선택한 답변 인덱스 목록
-  final List<String> _questionTexts = []; // 질문 텍스트 목록 (분석용)
   bool _isComplete = false;
   Map<String, dynamic>? _analysis;
 
@@ -175,14 +172,17 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       await for (final progress in stream) {
         setState(() {
           _agentProgress[progress.agentName] = progress.status;
-          if (progress.agentName == 'final_report' && progress.status == 'completed') {
+          if (progress.agentName == 'final_report' &&
+              progress.status == 'completed') {
             final result = progress.result;
             _isComplete = true;
             _isAnalyzing = false;
             _isSubmitting = false; // 분석 완료 후 제출 상태 해제
             _analysis = {
               'summary': result['summary'],
-              'recommendations': List<String>.from(result['recommendations'] ?? []),
+              'recommendations': List<String>.from(
+                result['recommendations'] ?? [],
+              ),
               ...result['result'] ?? {},
             };
           }
@@ -190,11 +190,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       }
 
       // DB에 결과 저장
-      if (user != null && _analysis != null) {
+      if (_analysis != null) {
         final resultService = ref.read(psychologyResultServiceProvider);
         await resultService.saveResult(
           testType: widget.testType,
-          answers: _answers, // 이 부분은 실제 답변 데이터를 저장하도록 수정 필요
+          answers: _answers,
           result: _analysis!,
         );
       }
@@ -288,8 +288,8 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       body: _isLoading
           ? _buildLoadingView()
           : _error != null
-              ? _buildErrorView()
-              : _buildAnalysisProgress(),
+          ? _buildErrorView()
+          : _buildAnalysisProgress(),
     );
   }
 
@@ -406,9 +406,9 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
               // 메인 텍스트
               Text(
                 '검사가 완료되었어요!',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ).animate().fadeIn(delay: 200.ms),
               const SizedBox(height: 12),
@@ -426,7 +426,10 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
               // 예상 시간 안내
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.coral[50],
                   borderRadius: BorderRadius.circular(20),
@@ -619,10 +622,22 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
   Widget _buildAnalysisProgress() {
     final agents = [
-      {'id': 'personality_analyst', 'name': '성격 특성 분석가', 'icon': Icons.psychology},
-      {'id': 'emotional_wellbeing', 'name': '정서 건강 전문가', 'icon': Icons.favorite},
+      {
+        'id': 'personality_analyst',
+        'name': '성격 특성 분석가',
+        'icon': Icons.psychology,
+      },
+      {
+        'id': 'emotional_wellbeing',
+        'name': '정서 건강 전문가',
+        'icon': Icons.favorite,
+      },
       {'id': 'social_relational', 'name': '대인관계 심리 전문가', 'icon': Icons.people},
-      {'id': 'final_report', 'name': '오케스트레이터 종합 판단', 'icon': Icons.auto_awesome},
+      {
+        'id': 'final_report',
+        'name': '오케스트레이터 종합 판단',
+        'icon': Icons.auto_awesome,
+      },
     ];
 
     return Center(
@@ -655,10 +670,10 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: isCompleted
-                            ? Colors.green.withOpacity(0.1)
+                            ? Colors.green.withValues(alpha: 0.1)
                             : isStarted
-                                ? AppColors.coral[500]!.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
+                            ? AppColors.coral[500]!.withValues(alpha: 0.1)
+                            : Colors.grey.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
@@ -666,8 +681,8 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                         color: isCompleted
                             ? Colors.green
                             : isStarted
-                                ? AppColors.coral[500]
-                                : Colors.grey,
+                            ? AppColors.coral[500]
+                            : Colors.grey,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -687,12 +702,18 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                           if (isStarted)
                             Text(
                               '분석 내용을 작성 중입니다...',
-                              style: TextStyle(fontSize: 12, color: AppColors.coral[500]),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.coral[500],
+                              ),
                             ),
                           if (isCompleted)
                             const Text(
                               '분석 완료',
-                              style: TextStyle(fontSize: 12, color: Colors.green),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green,
+                              ),
                             ),
                         ],
                       ),
@@ -703,7 +724,9 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
+                          valueColor: AlwaysStoppedAnimation(
+                            AppColors.coral[500],
+                          ),
                         ),
                       ),
                     if (isCompleted)
@@ -711,7 +734,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                   ],
                 ),
               );
-            }).toList(),
+            }),
           ],
         ),
       ),
@@ -730,108 +753,112 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         }
       },
       child: Scaffold(
-      backgroundColor: AppColors.grayScale[50],
-      appBar: AppBar(
-        title: Text(_testName ?? '심리검사'),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Iconsax.arrow_left),
-          onPressed: () => _showExitDialog(),
-        ),
-      ),
-      body: Column(
-        children: [
-          // 진행률
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${_currentIndex + 1} / $_totalQuestions',
-                      style: TextStyle(
-                        color: AppColors.grayScale[600],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: TextStyle(
-                        color: AppColors.coral[500],
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: AppColors.grayScale[200],
-                    valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
-                    minHeight: 6,
-                  ),
-                ),
-              ],
-            ),
+        backgroundColor: AppColors.grayScale[50],
+        appBar: AppBar(
+          title: Text(_testName ?? '심리검사'),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Iconsax.arrow_left),
+            onPressed: () => _showExitDialog(),
           ),
-          const SizedBox(height: 32),
-
-          // 질문
-          Expanded(
-            child: SingleChildScrollView(
+        ),
+        body: Column(
+          children: [
+            // 진행률
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '${_currentIndex + 1} / $_totalQuestions',
+                        style: TextStyle(
+                          color: AppColors.grayScale[600],
+                          fontWeight: FontWeight.w500,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      _currentQuestion?.question ?? '',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                        height: 1.5,
                       ),
-                      textAlign: TextAlign.center,
+                      Text(
+                        '${(progress * 100).toInt()}%',
+                        style: TextStyle(
+                          color: AppColors.coral[500],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: AppColors.grayScale[200],
+                      valueColor: AlwaysStoppedAnimation(AppColors.coral[500]),
+                      minHeight: 6,
                     ),
-                  ).animate(key: ValueKey(_currentIndex)).fadeIn().slideY(begin: -0.1),
-                  const SizedBox(height: 32),
-
-                  // 선택지
-                  ..._currentQuestion?.options.asMap().entries.map((entry) {
-                        final index = entry.key;
-                        final option = entry.value;
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildOptionButton(index, option),
-                        ).animate(key: ValueKey('${_currentIndex}_$index'))
-                            .fadeIn(delay: (50 * index).ms)
-                            .slideX(begin: 0.1);
-                      }).toList() ??
-                      [],
+                  ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    ),  // PopScope 닫기
+            const SizedBox(height: 32),
+
+            // 질문
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 20,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            _currentQuestion?.question ?? '',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                              height: 1.5,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                        .animate(key: ValueKey(_currentIndex))
+                        .fadeIn()
+                        .slideY(begin: -0.1),
+                    const SizedBox(height: 32),
+
+                    // 선택지
+                    if (_currentQuestion != null)
+                      ..._currentQuestion!.options.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final option = entry.value;
+                        return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildOptionButton(index, option),
+                            )
+                            .animate(key: ValueKey('${_currentIndex}_$index'))
+                            .fadeIn(delay: (50 * index).ms)
+                            .slideX(begin: 0.1);
+                      }),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ), // PopScope 닫기
     );
   }
 
@@ -854,7 +881,9 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: isSelected ? AppColors.coral[400]! : AppColors.grayScale[200]!,
+              color: isSelected
+                  ? AppColors.coral[400]!
+                  : AppColors.grayScale[200]!,
               width: isSelected ? 2 : 1,
             ),
           ),
@@ -864,7 +893,9 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.coral[400] : AppColors.grayScale[100],
+                  color: isSelected
+                      ? AppColors.coral[400]
+                      : AppColors.grayScale[100],
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -884,9 +915,13 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 child: Text(
                   option,
                   style: TextStyle(
-                    color: isSelected ? AppColors.coral[700] : AppColors.grayScale[700],
+                    color: isSelected
+                        ? AppColors.coral[700]
+                        : AppColors.grayScale[700],
                     fontSize: 15,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
                   ),
                 ),
               ),
@@ -950,19 +985,12 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 color: AppColors.sage[500],
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.check,
-                color: Colors.white,
-                size: 40,
-              ),
+              child: const Icon(Icons.check, color: Colors.white, size: 40),
             ).animate().scale(delay: 200.ms),
             const SizedBox(height: 16),
             Text(
               '$_testName 완료!',
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ).animate().fadeIn(delay: 300.ms),
             const SizedBox(height: 32),
 

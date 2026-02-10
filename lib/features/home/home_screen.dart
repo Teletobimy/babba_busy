@@ -185,7 +185,7 @@ class HomeScreen extends ConsumerWidget {
             if (pendingTodos.isEmpty)
               SliverToBoxAdapter(
                 child: TodoEmptyState(
-                  onAdd: () => _showAddTodoSheet(context),
+                  onAdd: () => _showAddTodoSheet(context, isQuickMode: true),
                 ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
               )
             else
@@ -260,9 +260,13 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddTodoSheet(context),
-        child: const Icon(Iconsax.add),
+      floatingActionButton: GestureDetector(
+        onLongPress: () => _showAddTodoSheet(context, isQuickMode: false),
+        child: FloatingActionButton(
+          onPressed: () => _showAddTodoSheet(context, isQuickMode: true),
+          tooltip: '탭: 빠른 추가 | 길게 누르기: 자세히',
+          child: const Icon(Iconsax.add),
+        ),
       ).animate().scale(delay: 800.ms, duration: 300.ms),
     );
   }
@@ -283,12 +287,12 @@ class HomeScreen extends ConsumerWidget {
     return '좋은 저녁이에요';
   }
 
-  void _showAddTodoSheet(BuildContext context) {
+  void _showAddTodoSheet(BuildContext context, {bool isQuickMode = false}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const AddTodoSheet(),
+      builder: (context) => AddTodoSheet(isQuickMode: isQuickMode),
     );
   }
 }

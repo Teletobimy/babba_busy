@@ -37,7 +37,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   void initState() {
     super.initState();
     _titleController = TextEditingController(text: widget.memo?.title ?? '');
-    _contentController = TextEditingController(text: widget.memo?.content ?? '');
+    _contentController = TextEditingController(
+      text: widget.memo?.content ?? '',
+    );
     _selectedCategoryId = widget.memo?.categoryId;
     _selectedCategoryName = widget.memo?.categoryName;
     _isPinned = widget.memo?.isPinned ?? false;
@@ -65,9 +67,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   Future<void> _saveMemo() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('제목을 입력해주세요')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('제목을 입력해주세요')));
       return;
     }
 
@@ -105,9 +107,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('저장 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('저장 실패: $e')));
       }
     } finally {
       if (mounted) {
@@ -144,15 +146,15 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       await ref.read(memoServiceProvider).deleteMemo(widget.memo!.id);
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('메모가 삭제되었습니다')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('메모가 삭제되었습니다')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('삭제 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
       }
     }
   }
@@ -168,9 +170,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
 
     final user = ref.read(currentUserProvider);
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('로그인이 필요합니다')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다')));
       return;
     }
 
@@ -192,29 +194,28 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
 
         // 기존 메모인 경우 분석 결과 저장
         if (!_isNewMemo) {
-          await ref.read(memoServiceProvider).saveAiAnalysis(
-                widget.memo!.id,
-                result.analysis,
-              );
+          await ref
+              .read(memoServiceProvider)
+              .saveAiAnalysis(widget.memo!.id, result.analysis);
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('AI 분석을 수행할 수 없습니다')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('AI 분석을 수행할 수 없습니다')));
         }
       }
     } on AiApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('분석 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('분석 실패: $e')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('분석 실패: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('분석 실패: $e')));
       }
     } finally {
       if (mounted) {
@@ -276,7 +277,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                   ],
                 ),
               );
-              if (confirmed == true && mounted) {
+              if (confirmed == true && context.mounted) {
                 Navigator.pop(context);
               }
             } else {
@@ -322,20 +323,14 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                       color: AppColors.primaryLight,
                     ),
                   )
-                : Icon(
-                    Iconsax.magic_star,
-                    color: AppColors.primaryLight,
-                  ),
+                : Icon(Iconsax.magic_star, color: AppColors.primaryLight),
             tooltip: 'AI 분석',
           ),
           // 삭제 (기존 메모만)
           if (!_isNewMemo)
             IconButton(
               onPressed: _deleteMemo,
-              icon: Icon(
-                Iconsax.trash,
-                color: AppColors.errorLight,
-              ),
+              icon: Icon(Iconsax.trash, color: AppColors.errorLight),
               tooltip: '삭제',
             ),
         ],
@@ -380,8 +375,8 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                   TextField(
                     controller: _titleController,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                     decoration: InputDecoration(
                       hintText: '제목',
                       hintStyle: TextStyle(
@@ -419,7 +414,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                       padding: const EdgeInsets.all(AppTheme.spacingM),
                       decoration: BoxDecoration(
                         color: AppColors.primaryLight.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                         border: Border.all(
                           color: AppColors.primaryLight.withValues(alpha: 0.3),
                         ),
@@ -482,7 +479,9 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.memoColor,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingM),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppTheme.spacingM,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                   ),
@@ -602,9 +601,9 @@ class _CategoryPickerSheet extends StatelessWidget {
             padding: const EdgeInsets.all(AppTheme.spacingL),
             child: Text(
               '카테고리 선택',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           // 선택 안함
@@ -638,7 +637,9 @@ class _CategoryPickerSheet extends StatelessWidget {
               onTap: () => onSelect(category),
             );
           }),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + AppTheme.spacingL),
+          SizedBox(
+            height: MediaQuery.of(context).padding.bottom + AppTheme.spacingL,
+          ),
         ],
       ),
     );

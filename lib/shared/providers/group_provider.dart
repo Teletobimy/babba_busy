@@ -246,3 +246,66 @@ Future<void> updateMembershipSharedEventTypes(
       .doc(membershipId)
       .update({'sharedEventTypes': sharedEventTypes});
 }
+
+/// Membership의 프로필 업데이트 (닉네임, 색상)
+Future<void> updateMembershipProfile(
+  dynamic ref,
+  String membershipId, {
+  String? name,
+  String? color,
+}) async {
+  final firestore = ref.read(firestoreProvider);
+  if (firestore == null) return;
+
+  final updates = <String, dynamic>{};
+  if (name != null) updates['name'] = name;
+  if (color != null) updates['color'] = color;
+
+  if (updates.isNotEmpty) {
+    await firestore
+        .collection('memberships')
+        .doc(membershipId)
+        .update(updates);
+  }
+}
+
+/// 그룹 나가기 및 다음 그룹으로 전환
+/// 반환값: {success: 성공 여부, wasGroupDeleted: 그룹 삭제 여부, hasRemainingGroups: 남은 그룹 유무}
+Future<Map<String, dynamic>> leaveGroupAndSwitch(
+  dynamic ref,
+  String groupId,
+) async {
+  try {
+    final authService = ref.read(authServiceProvider);
+    final result = await authService.leaveGroup(groupId);
+
+    final nextGroupId = result['nextGroupId'] as String?;
+    final wasGroupDeleted = result['wasGroupDeleted'] as bool;
+
+    if (nextGroupId != null) {
+      // 남은 그룹으로 전환
+      await switchGroup(ref, nextGroupId, withTransition: true);
+    } else {
+      // 그룹이 없으면 selectedGroupId를 null로 설정 (온보딩으로 리다이렉트)
+      ref.read(selectedGroupIdProvider.notifier).state = null;
+
+      // 로컬 저장소에서도 삭제
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('last_selected_group_id');
+    }
+
+    debugPrint('[GroupProvider] ✅ Left group and switched: nextGroupId=$nextGroupId');
+
+    return {
+      'success': true,
+      'wasGroupDeleted': wasGroupDeleted,
+      'hasRemainingGroups': nextGroupId != null,
+    };
+  } catch (e) {
+    debugPrint('[GroupProvider] ❌ Leave group failed: $e');
+    return {
+      'success': false,
+      'error': e.toString(),
+    };
+  }
+}

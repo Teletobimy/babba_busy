@@ -3,17 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'ai_api_service.dart';
-import '../../app/router.dart';
 
 /// Gemini AI를 직접 사용하여 심리검사를 진행하는 서비스
-final psychologyAgentServiceProvider = Provider<PsychologyAgentService>((ref) {
-  return PsychologyAgentService(ref);
+final psychologyAgentServiceProvider = Provider<PsychologyAgentService>((_) {
+  return PsychologyAgentService();
 });
 
 class PsychologyAgentService {
-  final Ref _ref;
-  
-  PsychologyAgentService(this._ref);
+  PsychologyAgentService();
 
   static String get _apiKey {
     const buildTimeKey = String.fromEnvironment('GEMINI_API_KEY');
@@ -21,17 +18,14 @@ class PsychologyAgentService {
     return dotenv.env['GEMINI_API_KEY'] ?? '';
   }
 
-  GenerativeModel get _model => GenerativeModel(
-    model: 'gemini-1.5-flash',
-    apiKey: _apiKey,
-  );
+  GenerativeModel get _model =>
+      GenerativeModel(model: 'gemini-1.5-flash', apiKey: _apiKey);
 
   /// 검사 시작: 질문지 생성 및 첫 번째 질문 반환
-  Future<PsychologyStartResult> startTest({
-    required String testType,
-  }) async {
+  Future<PsychologyStartResult> startTest({required String testType}) async {
     // 실제 AI를 사용하여 질문지 정보를 가져옴 (또는 미리 정의된 프롬프트 활용)
-    final prompt = '''
+    final prompt =
+        '''
 당신은 전문 심리 상담가입니다. '$testType' 유형의 심리검사를 진행하려 합니다.
 사용자가 답변할 수 있는 문항 10개를 생성해주세요. 
 각 문항은 5점 척도(매우 그렇지 않다 ~ 매우 그렇다)로 답변할 수 있어야 합니다.
@@ -52,11 +46,11 @@ JSON 형식으로만 응답하세요:
     try {
       final response = await _model.generateContent([Content.text(prompt)]);
       final text = response.text ?? '';
-      
+
       // JSON 추출 및 파싱
       final jsonData = _parseJson(text);
       final questions = (jsonData['questions'] as List);
-      
+
       return PsychologyStartResult(
         sessionId: 'ai_test_${DateTime.now().millisecondsSinceEpoch}',
         testType: testType,
@@ -80,7 +74,7 @@ JSON 형식으로만 응답하세요:
 
   /// 답변 제출 및 다음 질문 (로컬에서 처리하거나 AI에 물어봄)
   /// 여기서는 초기 생성된 질문지를 세션에 저장하거나 간단히 로컬에서 인지하도록 구현 가능
-  /// 우선은 PsychologyTestScreen에서 모든 질문을 미리 받는 형태로 가거나, 
+  /// 우선은 PsychologyTestScreen에서 모든 질문을 미리 받는 형태로 가거나,
   /// 필요할 때마다 Gemini에게 다음 질문을 물어보는 방식으로 구현
   Future<PsychologyAnswerResult> submitAnswer({
     required String testType,
@@ -103,12 +97,13 @@ JSON 형식으로만 응답하세요:
 
     // 다음 질문을 가져오기 위한 AI 호출 (또는 캐시된 데이터 사용)
     // 여기서는 간단하게 다음 번호의 질문을 생성하도록 요청
-    final prompt = "'$testType' 심리검사의 $nextIdx번째 질문을 5점 척도 선택지와 함께 JSON(question_id, question, options)으로 생성해주세요.";
-    
+    final prompt =
+        "'$testType' 심리검사의 $nextIdx번째 질문을 5점 척도 선택지와 함께 JSON(question_id, question, options)으로 생성해주세요.";
+
     try {
       final response = await _model.generateContent([Content.text(prompt)]);
       final jsonData = _parseJson(response.text ?? '');
-      
+
       return PsychologyAnswerResult(
         sessionId: sessionId,
         progress: nextIdx / totalCount,
@@ -135,9 +130,13 @@ JSON 형식으로만 응답하세요:
     required List<String> questions,
     required List<int> answers,
   }) async {
-    final answersStr = List.generate(questions.length, (i) => "문항: ${questions[i]}, 답변인덱스: ${answers[i]} (0-4)").join('\n');
-    
-    final prompt = '''
+    final answersStr = List.generate(
+      questions.length,
+      (i) => "문항: ${questions[i]}, 답변인덱스: ${answers[i]} (0-4)",
+    ).join('\n');
+
+    final prompt =
+        '''
 당신은 최고의 심리 분석 전문가입니다. 사용자의 '$testType' 검사 답변을 바탕으로 심층 분석 보고서를 작성해주세요.
 
 사용자 답변:
@@ -157,7 +156,7 @@ JSON 형식으로 응답하세요:
     try {
       final response = await _model.generateContent([Content.text(prompt)]);
       final jsonData = _parseJson(response.text ?? '');
-      
+
       return PsychologyResult(
         sessionId: 'result_${DateTime.now().millisecondsSinceEpoch}',
         testType: testType,

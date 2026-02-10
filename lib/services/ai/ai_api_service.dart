@@ -1,18 +1,18 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'business_agent_service.dart';
 
 /// Cloud Run AI API 서비스 Provider
-final aiApiServiceProvider = Provider<AiApiService>((ref) {
-  return AiApiService(ref);
+final aiApiServiceProvider = Provider<AiApiService>((_) {
+  return AiApiService();
 });
 
 /// Cloud Run AI API 서비스
 class AiApiService {
-  final Ref _ref;
-  AiApiService(this._ref);
+  AiApiService();
 
   // Cloud Run API URL (***REMOVED_PROJECT_ID*** 프로젝트)
   static const String _baseUrl = String.fromEnvironment(
@@ -324,10 +324,7 @@ class AiApiService {
       final response = await http.post(
         Uri.parse('$_baseUrl/api/psychology/start'),
         headers: headers,
-        body: jsonEncode({
-          'user_id': userId,
-          'test_type': testType,
-        }),
+        body: jsonEncode({'user_id': userId, 'test_type': testType}),
       );
 
       if (response.statusCode == 200) {
@@ -461,7 +458,9 @@ class AiApiService {
         );
       } else {
         final errorData = jsonDecode(response.body);
-        throw AiApiException(errorData['detail'] ?? '분석 실패: ${response.statusCode}');
+        throw AiApiException(
+          errorData['detail'] ?? '분석 실패: ${response.statusCode}',
+        );
       }
     } catch (e) {
       if (e is AiApiException) rethrow;
@@ -501,9 +500,10 @@ class AiApiService {
         throw AiApiException('분석 스트리밍 시작 실패: ${response.statusCode}');
       }
 
-      await for (final line in response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         if (line.trim().isEmpty) continue;
         if (line.startsWith('data: ')) {
           final dataStr = line.substring(6).trim();
@@ -519,7 +519,9 @@ class AiApiService {
               yield AgentProgress(data['step'], data['status'], null);
             }
           } catch (e) {
-            print('JSON parse error in business stream: $dataStr, error: $e');
+            debugPrint(
+              'JSON parse error in business stream: $dataStr, error: $e',
+            );
           }
         }
       }
@@ -550,25 +552,25 @@ class AiApiService {
       request.headers['Accept'] = 'text/event-stream';
 
       // 쿼리 파라미터 대신 request body 사용
-      request.body = jsonEncode({
-        'user_id': userId,
-        'session_id': sessionId,
-      });
+      request.body = jsonEncode({'user_id': userId, 'session_id': sessionId});
 
-      final response = await client.send(request).timeout(
-        const Duration(minutes: 6),
-        onTimeout: () {
-          throw AiApiException('분석 요청 시간이 초과되었습니다');
-        },
-      );
+      final response = await client
+          .send(request)
+          .timeout(
+            const Duration(minutes: 6),
+            onTimeout: () {
+              throw AiApiException('분석 요청 시간이 초과되었습니다');
+            },
+          );
 
       if (response.statusCode != 200) {
         throw AiApiException('분석 스트리밍 시작 실패: ${response.statusCode}');
       }
 
-      await for (final line in response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
+      await for (final line
+          in response.stream
+              .transform(utf8.decoder)
+              .transform(const LineSplitter())) {
         if (line.trim().isEmpty) continue;
         if (line.startsWith('data: ')) {
           final dataStr = line.substring(6).trim();
@@ -584,7 +586,9 @@ class AiApiService {
               yield AgentProgress(data['step'], data['status'], null);
             }
           } catch (e) {
-            print('JSON parse error in psychology stream: $dataStr, error: $e');
+            debugPrint(
+              'JSON parse error in psychology stream: $dataStr, error: $e',
+            );
           }
         }
       }
@@ -610,10 +614,7 @@ class MemoAnalysisResult {
   final String analysis;
   final bool cached;
 
-  MemoAnalysisResult({
-    required this.analysis,
-    this.cached = false,
-  });
+  MemoAnalysisResult({required this.analysis, this.cached = false});
 }
 
 /// AI 요약 결과
@@ -767,12 +768,37 @@ class PsychologyResult {
   });
 
   factory PsychologyResult.fromJson(Map<String, dynamic> json) {
+    final rawAnalysis = json['analysis'];
+    final analysis = rawAnalysis is Map
+        ? Map<String, dynamic>.from(rawAnalysis)
+        : <String, dynamic>{};
+    final nestedResult = analysis['result'];
+
+    final rawResult = json['result'];
+    final rawScores = json['scores'];
+    final normalizedResult = rawResult is Map
+        ? Map<String, dynamic>.from(rawResult)
+        : (nestedResult is Map
+              ? Map<String, dynamic>.from(nestedResult)
+              : (rawScores is Map
+                    ? Map<String, dynamic>.from(rawScores)
+                    : <String, dynamic>{}));
+
+    final normalizedSummary = (json['summary'] ?? analysis['summary'] ?? '')
+        .toString();
+
+    final rawRecommendations =
+        json['recommendations'] ?? analysis['recommendations'];
+    final normalizedRecommendations = rawRecommendations is List
+        ? rawRecommendations.map((item) => item.toString()).toList()
+        : <String>[];
+
     return PsychologyResult(
-      sessionId: json['session_id'],
-      testType: json['test_type'],
-      result: json['result'] ?? {},
-      summary: json['summary'] ?? '',
-      recommendations: List<String>.from(json['recommendations'] ?? []),
+      sessionId: (json['session_id'] ?? '').toString(),
+      testType: (json['test_type'] ?? '').toString(),
+      result: normalizedResult,
+      summary: normalizedSummary,
+      recommendations: normalizedRecommendations,
     );
   }
 }

@@ -13,34 +13,120 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // 사용자 문서 기반 그룹 목록
+    function userGroupIds() {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data != null && userDoc.data.groupIds != null
+        ? userDoc.data.groupIds
+        : [];
+    }
+
+    // 그룹 멤버 여부 확인 (memberIds / user.groupIds / 결정적 membership ID 순서로 확인)
+    function isMemberOfGroup(groupId) {
+      let familyDoc = get(/databases/$(database)/documents/families/$(groupId));
+      let familyMemberIds = familyDoc.data != null && familyDoc.data.memberIds != null
+        ? familyDoc.data.memberIds
+        : [];
+
+      return isAuthenticated() && (
+        familyMemberIds.hasAny([request.auth.uid]) ||
+        userGroupIds().hasAny([groupId]) ||
+        exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + groupId))
+      );
+    }
+
+    // 그룹 관리자 확인 (결정적 membership ID 기준)
+    function isGroupAdmin(groupId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + groupId)) &&
+        get(/databases/$(database)/documents/memberships/$(request.auth.uid + '_' + groupId)).data.role == 'admin';
+    }
+
+    // sharedGroups 접근 가능 여부 (user.groupIds 기반)
+    function hasSharedGroupAccess(sharedGroups) {
+      return sharedGroups != null && userGroupIds().hasAny(sharedGroups);
+    }
+
     // ============ Users Collection ============
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId);
 
-      // 사용자 하위 컬렉션 (business_reviews 등)
+      // 사용자 하위 컬렉션 (business_reviews, albums 등)
       match /{subcollection}/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId);
       }
     }
 
+    // ============ CollectionGroup: Albums ============
+    // 공유된 앨범은 sharedGroups에 포함된 그룹 멤버만 읽기 가능
+    match /{path=**}/albums/{albumId} {
+      allow read: if isAuthenticated() && (
+        // 본인 앨범이거나
+        resource.data.createdBy == request.auth.uid ||
+        // 공유 앨범 + 공유 그룹 접근 권한이 있는 경우
+        (
+          resource.data.visibility == 'shared' &&
+          (
+            hasSharedGroupAccess(resource.data.sharedGroups) ||
+            (resource.data.familyId != null && isMemberOfGroup(resource.data.familyId))
+          )
+        )
+      );
+      // 쓰기는 users/{userId}/albums 경로에서만 허용 (위의 규칙 적용)
+    }
+
     // ============ Families (Groups) Collection ============
     match /families/{familyId} {
+      // 읽기: 인증된 사용자 (멤버십 확인은 클라이언트에서)
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+
+      // 쓰기: 생성은 본인이 memberIds에 포함된 경우만, 수정/삭제는 그룹 멤버만
+      allow create: if isAuthenticated()
+        && request.resource.data.memberIds != null
+        && request.resource.data.memberIds.hasAny([request.auth.uid]);
+      allow update, delete: if isMemberOfGroup(familyId);
 
       // 가족 하위 컬렉션 (todos, events, memories, transactions)
       match /{subcollection}/{docId} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated();
+        allow read, write: if isMemberOfGroup(familyId);
       }
     }
 
     // ============ Memberships Collection ============
     match /memberships/{membershipId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+      // 읽기: 본인 또는 같은 그룹 멤버
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid ||
+        isMemberOfGroup(resource.data.groupId)
+      );
+
+      // 생성: 본인 membership만 생성 가능 + 결정적 문서 ID 강제
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.groupId is string
+        && membershipId == request.auth.uid + '_' + request.resource.data.groupId
+        && exists(/databases/$(database)/documents/families/$(request.resource.data.groupId));
+
+      // 수정:
+      // - 본인 프로필 수정 허용(userId/groupId 불변)
+      // - 그룹 관리자는 role/groupName만 타 멤버 대상으로 수정 가능
+      allow update: if isAuthenticated() && (
+        (
+          resource.data.userId == request.auth.uid &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.groupId == resource.data.groupId
+        ) || (
+          isGroupAdmin(resource.data.groupId) &&
+          request.resource.data.userId == resource.data.userId &&
+          request.resource.data.groupId == resource.data.groupId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'groupName'])
+        )
+      );
+
+      // 삭제: 본인 멤버십만 삭제 가능 (그룹 탈퇴)
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
 
     // ============ Analysis Jobs Collection ============

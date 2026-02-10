@@ -1,8 +1,34 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../models/album.dart';
 import 'auth_provider.dart';
 import 'group_provider.dart';
+
+/// 파일 확장자에서 표준 MIME 타입 반환
+String _getContentType(String extension) {
+  switch (extension.toLowerCase()) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'gif':
+      return 'image/gif';
+    case 'webp':
+      return 'image/webp';
+    case 'heic':
+    case 'heif':
+      return 'image/heif';
+    case 'bmp':
+      return 'image/bmp';
+    default:
+      return 'application/octet-stream';
+  }
+}
 
 /// 앨범 뷰 모드
 enum AlbumViewMode {
@@ -374,5 +400,64 @@ class AlbumService {
         .collection('comments')
         .doc(commentId)
         .delete();
+  }
+
+  /// 이미지 파일들을 Firebase Storage에 업로드하고 URL 목록 반환
+  /// [localPaths] 로컬 파일 경로 목록
+  /// [onProgress] 업로드 진행률 콜백 (0.0 ~ 1.0)
+  Future<List<String>> uploadPhotos(
+    List<String> localPaths, {
+    void Function(double progress)? onProgress,
+  }) async {
+    if (_userId == null) return [];
+
+    final storage = FirebaseStorage.instance;
+    final urls = <String>[];
+    int completed = 0;
+
+    for (final path in localPaths) {
+      StreamSubscription<TaskSnapshot>? progressSubscription;
+
+      try {
+        final file = File(path);
+        if (!file.existsSync()) continue;
+
+        // 고유한 파일명 생성 (userId/albums/timestamp_index.ext)
+        final ext = path.split('.').last.toLowerCase();
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}_${urls.length}.$ext';
+        final ref = storage.ref('users/$_userId/albums/$fileName');
+
+        // 표준 MIME 타입으로 업로드
+        final uploadTask = ref.putFile(
+          file,
+          SettableMetadata(contentType: _getContentType(ext)),
+        );
+
+        // 진행률 콜백 (구독 저장)
+        if (onProgress != null) {
+          progressSubscription = uploadTask.snapshotEvents.listen((event) {
+            final progress = (completed + (event.bytesTransferred / event.totalBytes)) / localPaths.length;
+            onProgress(progress);
+          });
+        }
+
+        await uploadTask;
+
+        // 구독 취소 (메모리 누수 방지)
+        await progressSubscription?.cancel();
+
+        final url = await ref.getDownloadURL();
+        urls.add(url);
+        completed++;
+      } catch (e) {
+        // 구독 취소 (에러 시에도)
+        await progressSubscription?.cancel();
+
+        // 개별 파일 업로드 실패 시 로그만 남기고 계속 진행
+        debugPrint('Failed to upload photo: $path, error: $e');
+      }
+    }
+
+    return urls;
   }
 }
