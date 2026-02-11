@@ -229,6 +229,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return const PeopleScreen();
       case AppModule.chat:
         return const _ChatContent();
+      case AppModule.community:
+        return const _CommunityContent();
       case AppModule.business:
         return const _BusinessContent();
       case AppModule.psychology:
@@ -248,6 +250,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return Iconsax.people;
       case AppModule.chat:
         return Iconsax.message;
+      case AppModule.community:
+        return Iconsax.hashtag;
       case AppModule.business:
         return Iconsax.briefcase;
       case AppModule.psychology:
@@ -268,6 +272,8 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
         return AppColors.peopleColor;
       case AppModule.chat:
         return AppColors.chatColor;
+      case AppModule.community:
+        return AppColors.communityColor;
       case AppModule.business:
         return AppColors.coral[500]!;
       case AppModule.psychology:
@@ -1410,6 +1416,74 @@ class _AttachmentFileCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 커뮤니티 콘텐츠
+class _CommunityContent extends StatelessWidget {
+  const _CommunityContent();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacingL),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.communityColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Iconsax.hashtag,
+                size: 40,
+                color: AppColors.communityColor,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            Text(
+              '커뮤니티',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              '테마별로 여러 게시판을 만들고\n글/댓글로 소통해보세요',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingXL),
+            ElevatedButton.icon(
+              onPressed: () => context.push('/tools/community'),
+              icon: const Icon(Iconsax.play),
+              label: const Text('커뮤니티 열기'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.communityColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingXL,
+                  vertical: AppTheme.spacingM,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -16,6 +16,8 @@ import '../features/tools/business/business_history_screen.dart';
 import '../features/tools/psychology/psychology_hub_screen.dart';
 import '../features/tools/psychology/psychology_test_screen.dart';
 import '../features/tools/psychology/psychology_history_screen.dart';
+import '../features/tools/community/community_hub_screen.dart';
+import '../features/tools/community/community_detail_screen.dart';
 import '../features/memo/memo_category_analysis_history_screen.dart';
 import '../features/memo/memo_category_analysis_detail_screen.dart';
 import '../features/settings/settings_screen.dart';
@@ -468,6 +470,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/tools/psychology/history',
         name: 'psychology-history',
         builder: (context, state) => const PsychologyHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/tools/community',
+        name: 'community-hub',
+        builder: (context, state) => const CommunityHubScreen(),
+      ),
+      GoRoute(
+        path: '/tools/community/:communityId',
+        name: 'community-detail',
+        builder: (context, state) {
+          final communityId = state.pathParameters['communityId'] ?? '';
+          return CommunityDetailScreen(communityId: communityId);
+        },
       ),
       GoRoute(
         path: '/memo/category-analysis/history',

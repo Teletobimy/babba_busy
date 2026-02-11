@@ -1168,6 +1168,8 @@ class _ModuleTile extends StatelessWidget {
         return Iconsax.people;
       case AppModule.chat:
         return Iconsax.message;
+      case AppModule.community:
+        return Iconsax.hashtag;
       case AppModule.business:
         return Iconsax.briefcase;
       case AppModule.psychology:
@@ -1187,6 +1189,8 @@ class _ModuleTile extends StatelessWidget {
         return AppColors.peopleColor;
       case AppModule.chat:
         return AppColors.chatColor;
+      case AppModule.community:
+        return AppColors.communityColor;
       case AppModule.business:
         return AppColors.coral[500]!;
       case AppModule.psychology:
@@ -1206,6 +1210,8 @@ class _ModuleTile extends StatelessWidget {
         return '인맥 정보 관리';
       case AppModule.chat:
         return '그룹 대화방';
+      case AppModule.community:
+        return '테마 기반 공개 커뮤니티';
       case AppModule.business:
         return 'AI 멀티에이전트 사업 검토';
       case AppModule.psychology:

@@ -7,6 +7,7 @@ enum AppModule {
   budget('가계부', 'budget'),
   people('사람들', 'people'),
   chat('대화방', 'chat'),
+  community('커뮤니티', 'community'),
   business('사업검토', 'business'),
   psychology('심리검사', 'psychology');
 
@@ -35,11 +36,7 @@ class ModuleInfo {
     required this.order,
   });
 
-  ModuleInfo copyWith({
-    AppModule? module,
-    bool? isEnabled,
-    int? order,
-  }) {
+  ModuleInfo copyWith({AppModule? module, bool? isEnabled, int? order}) {
     return ModuleInfo(
       module: module ?? this.module,
       isEnabled: isEnabled ?? this.isEnabled,
@@ -79,15 +76,20 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
       isEnabled: true,
       order: 4,
     ),
+    AppModule.community: const ModuleInfo(
+      module: AppModule.community,
+      isEnabled: true,
+      order: 5,
+    ),
     AppModule.business: const ModuleInfo(
       module: AppModule.business,
       isEnabled: true,
-      order: 5,
+      order: 6,
     ),
     AppModule.psychology: const ModuleInfo(
       module: AppModule.psychology,
       isEnabled: true,
-      order: 6,
+      order: 7,
     ),
   };
 
@@ -107,10 +109,7 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
     final currentInfo = state[module];
     if (currentInfo == null) return;
 
-    state = {
-      ...state,
-      module: currentInfo.copyWith(isEnabled: enabled),
-    };
+    state = {...state, module: currentInfo.copyWith(isEnabled: enabled)};
   }
 
   /// 모듈 순서 변경
@@ -153,18 +152,16 @@ class EnabledModulesNotifier extends StateNotifier<Map<AppModule, ModuleInfo>> {
 /// 모듈 설정 Provider
 final enabledModulesProvider =
     StateNotifierProvider<EnabledModulesNotifier, Map<AppModule, ModuleInfo>>(
-  (ref) => EnabledModulesNotifier(),
-);
+      (ref) => EnabledModulesNotifier(),
+    );
 
 /// 활성화된 모듈 목록 (순서대로)
 final activeModulesProvider = Provider<List<AppModule>>((ref) {
   final modules = ref.watch(enabledModulesProvider);
-  
-  final activeModules = modules.entries
-      .where((e) => e.value.isEnabled)
-      .toList()
+
+  final activeModules = modules.entries.where((e) => e.value.isEnabled).toList()
     ..sort((a, b) => a.value.order.compareTo(b.value.order));
-  
+
   return activeModules.map((e) => e.key).toList();
 });
 

@@ -140,6 +140,7 @@ class AppColors {
   // ============ 도구 모듈 색상 ============
   static const Color peopleColor = Color(0xFF5B8DEF);  // 사람들
   static const Color chatColor = Color(0xFF9B59B6);    // 대화방
+  static const Color communityColor = Color(0xFF2AA198); // 커뮤니티
 
   // ============ 심리검사 테마 색상 ============
   static const Map<String, MaterialColor> testColors = {
