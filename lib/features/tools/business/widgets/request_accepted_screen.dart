@@ -12,6 +12,21 @@ import '../../../../shared/providers/analysis_job_provider.dart';
 import '../../../../shared/providers/auth_provider.dart';
 import '../../../../shared/providers/psychology_result_provider.dart';
 
+String resolveCompletedAnalysisRoute(AnalysisJob job) {
+  switch (job.jobType) {
+    case AnalysisJobType.psychologyTest:
+      return '/tools/psychology/history';
+    case AnalysisJobType.businessReview:
+      return '/tools/business/history';
+    case AnalysisJobType.memoCategoryAnalysis:
+      final analysisId = job.resultId?.trim() ?? '';
+      if (analysisId.isNotEmpty) {
+        return '/memo/category-analysis/$analysisId';
+      }
+      return '/memo/category-analysis/history';
+  }
+}
+
 /// 분석 요청 접수 확인 화면
 class RequestAcceptedScreen extends ConsumerStatefulWidget {
   final String jobId;
@@ -232,11 +247,7 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
     }
 
     if (!mounted) return;
-    final route = switch (job.jobType) {
-      AnalysisJobType.psychologyTest => '/tools/psychology/history',
-      AnalysisJobType.businessReview => '/tools/business/history',
-      AnalysisJobType.memoCategoryAnalysis => '/home',
-    };
+    final route = resolveCompletedAnalysisRoute(job);
     context.go(route);
   }
 

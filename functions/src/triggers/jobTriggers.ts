@@ -23,6 +23,7 @@ export const onAnalysisJobUpdated = functions.firestore
       const afterStatus = afterData.status || "";
       const userId = afterData.userId;
       const jobType = afterData.jobType || "business_review";
+      const resultId = (afterData.resultId || "").toString().trim();
 
       // 이미 알림을 보낸 경우 스킵
       if (afterData.notificationSent) {
@@ -55,7 +56,7 @@ export const onAnalysisJobUpdated = functions.firestore
             type: "analysis_complete",
             jobId,
             jobType,
-            route: getRouteForJobType(jobType),
+            route: getRouteForJobType(jobType, resultId),
           },
           tag: `analysis_${jobType}_${userId}`,
         });
@@ -122,14 +123,17 @@ export const onAnalysisJobCreated = functions.firestore
 /**
  * 작업 유형별 라우트 반환
  */
-function getRouteForJobType(jobType: string): string {
+function getRouteForJobType(jobType: string, resultId?: string): string {
   switch (jobType) {
   case "business_review":
     return "/tools/business/history";
   case "psychology_test":
     return "/tools/psychology/history";
   case "memo_category_analysis":
-    return "/home";
+    if (resultId && resultId.trim().length > 0) {
+      return `/memo/category-analysis/${resultId.trim()}`;
+    }
+    return "/memo/category-analysis/history";
   default:
     return "/home";
   }

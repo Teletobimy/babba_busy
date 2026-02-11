@@ -27,6 +27,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   late TextEditingController _contentController;
   String? _selectedCategoryId;
   String? _selectedCategoryName;
+  List<String> _selectedTags = const [];
   bool _isPinned = false;
   bool _isLoading = false;
   bool _isAnalyzing = false;
@@ -50,6 +51,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     );
     _selectedCategoryId = widget.memo?.categoryId;
     _selectedCategoryName = widget.memo?.categoryName;
+    _selectedTags = List<String>.from(widget.memo?.tags ?? const []);
     _isPinned = widget.memo?.isPinned ?? false;
     _aiAnalysis = widget.memo?.aiAnalysis;
     _analyzedAt = widget.memo?.analyzedAt;
@@ -79,6 +81,44 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
         }
       });
     }
+  }
+
+  bool _hasTag(String tag) {
+    final normalized = tag.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+    return _selectedTags.any((item) => item.trim().toLowerCase() == normalized);
+  }
+
+  List<String> get _unappliedSuggestedTags => _aiSuggestedTags
+      .map((tag) => tag.trim())
+      .where((tag) => tag.isNotEmpty && !_hasTag(tag))
+      .toList();
+
+  void _toggleTag(String tag) {
+    final normalized = tag.trim();
+    if (normalized.isEmpty) return;
+
+    setState(() {
+      final index = _selectedTags.indexWhere(
+        (item) => item.trim().toLowerCase() == normalized.toLowerCase(),
+      );
+      if (index >= 0) {
+        _selectedTags = List<String>.from(_selectedTags)..removeAt(index);
+      } else {
+        _selectedTags = List<String>.from(_selectedTags)..add(normalized);
+      }
+      _hasChanges = true;
+    });
+  }
+
+  void _applyAiSuggestedTags() {
+    if (_unappliedSuggestedTags.isEmpty) return;
+
+    setState(() {
+      _selectedTags = List<String>.from(_selectedTags)
+        ..addAll(_unappliedSuggestedTags);
+      _hasChanges = true;
+    });
   }
 
   void _restoreAiSectionsFromPersisted() {
@@ -133,6 +173,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
           content: content,
           categoryId: _selectedCategoryId,
           categoryName: _selectedCategoryName,
+          tags: _selectedTags,
           isPinned: _isPinned,
           aiAnalysis: aiAnalysisToSave,
           analyzedAt: analyzedAtToSave,
@@ -144,6 +185,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
           content: content,
           categoryId: _selectedCategoryId,
           categoryName: _selectedCategoryName,
+          tags: _selectedTags,
           isPinned: _isPinned,
           aiAnalysis: aiAnalysisToSave,
           analyzedAt: analyzedAtToSave,
@@ -269,13 +311,15 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
         );
 
         setState(() {
-          _aiAnalysis = composedAnalysis.isNotEmpty ? composedAnalysis : summaryText;
+          _aiAnalysis = composedAnalysis.isNotEmpty
+              ? composedAnalysis
+              : summaryText;
           _aiSummary = summaryText;
           _aiValidationPoints = validationPoints;
           _aiSuggestedCategory =
               suggestedCategory != null && suggestedCategory.isNotEmpty
-                  ? suggestedCategory
-                  : null;
+              ? suggestedCategory
+              : null;
           _aiSuggestedTags = suggestedTags;
           _analyzedAt = DateTime.now();
           _isAiStale = false;
@@ -361,8 +405,12 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     ref.watch(memoCategoryBootstrapProvider);
     final categories = ref.watch(smartMemoCategoriesProvider);
-    final selectedCategory = findMemoCategoryById(categories, _selectedCategoryId);
-    final selectedCategoryLabel = selectedCategory?.name ?? _selectedCategoryName;
+    final selectedCategory = findMemoCategoryById(
+      categories,
+      _selectedCategoryId,
+    );
+    final selectedCategoryLabel =
+        selectedCategory?.name ?? _selectedCategoryName;
     final categoryColor = parseMemoCategoryColor(selectedCategory?.color);
     final categoryIconName = selectedCategory?.icon ?? 'note_1';
 
@@ -538,8 +586,8 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                       child: Text(
                         '내용이 변경되어 AI 결과가 최신이 아닙니다. 다시 분석해 주세요.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.orange[800],
-                            ),
+                          color: Colors.orange[800],
+                        ),
                       ),
                     ),
                   ],
@@ -621,6 +669,20 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                                   _aiSuggestedCategory!.isNotEmpty) ||
                               _aiSuggestedTags.isNotEmpty) ...[
                             const SizedBox(height: AppTheme.spacingM),
+                            if (_aiSuggestedTags.isNotEmpty)
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton.icon(
+                                  onPressed: _unappliedSuggestedTags.isEmpty
+                                      ? null
+                                      : _applyAiSuggestedTags,
+                                  icon: const Icon(
+                                    Iconsax.tick_circle,
+                                    size: 14,
+                                  ),
+                                  label: const Text('추천 태그 적용'),
+                                ),
+                              ),
                             Wrap(
                               spacing: 6,
                               runSpacing: 6,
@@ -650,14 +712,72 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                                           ),
                                     ),
                                   ),
-                                ..._aiSuggestedTags.take(5).map(
-                                  (tag) => Container(
+                                ..._aiSuggestedTags
+                                    .take(5)
+                                    .map(
+                                      (tag) => GestureDetector(
+                                        onTap: () => _toggleTag(tag),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: _hasTag(tag)
+                                                ? AppColors.sage[100]
+                                                : AppColors.primaryLight
+                                                      .withValues(alpha: 0.15),
+                                            borderRadius: BorderRadius.circular(
+                                              AppTheme.radiusSmall,
+                                            ),
+                                            border: Border.all(
+                                              color: _hasTag(tag)
+                                                  ? AppColors.sage[400]!
+                                                  : AppColors.primaryLight
+                                                        .withValues(
+                                                          alpha: 0.35,
+                                                        ),
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '#$tag${_hasTag(tag) ? ' 적용됨' : ''}',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: _hasTag(tag)
+                                                      ? AppColors.sage[700]
+                                                      : AppColors.primaryLight,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                              ],
+                            ),
+                          ],
+                          if (_selectedTags.isNotEmpty) ...[
+                            const SizedBox(height: AppTheme.spacingM),
+                            Text(
+                              '적용 태그',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: _selectedTags.map((tag) {
+                                return GestureDetector(
+                                  onTap: () => _toggleTag(tag),
+                                  child: Container(
                                     padding: const EdgeInsets.symmetric(
                                       horizontal: 8,
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: AppColors.primaryLight.withValues(
+                                      color: AppColors.memoColor.withValues(
                                         alpha: 0.15,
                                       ),
                                       borderRadius: BorderRadius.circular(
@@ -670,12 +790,12 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                                           .textTheme
                                           .bodySmall
                                           ?.copyWith(
-                                            color: AppColors.primaryLight,
+                                            color: AppColors.memoColor,
                                           ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                );
+                              }).toList(),
                             ),
                           ],
                           if (_aiSummary == null ||
@@ -750,7 +870,6 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       ),
     );
   }
-
 }
 
 /// 카테고리 선택 시트
@@ -832,10 +951,7 @@ class _CategoryPickerSheet extends StatelessWidget {
             final color = parseMemoCategoryColor(category.color);
             final isSelected = category.id == selectedCategoryId;
             return ListTile(
-              leading: Icon(
-                memoCategoryIconData(category.icon),
-                color: color,
-              ),
+              leading: Icon(memoCategoryIconData(category.icon), color: color),
               title: Text(category.name),
               trailing: isSelected
                   ? Icon(Iconsax.tick_circle5, color: color)
@@ -848,24 +964,24 @@ class _CategoryPickerSheet extends StatelessWidget {
           ),
         ],
       ),
-      );
-    }
+    );
   }
+}
 
-  String _composeAiAnalysisText({
-    required String analysis,
-    required String summary,
-    required List<String> validationPoints,
-  }) {
-    final buffer = StringBuffer();
-    if (summary.isNotEmpty) {
-      buffer.writeln('요약: $summary');
-    }
-    if (validationPoints.isNotEmpty) {
-      buffer.writeln('검증: ${validationPoints.join(' / ')}');
-    }
-    if (analysis.isNotEmpty) {
-      buffer.writeln('인사이트: $analysis');
-    }
-    return buffer.toString().trim();
+String _composeAiAnalysisText({
+  required String analysis,
+  required String summary,
+  required List<String> validationPoints,
+}) {
+  final buffer = StringBuffer();
+  if (summary.isNotEmpty) {
+    buffer.writeln('요약: $summary');
   }
+  if (validationPoints.isNotEmpty) {
+    buffer.writeln('검증: ${validationPoints.join(' / ')}');
+  }
+  if (analysis.isNotEmpty) {
+    buffer.writeln('인사이트: $analysis');
+  }
+  return buffer.toString().trim();
+}

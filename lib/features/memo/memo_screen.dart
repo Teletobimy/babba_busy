@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
+import '../../services/ai/ai_api_service.dart';
+import '../../shared/models/analysis_job.dart';
 import '../../shared/models/memo.dart';
 import '../../shared/models/memo_category.dart';
+import '../../shared/providers/analysis_job_provider.dart';
+import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/memo_provider.dart';
+import '../tools/business/widgets/request_accepted_screen.dart';
 import 'memo_category_utils.dart';
 import 'widgets/memo_card.dart';
 import 'widgets/memo_category_chip.dart';
@@ -16,7 +22,9 @@ import 'widgets/create_memo_category_dialog.dart';
 import 'memo_detail_screen.dart';
 
 /// 메모 뷰 모드 (목록/그리드)
-final memoViewModeProvider = StateProvider<bool>((ref) => false); // false = 목록, true = 그리드
+final memoViewModeProvider = StateProvider<bool>(
+  (ref) => false,
+); // false = 목록, true = 그리드
 
 /// 메모 메인 화면
 class MemoScreen extends ConsumerWidget {
@@ -38,9 +46,7 @@ class MemoScreen extends ConsumerWidget {
               ),
             ).animate().fadeIn(duration: 300.ms),
             // 콘텐츠
-            const Expanded(
-              child: _MemoContent(),
-            ),
+            const Expanded(child: _MemoContent()),
           ],
         ),
       ),
@@ -70,6 +76,13 @@ class _MemoContent extends ConsumerWidget {
     final allMemos = ref.watch(smartMemosProvider);
     final pinnedMemos = ref.watch(smartPinnedMemosProvider);
     final unpinnedMemos = ref.watch(smartUnpinnedMemosProvider);
+    final selectedMemoCount = selectedCategoryId == null
+        ? allMemos.length
+        : pinnedMemos.length + unpinnedMemos.length;
+    final selectedCategory = findMemoCategoryById(
+      categories,
+      selectedCategoryId,
+    );
 
     return Stack(
       children: [
@@ -85,19 +98,47 @@ class _MemoContent extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${selectedCategoryId == null ? allMemos.length : pinnedMemos.length + unpinnedMemos.length}개의 메모',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.memoColor,
-                        ),
+                    '$selectedMemoCount개의 메모',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: AppColors.memoColor),
                   ),
-                  IconButton(
-                    onPressed: () {
-                      ref.read(memoViewModeProvider.notifier).state = !isGridView;
-                    },
-                    icon: Icon(
-                      isGridView ? Iconsax.row_vertical : Iconsax.grid_1,
-                      size: 20,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: '카테고리 분석 이력',
+                        onPressed: () => _openCategoryAnalysisHistory(context),
+                        icon: const Icon(Iconsax.document_text, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: selectedCategoryId == null
+                            ? '전체 메모 분석 요청'
+                            : '"${selectedCategory?.name ?? '카테고리'}" 분석 요청',
+                        onPressed: () => _submitCategoryAnalysis(
+                          context: context,
+                          ref: ref,
+                          categoryId: selectedCategoryId,
+                          categoryName: selectedCategory?.name,
+                          memoCount: selectedMemoCount,
+                        ),
+                        icon: Icon(
+                          Iconsax.magic_star,
+                          color: AppColors.primaryLight,
+                          size: 20,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {
+                          ref.read(memoViewModeProvider.notifier).state =
+                              !isGridView;
+                        },
+                        icon: Icon(
+                          isGridView ? Iconsax.row_vertical : Iconsax.grid_1,
+                          size: 20,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -105,7 +146,9 @@ class _MemoContent extends ConsumerWidget {
             // 카테고리 필터
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: Row(
                 children: [
                   MemoCategoryChip(
@@ -113,11 +156,19 @@ class _MemoContent extends ConsumerWidget {
                     count: allMemos.length,
                     isSelected: selectedCategoryId == null,
                     color: AppColors.memoColor,
-                    onTap: () => ref.read(smartSelectedMemoCategoryIdProvider.notifier).state = null,
+                    onTap: () =>
+                        ref
+                                .read(
+                                  smartSelectedMemoCategoryIdProvider.notifier,
+                                )
+                                .state =
+                            null,
                   ),
                   const SizedBox(width: 8),
                   ...categories.map((category) {
-                    final count = allMemos.where((m) => m.categoryId == category.id).length;
+                    final count = allMemos
+                        .where((m) => m.categoryId == category.id)
+                        .length;
                     final color = parseMemoCategoryColor(category.color);
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
@@ -127,7 +178,13 @@ class _MemoContent extends ConsumerWidget {
                         isSelected: selectedCategoryId == category.id,
                         color: color,
                         icon: category.icon,
-                        onTap: () => ref.read(smartSelectedMemoCategoryIdProvider.notifier).state = category.id,
+                        onTap: () =>
+                            ref
+                                .read(
+                                  smartSelectedMemoCategoryIdProvider.notifier,
+                                )
+                                .state = category
+                                .id,
                       ),
                     );
                   }),
@@ -222,10 +279,12 @@ class _MemoContent extends ConsumerWidget {
         if (pinnedMemos.isNotEmpty) ...[
           _buildSectionHeader(context, '고정됨', Iconsax.attach_circle5),
           const SizedBox(height: AppTheme.spacingS),
-          ...pinnedMemos.map((memo) => MemoCard(
-                memo: memo,
-                onTap: () => _openMemoDetail(context, memo),
-              )),
+          ...pinnedMemos.map(
+            (memo) => MemoCard(
+              memo: memo,
+              onTap: () => _openMemoDetail(context, memo),
+            ),
+          ),
           const SizedBox(height: AppTheme.spacingM),
         ],
         // 일반 메모
@@ -233,10 +292,12 @@ class _MemoContent extends ConsumerWidget {
           if (pinnedMemos.isNotEmpty)
             _buildSectionHeader(context, '메모', Iconsax.note),
           if (pinnedMemos.isNotEmpty) const SizedBox(height: AppTheme.spacingS),
-          ...unpinnedMemos.map((memo) => MemoCard(
-                memo: memo,
-                onTap: () => _openMemoDetail(context, memo),
-              )),
+          ...unpinnedMemos.map(
+            (memo) => MemoCard(
+              memo: memo,
+              onTap: () => _openMemoDetail(context, memo),
+            ),
+          ),
         ],
         // 하단 여백 (FAB 공간)
         const SizedBox(height: 80),
@@ -272,7 +333,10 @@ class _MemoContent extends ConsumerWidget {
         }
 
         final memo = allMemos[index];
-        final matchedCategory = findMemoCategoryById(categories, memo.categoryId);
+        final matchedCategory = findMemoCategoryById(
+          categories,
+          memo.categoryId,
+        );
         final categoryColor = parseMemoCategoryColor(matchedCategory?.color);
         final categoryName = matchedCategory?.name ?? memo.categoryName;
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -284,9 +348,14 @@ class _MemoContent extends ConsumerWidget {
               color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               border: memo.isPinned
-                  ? Border.all(color: categoryColor.withValues(alpha: 0.5), width: 1.5)
+                  ? Border.all(
+                      color: categoryColor.withValues(alpha: 0.5),
+                      width: 1.5,
+                    )
                   : null,
-              boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
+              boxShadow: isDark
+                  ? AppTheme.softShadowDark
+                  : AppTheme.softShadowLight,
             ),
             padding: const EdgeInsets.all(AppTheme.spacingM),
             child: Column(
@@ -303,7 +372,9 @@ class _MemoContent extends ConsumerWidget {
                         ),
                         decoration: BoxDecoration(
                           color: categoryColor.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                          borderRadius: BorderRadius.circular(
+                            AppTheme.radiusSmall,
+                          ),
                         ),
                         child: Text(
                           categoryName,
@@ -327,9 +398,9 @@ class _MemoContent extends ConsumerWidget {
                 // 제목
                 Text(
                   memo.displayTitle,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -338,10 +409,10 @@ class _MemoContent extends ConsumerWidget {
                   Text(
                     memo.previewText,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight,
-                        ),
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -382,36 +453,33 @@ class _MemoContent extends ConsumerWidget {
           Text(
             '메모가 없습니다',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
           ),
           const SizedBox(height: AppTheme.spacingS),
-          Text(
-            '새 메모를 추가해보세요',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text('새 메모를 추가해보세요', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title, IconData icon) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: AppColors.memoColor,
-        ),
+        Icon(icon, size: 16, color: AppColors.memoColor),
         const SizedBox(width: AppTheme.spacingS),
         Text(
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: AppColors.memoColor,
-                fontWeight: FontWeight.w600,
-              ),
+            color: AppColors.memoColor,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -430,6 +498,125 @@ class _MemoContent extends ConsumerWidget {
     ).showSnackBar(SnackBar(content: Text('"${created.name}" 카테고리를 추가했습니다')));
   }
 
+  void _openCategoryAnalysisHistory(BuildContext context) {
+    context.push('/memo/category-analysis/history');
+  }
+
+  Future<void> _submitCategoryAnalysis({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String? categoryId,
+    required String? categoryName,
+    required int memoCount,
+  }) async {
+    if (memoCount <= 0) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('분석할 메모가 없습니다.')));
+      return;
+    }
+
+    final user = ref.read(currentUserProvider);
+    if (user == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인이 필요합니다.')));
+      return;
+    }
+
+    final pendingJobsAsync = ref.read(pendingAnalysisJobsProvider);
+    final hasPendingMemoCategoryJob =
+        pendingJobsAsync.valueOrNull?.any(
+          (job) => job.jobType == AnalysisJobType.memoCategoryAnalysis,
+        ) ??
+        false;
+    if (hasPendingMemoCategoryJob) {
+      _showPendingCategoryAnalysisDialog(context);
+      return;
+    }
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    SubmitJobResult? submitResult;
+    try {
+      submitResult = await ref
+          .read(aiApiServiceProvider)
+          .submitMemoCategoryAnalysis(
+            userId: user.uid,
+            categoryId: categoryId,
+            categoryName: categoryName,
+            maxMemos: memoCount.clamp(10, 300).toInt(),
+          );
+    } on AiApiException catch (e) {
+      if (context.mounted) {
+        final lowerMessage = e.message.toLowerCase();
+        final isDuplicatePending =
+            e.statusCode == 409 ||
+            lowerMessage.contains('already') ||
+            lowerMessage.contains('pending') ||
+            e.message.contains('진행 중');
+        if (isDuplicatePending) {
+          _showPendingCategoryAnalysisDialog(context);
+          return;
+        }
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('분석 요청 실패: ${e.message}')));
+      }
+      return;
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('분석 요청 실패: $e')));
+      }
+      return;
+    } finally {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+    }
+
+    if (!context.mounted) return;
+    final accepted = submitResult;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RequestAcceptedScreen(
+          jobId: accepted.jobId,
+          estimatedTimeSeconds: accepted.estimatedTimeSeconds,
+          initialJobType: AnalysisJobType.memoCategoryAnalysis,
+        ),
+      ),
+    );
+  }
+
+  void _showPendingCategoryAnalysisDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('진행 중인 분석'),
+        content: const Text('이미 메모 카테고리 분석이 진행 중입니다.\n분석 이력에서 상태를 확인해 주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('닫기'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+              _openCategoryAnalysisHistory(context);
+            },
+            child: Text('이력 보기', style: TextStyle(color: AppColors.memoColor)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddMemoSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -442,9 +629,7 @@ class _MemoContent extends ConsumerWidget {
   void _openMemoDetail(BuildContext context, Memo memo) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => MemoDetailScreen(memo: memo),
-      ),
+      MaterialPageRoute(builder: (context) => MemoDetailScreen(memo: memo)),
     );
   }
 }

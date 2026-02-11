@@ -180,9 +180,12 @@ class AiApiService {
           status: data['status'] ?? 'pending',
           estimatedTimeSeconds: data['estimated_time_seconds'] ?? 120,
         );
-      } else if (response.statusCode == 400) {
+      } else if (response.statusCode == 400 || response.statusCode == 409) {
         final data = jsonDecode(response.body);
-        throw AiApiException(data['detail'] ?? '요청 실패');
+        throw AiApiException(
+          data['detail'] ?? '요청 실패',
+          statusCode: response.statusCode,
+        );
       } else {
         throw AiApiException('요청 실패: ${response.statusCode}');
       }
@@ -408,9 +411,12 @@ class AiApiService {
           status: data['status'] ?? 'pending',
           estimatedTimeSeconds: data['estimated_time_seconds'] ?? 180,
         );
-      } else if (response.statusCode == 400) {
+      } else if (response.statusCode == 400 || response.statusCode == 409) {
         final data = jsonDecode(response.body);
-        throw AiApiException(data['detail'] ?? '요청 실패');
+        throw AiApiException(
+          data['detail'] ?? '요청 실패',
+          statusCode: response.statusCode,
+        );
       } else {
         throw AiApiException('요청 실패: ${response.statusCode}');
       }
@@ -454,9 +460,12 @@ class AiApiService {
           status: data['status'] ?? 'pending',
           estimatedTimeSeconds: data['estimated_time_seconds'] ?? 90,
         );
-      } else if (response.statusCode == 400) {
+      } else if (response.statusCode == 400 || response.statusCode == 409) {
         final data = jsonDecode(response.body);
-        throw AiApiException(data['detail'] ?? '요청 실패');
+        throw AiApiException(
+          data['detail'] ?? '요청 실패',
+          statusCode: response.statusCode,
+        );
       } else {
         throw AiApiException('요청 실패: ${response.statusCode}');
       }
@@ -503,7 +512,9 @@ class AiApiService {
   }) async {
     try {
       final headers = await _getHeaders();
-      final query = StringBuffer('$_baseUrl/api/memo/category-analysis/history?');
+      final query = StringBuffer(
+        '$_baseUrl/api/memo/category-analysis/history?',
+      );
       query.write('user_id=$userId');
       if (categoryId != null && categoryId.trim().isNotEmpty) {
         query.write('&category_id=${Uri.encodeComponent(categoryId.trim())}');
@@ -521,9 +532,11 @@ class AiApiService {
         if (history is! List) return <MemoCategoryAnalysisHistoryItem>[];
         return history
             .whereType<Map>()
-            .map((item) => MemoCategoryAnalysisHistoryItem.fromJson(
-                  Map<String, dynamic>.from(item),
-                ))
+            .map(
+              (item) => MemoCategoryAnalysisHistoryItem.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
             .toList();
       } else {
         final data = jsonDecode(response.body);
@@ -752,7 +765,8 @@ class AiApiService {
 /// AI API 예외
 class AiApiException implements Exception {
   final String message;
-  AiApiException(this.message);
+  final int? statusCode;
+  AiApiException(this.message, {this.statusCode});
 
   @override
   String toString() => message;

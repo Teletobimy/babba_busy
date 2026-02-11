@@ -81,8 +81,9 @@ class NotificationService {
 
   /// 로컬 알림 플러그인 초기화
   Future<void> _initializeLocalNotifications() async {
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/launcher_icon');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/launcher_icon',
+    );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: false,
       requestBadgePermission: false,
@@ -105,9 +106,10 @@ class NotificationService {
     // 웹이거나 Android가 아니면 스킵
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
 
-    final androidPlugin =
-        _localNotifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
 
     if (androidPlugin == null) return;
 
@@ -292,6 +294,7 @@ class NotificationService {
     '/tools/business/history',
     '/tools/psychology',
     '/tools/psychology/history',
+    '/memo/category-analysis/history',
   };
 
   /// 라우트 유효성 검사
@@ -300,6 +303,8 @@ class NotificationService {
     if (_validRoutes.contains(route)) return true;
     // /tools/psychology/test/{testType} 패턴 체크
     if (route.startsWith('/tools/psychology/test/')) return true;
+    // /memo/category-analysis/{analysisId} 패턴 체크
+    if (route.startsWith('/memo/category-analysis/')) return true;
     return false;
   }
 
@@ -357,8 +362,8 @@ class NotificationService {
             debugPrint('🔔 사업 분석 알림 → /tools/business/history');
             context.go('/tools/business/history');
           } else if (jobType == 'memo_category_analysis') {
-            debugPrint('🔔 메모 카테고리 분석 알림 → /home');
-            context.go('/home');
+            debugPrint('🔔 메모 카테고리 분석 알림 → /memo/category-analysis/history');
+            context.go('/memo/category-analysis/history');
           } else {
             debugPrint('🔔 분석 알림(기본) → /home');
             context.go('/home');
@@ -409,7 +414,8 @@ class NotificationService {
 
     debugPrint('🔔 알림 권한 상태: ${settings.authorizationStatus}');
 
-    final isGranted = settings.authorizationStatus == AuthorizationStatus.authorized ||
+    final isGranted =
+        settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
 
     debugPrint('🔔 알림 권한 결과: ${isGranted ? '✅ 허용' : '❌ 거부'}');
@@ -425,15 +431,20 @@ class NotificationService {
       if (kIsWeb) {
         // 웹에서는 VAPID 키가 필요 (공개 키이므로 코드에 포함해도 안전)
         // Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-        const vapidKey = '***REMOVED_FCM_VAPID_KEY***';
+        const vapidKey =
+            '***REMOVED_FCM_VAPID_KEY***';
         debugPrint('🌐 웹 FCM 토큰 요청 (VAPID: ${vapidKey.substring(0, 20)}...)');
         final token = await _messaging.getToken(vapidKey: vapidKey);
-        debugPrint('🌐 웹 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}');
+        debugPrint(
+          '🌐 웹 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}',
+        );
         return token;
       }
 
       final token = await _messaging.getToken();
-      debugPrint('📱 네이티브 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}');
+      debugPrint(
+        '📱 네이티브 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}',
+      );
       return token;
     } catch (e, stack) {
       debugPrint('❌ FCM 토큰 가져오기 실패: $e');
