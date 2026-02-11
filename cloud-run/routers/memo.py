@@ -8,10 +8,12 @@ from pydantic import BaseModel, Field
 
 from config import get_settings
 from dependencies import get_current_user
+from services import FirestoreCache
 
 router = APIRouter(prefix="/api/memo", tags=["Memo"])
 
 settings = get_settings()
+MAX_MEMO_ANALYZE_CHARS = 20000
 
 
 class MemoAnalyzeRequest(BaseModel):
@@ -96,6 +98,12 @@ async def analyze_memo(
                 status_code=400, detail="내용이 너무 짧습니다 (최소 20자)"
             )
 
+        if len(request.content) > MAX_MEMO_ANALYZE_CHARS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"내용이 너무 깁니다 (최대 {MAX_MEMO_ANALYZE_CHARS}자)",
+            )
+
         genai.configure(api_key=settings.gemini_api_key)
         model = genai.GenerativeModel("gemini-1.5-flash")
 
@@ -175,3 +183,91 @@ async def analyze_memo(
     except Exception as e:
         print(f"Memo analyze error: {e}")
         raise HTTPException(status_code=500, detail="분석 중 오류가 발생했습니다.")
+
+
+@router.get("/category-analysis/{analysis_id}")
+async def get_memo_category_analysis(
+    analysis_id: str,
+    user_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """메모 카테고리 분석 결과 조회"""
+    try:
+        if current_user["uid"] != user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+        analysis = await FirestoreCache.get_memo_category_analysis(user_id, analysis_id)
+        if not analysis:
+            raise HTTPException(status_code=404, detail="분석 결과를 찾을 수 없습니다.")
+
+        return {
+            "success": True,
+            "analysis_id": analysis.get("id", analysis_id),
+            "category_id": analysis.get("categoryId"),
+            "category_name": analysis.get("categoryName", ""),
+            "memo_count": analysis.get("memoCount", 0),
+            "result": analysis.get("result", {}),
+            "created_at": analysis.get("createdAt"),
+            "completed_at": analysis.get("completedAt"),
+            "job_id": analysis.get("jobId"),
+            "status": analysis.get("status", "completed"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Get memo category analysis error: {e}")
+        raise HTTPException(status_code=500, detail="분석 결과 조회 중 오류가 발생했습니다.")
+
+
+@router.get("/category-analysis/history")
+async def get_memo_category_analysis_history(
+    user_id: str,
+    category_id: Optional[str] = None,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    """메모 카테고리 분석 결과 목록 조회"""
+    try:
+        if current_user["uid"] != user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+        safe_limit = max(1, min(limit, 100))
+        analysis_list = await FirestoreCache.get_memo_category_analyses(
+            user_id=user_id,
+            limit=safe_limit,
+            category_id=category_id.strip() if category_id else None,
+        )
+
+        history = []
+        for item in analysis_list:
+            history.append({
+                "analysis_id": item.get("id"),
+                "category_id": item.get("categoryId"),
+                "category_name": item.get("categoryName", ""),
+                "memo_count": item.get("memoCount", 0),
+                "summary": (
+                    item.get("result", {}).get("summary", "")
+                    if isinstance(item.get("result"), dict)
+                    else ""
+                ),
+                "confidence": (
+                    item.get("result", {}).get("confidence")
+                    if isinstance(item.get("result"), dict)
+                    else None
+                ),
+                "created_at": item.get("createdAt"),
+                "completed_at": item.get("completedAt"),
+                "status": item.get("status", "completed"),
+                "job_id": item.get("jobId"),
+            })
+
+        return {
+            "success": True,
+            "history": history,
+            "total": len(history),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Get memo category analysis history error: {e}")
+        raise HTTPException(status_code=500, detail="분석 목록 조회 중 오류가 발생했습니다.")

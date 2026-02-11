@@ -156,8 +156,76 @@ async def submit_psychology_answer(
         test_type = TestType(session["test_type"])
         questions = psychology_pm.get_questions(test_type)
 
-        # 답변 저장
+        total_questions = int(session.get("total_questions", len(questions)))
         answers = session.get("answers", [])
+        if not isinstance(answers, list):
+            answers = []
+
+        current_index = len(answers)
+
+        # 이미 완료된 세션이면 추가 제출 차단
+        if current_index >= total_questions:
+            if current_index > 0:
+                previous = answers[current_index - 1]
+                prev_question_id = None
+                prev_answer_index = None
+                if isinstance(previous, dict):
+                    prev_question_id = previous.get("question_id")
+                    prev_answer_index = previous.get("answer_index")
+
+                if prev_question_id == question_id and prev_answer_index == answer_index:
+                    return {
+                        "success": True,
+                        "session_id": session_id,
+                        "progress": 1.0,
+                        "answered": current_index,
+                        "total": total_questions,
+                        "next_question": None,
+                        "is_complete": True,
+                    }
+
+            raise HTTPException(status_code=400, detail="이미 완료된 검사입니다.")
+
+        if current_index >= len(questions):
+            raise HTTPException(status_code=400, detail="질문 데이터가 손상되었습니다.")
+
+        expected_question = questions[current_index]
+        expected_question_id = expected_question.get("id")
+        expected_options = expected_question.get("options", [])
+
+        # 네트워크 재전송 등으로 직전 답변이 중복 전달된 경우는 idempotent 처리
+        if question_id != expected_question_id:
+            if current_index > 0:
+                previous = answers[current_index - 1]
+                prev_question_id = None
+                prev_answer_index = None
+                if isinstance(previous, dict):
+                    prev_question_id = previous.get("question_id")
+                    prev_answer_index = previous.get("answer_index")
+
+                if prev_question_id == question_id and prev_answer_index == answer_index:
+                    progress = current_index / total_questions
+                    next_question = {
+                        "question_id": expected_question_id,
+                        "question": expected_question.get("text", ""),
+                        "options": expected_options,
+                    }
+                    return {
+                        "success": True,
+                        "session_id": session_id,
+                        "progress": progress,
+                        "answered": current_index,
+                        "total": total_questions,
+                        "next_question": next_question,
+                        "is_complete": False,
+                    }
+
+            raise HTTPException(status_code=409, detail="질문 순서가 올바르지 않습니다.")
+
+        if not isinstance(answer_index, int) or answer_index < 0 or answer_index >= len(expected_options):
+            raise HTTPException(status_code=400, detail="유효하지 않은 답변 인덱스입니다.")
+
+        # 답변 저장
         answers.append({
             "question_id": question_id,
             "answer_index": answer_index,
@@ -169,10 +237,10 @@ async def submit_psychology_answer(
         session["current_index"] = next_index
 
         # 진행률
-        progress = next_index / session["total_questions"]
+        progress = next_index / total_questions
 
         # 완료 여부
-        is_complete = next_index >= session["total_questions"]
+        is_complete = next_index >= total_questions
 
         # 세션 업데이트
         await FirestoreCache.set_psychology_session(user_id, session_id, session)
@@ -192,7 +260,7 @@ async def submit_psychology_answer(
             "session_id": session_id,
             "progress": progress,
             "answered": next_index,
-            "total": session["total_questions"],
+            "total": total_questions,
             "next_question": next_question,
             "is_complete": is_complete,
         }
@@ -378,15 +446,34 @@ async def get_test_history(
     current_user: dict = Depends(get_current_user),
 ):
     """사용자의 검사 히스토리 조회"""
-    if current_user["uid"] != user_id:
-        raise HTTPException(status_code=403, detail="권한이 없습니다.")
+    try:
+        if current_user["uid"] != user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
-    # TODO: Firestore에서 히스토리 조회 구현
-    # 현재는 빈 배열 반환
-    return {
-        "history": [],
-        "total": 0,
-    }
+        safe_limit = max(1, min(limit, 100))
+        results = await FirestoreCache.get_psychology_results(user_id, safe_limit)
+
+        history = []
+        for item in results:
+            history.append({
+                "id": item.get("id"),
+                "test_type": item.get("testType"),
+                "answers": item.get("answers", []),
+                "result": item.get("result", {}),
+                "completed_at": item.get("completedAt"),
+                "is_shared": item.get("isShared", False),
+                "session_id": item.get("sessionId") or item.get("sourceSessionId"),
+            })
+
+        return {
+            "history": history,
+            "total": len(history),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Psychology history error: {e}")
+        raise HTTPException(status_code=500, detail="히스토리 조회 중 오류가 발생했습니다.")
 
 
 # ============ 종합 리포트 ============

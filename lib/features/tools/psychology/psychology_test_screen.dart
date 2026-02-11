@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../services/ai/ai_api_service.dart';
+import '../../../shared/models/analysis_job.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/psychology_result_provider.dart';
 import '../business/widgets/request_accepted_screen.dart';
@@ -65,6 +66,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         testType: widget.testType,
       );
 
+      if (!mounted) return;
       setState(() {
         _sessionId = result.sessionId;
         _testName = _getTestName(widget.testType);
@@ -74,6 +76,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = "Cloud Run 연결 실패: $e"; // 더 구체적인 에러 메시지
         _isLoading = false;
@@ -119,15 +122,18 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
       final aiService = ref.read(aiApiServiceProvider);
 
-      // 답변 리스트에 추가 (로컬 저장용)
-      _answers.add(answerIndex);
-
       final result = await aiService.submitPsychologyAnswer(
         userId: userId,
         sessionId: _sessionId!,
         questionId: _currentQuestion!.questionId,
         answerIndex: answerIndex,
       );
+
+      if (!mounted) return;
+      // 서버의 answered 카운트를 기준으로 로컬 상태를 동기화한다.
+      if (result.answered > _answers.length) {
+        _answers.add(answerIndex);
+      }
 
       if (result.isComplete) {
         // 검사 완료 - 분석 방식 선택 다이얼로그 표시
@@ -137,13 +143,14 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         });
       } else {
         setState(() {
-          _currentIndex++;
+          _currentIndex = result.answered;
           _currentQuestion = result.nextQuestion;
           _isSubmitting = false;
           _selectedAnswerIndex = null;
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = "답변 제출 실패: $e";
         _isSubmitting = false;
@@ -170,6 +177,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       );
 
       await for (final progress in stream) {
+        if (!mounted) break;
         setState(() {
           _agentProgress[progress.agentName] = progress.status;
           if (progress.agentName == 'final_report' &&
@@ -189,6 +197,8 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         });
       }
 
+      if (!mounted) return;
+
       // DB에 결과 저장
       if (_analysis != null) {
         final resultService = ref.read(psychologyResultServiceProvider);
@@ -199,6 +209,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = "분석 실패: $e";
         _isSubmitting = false;
@@ -225,31 +236,27 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         testType: widget.testType,
       );
 
+      if (!mounted) return;
       setState(() {
         _isSubmitting = false;
         _submittedJobId = result.jobId;
         _estimatedTimeSeconds = result.estimatedTimeSeconds;
       });
     } on AiApiException catch (e) {
+      if (!mounted) return;
       setState(() {
+        _showAnalysisChoice = true;
         _error = e.message;
         _isSubmitting = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
+        _showAnalysisChoice = true;
         _error = e.toString();
         _isSubmitting = false;
       });
     }
-  }
-
-  /// 동기 분석으로 전환
-  void _switchToSyncMode() {
-    setState(() {
-      _showAnalysisChoice = false;
-      _submittedJobId = null;
-    });
-    _getResult();
   }
 
   @override
@@ -259,7 +266,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       return RequestAcceptedScreen(
         jobId: _submittedJobId!,
         estimatedTimeSeconds: _estimatedTimeSeconds,
-        onWaitHere: _switchToSyncMode,
+        initialJobType: AnalysisJobType.psychologyTest,
       );
     }
 

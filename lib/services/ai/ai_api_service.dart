@@ -363,7 +363,19 @@ class AiApiService {
         final data = jsonDecode(response.body);
         return PsychologyAnswerResult.fromJson(data);
       } else {
-        throw AiApiException('답변 제출 실패: ${response.statusCode}');
+        String? detailMessage;
+        try {
+          final data = jsonDecode(response.body);
+          final detail = data is Map ? data['detail'] : null;
+          if (detail != null) {
+            detailMessage = detail.toString();
+          }
+        } catch (_) {
+          // fall through
+        }
+        throw AiApiException(
+          detailMessage ?? '답변 제출 실패: ${response.statusCode}',
+        );
       }
     } catch (e) {
       if (e is AiApiException) rethrow;
@@ -401,6 +413,121 @@ class AiApiService {
         throw AiApiException(data['detail'] ?? '요청 실패');
       } else {
         throw AiApiException('요청 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 메모 카테고리 분석 비동기 요청 (백그라운드 처리)
+  Future<SubmitJobResult> submitMemoCategoryAnalysis({
+    required String userId,
+    String? categoryId,
+    String? categoryName,
+    List<String> focus = const [],
+    int maxMemos = 120,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/jobs/memo/category/submit'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          if (categoryId != null && categoryId.trim().isNotEmpty)
+            'category_id': categoryId.trim(),
+          if (categoryName != null && categoryName.trim().isNotEmpty)
+            'category_name': categoryName.trim(),
+          'focus': focus
+              .map((item) => item.trim())
+              .where((item) => item.isNotEmpty)
+              .toList(),
+          'max_memos': maxMemos,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return SubmitJobResult(
+          jobId: data['job_id'],
+          status: data['status'] ?? 'pending',
+          estimatedTimeSeconds: data['estimated_time_seconds'] ?? 90,
+        );
+      } else if (response.statusCode == 400) {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '요청 실패');
+      } else {
+        throw AiApiException('요청 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 메모 카테고리 분석 결과 조회
+  Future<MemoCategoryAnalysisResult> getMemoCategoryAnalysis({
+    required String userId,
+    required String analysisId,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse(
+          '$_baseUrl/api/memo/category-analysis/$analysisId?user_id=$userId',
+        ),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return MemoCategoryAnalysisResult.fromJson(data);
+      } else if (response.statusCode == 404) {
+        throw AiApiException('분석 결과를 찾을 수 없습니다');
+      } else {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '조회 실패: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 메모 카테고리 분석 이력 조회
+  Future<List<MemoCategoryAnalysisHistoryItem>> getMemoCategoryAnalysisHistory({
+    required String userId,
+    String? categoryId,
+    int limit = 20,
+  }) async {
+    try {
+      final headers = await _getHeaders();
+      final query = StringBuffer('$_baseUrl/api/memo/category-analysis/history?');
+      query.write('user_id=$userId');
+      if (categoryId != null && categoryId.trim().isNotEmpty) {
+        query.write('&category_id=${Uri.encodeComponent(categoryId.trim())}');
+      }
+      query.write('&limit=$limit');
+
+      final response = await http.get(
+        Uri.parse(query.toString()),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final history = data['history'];
+        if (history is! List) return <MemoCategoryAnalysisHistoryItem>[];
+        return history
+            .whereType<Map>()
+            .map((item) => MemoCategoryAnalysisHistoryItem.fromJson(
+                  Map<String, dynamic>.from(item),
+                ))
+            .toList();
+      } else {
+        final data = jsonDecode(response.body);
+        throw AiApiException(data['detail'] ?? '조회 실패: ${response.statusCode}');
       }
     } catch (e) {
       if (e is AiApiException) rethrow;
@@ -650,6 +777,108 @@ class MemoAnalysisResult {
   });
 }
 
+/// 메모 카테고리 분석 결과
+class MemoCategoryAnalysisResult {
+  final String analysisId;
+  final String? categoryId;
+  final String categoryName;
+  final int memoCount;
+  final Map<String, dynamic> result;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+  final String? jobId;
+  final String status;
+
+  MemoCategoryAnalysisResult({
+    required this.analysisId,
+    this.categoryId,
+    required this.categoryName,
+    required this.memoCount,
+    required this.result,
+    this.createdAt,
+    this.completedAt,
+    this.jobId,
+    required this.status,
+  });
+
+  factory MemoCategoryAnalysisResult.fromJson(Map<String, dynamic> json) {
+    return MemoCategoryAnalysisResult(
+      analysisId: (json['analysis_id'] ?? '').toString(),
+      categoryId: _readNullableString(json['category_id']),
+      categoryName: (json['category_name'] ?? '').toString(),
+      memoCount: (json['memo_count'] as num?)?.toInt() ?? 0,
+      result: json['result'] is Map
+          ? Map<String, dynamic>.from(json['result'])
+          : <String, dynamic>{},
+      createdAt: _parseDateTime(json['created_at']),
+      completedAt: _parseDateTime(json['completed_at']),
+      jobId: _readNullableString(json['job_id']),
+      status: (json['status'] ?? 'completed').toString(),
+    );
+  }
+}
+
+/// 메모 카테고리 분석 이력 아이템
+class MemoCategoryAnalysisHistoryItem {
+  final String analysisId;
+  final String? categoryId;
+  final String categoryName;
+  final int memoCount;
+  final String summary;
+  final double? confidence;
+  final DateTime? createdAt;
+  final DateTime? completedAt;
+  final String status;
+  final String? jobId;
+
+  MemoCategoryAnalysisHistoryItem({
+    required this.analysisId,
+    this.categoryId,
+    required this.categoryName,
+    required this.memoCount,
+    required this.summary,
+    this.confidence,
+    this.createdAt,
+    this.completedAt,
+    required this.status,
+    this.jobId,
+  });
+
+  factory MemoCategoryAnalysisHistoryItem.fromJson(Map<String, dynamic> json) {
+    final rawConfidence = json['confidence'];
+    return MemoCategoryAnalysisHistoryItem(
+      analysisId: (json['analysis_id'] ?? '').toString(),
+      categoryId: _readNullableString(json['category_id']),
+      categoryName: (json['category_name'] ?? '').toString(),
+      memoCount: (json['memo_count'] as num?)?.toInt() ?? 0,
+      summary: (json['summary'] ?? '').toString(),
+      confidence: rawConfidence is num ? rawConfidence.toDouble() : null,
+      createdAt: _parseDateTime(json['created_at']),
+      completedAt: _parseDateTime(json['completed_at']),
+      status: (json['status'] ?? 'completed').toString(),
+      jobId: _readNullableString(json['job_id']),
+    );
+  }
+}
+
+DateTime? _parseDateTime(dynamic raw) {
+  if (raw == null) return null;
+  final value = raw.toString().trim();
+  if (value.isEmpty) return null;
+  try {
+    return DateTime.parse(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+String? _readNullableString(dynamic raw) {
+  if (raw == null) return null;
+  final value = raw.toString().trim();
+  if (value.isEmpty) return null;
+  return value;
+}
+
 /// AI 요약 결과
 class AiSummaryResult {
   final String summary;
@@ -764,12 +993,16 @@ class PsychologyAnswerResult {
   final double progress;
   final PsychologyQuestion? nextQuestion;
   final bool isComplete;
+  final int answered;
+  final int total;
 
   PsychologyAnswerResult({
     required this.sessionId,
     required this.progress,
     this.nextQuestion,
     required this.isComplete,
+    required this.answered,
+    required this.total,
   });
 
   factory PsychologyAnswerResult.fromJson(Map<String, dynamic> json) {
@@ -780,6 +1013,8 @@ class PsychologyAnswerResult {
           ? PsychologyQuestion.fromJson(json['next_question'])
           : null,
       isComplete: json['is_complete'] ?? false,
+      answered: (json['answered'] as num?)?.toInt() ?? 0,
+      total: (json['total'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -44,7 +44,8 @@ enum AnalysisJobStatus {
 /// 분석 작업 유형
 enum AnalysisJobType {
   businessReview,
-  psychologyTest;
+  psychologyTest,
+  memoCategoryAnalysis;
 
   String get value {
     switch (this) {
@@ -52,6 +53,8 @@ enum AnalysisJobType {
         return 'business_review';
       case psychologyTest:
         return 'psychology_test';
+      case memoCategoryAnalysis:
+        return 'memo_category_analysis';
     }
   }
 
@@ -61,6 +64,8 @@ enum AnalysisJobType {
         return '사업 검토';
       case psychologyTest:
         return '심리 검사';
+      case memoCategoryAnalysis:
+        return '메모 카테고리 분석';
     }
   }
 
@@ -70,6 +75,8 @@ enum AnalysisJobType {
         return AnalysisJobType.businessReview;
       case 'psychology_test':
         return AnalysisJobType.psychologyTest;
+      case 'memo_category_analysis':
+        return AnalysisJobType.memoCategoryAnalysis;
       default:
         return AnalysisJobType.businessReview;
     }
@@ -336,6 +343,8 @@ class AnalysisJob {
         return 120; // 약 2분
       case AnalysisJobType.psychologyTest:
         return 180; // 약 3분
+      case AnalysisJobType.memoCategoryAnalysis:
+        return 90; // 약 1.5분
     }
   }
 }

@@ -78,6 +78,7 @@ export const MessageTemplates = {
     const typeNames: Record<string, string> = {
       business_review: "사업 검토",
       psychology_test: "심리 검사",
+      memo_category_analysis: "메모 카테고리 분석",
     };
     const typeName = typeNames[jobType] || "분석";
     return {
@@ -90,6 +91,7 @@ export const MessageTemplates = {
     const typeNames: Record<string, string> = {
       business_review: "사업 검토",
       psychology_test: "심리 검사",
+      memo_category_analysis: "메모 카테고리 분석",
     };
     const typeName = typeNames[jobType] || "분석";
     return {

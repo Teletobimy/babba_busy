@@ -165,6 +165,7 @@ class AnalysisJobType(str, Enum):
     """분석 작업 유형"""
     BUSINESS_REVIEW = "business_review"
     PSYCHOLOGY_TEST = "psychology_test"
+    MEMO_CATEGORY_ANALYSIS = "memo_category_analysis"
 
 
 class AnalysisJobStatus(str, Enum):
@@ -252,6 +253,35 @@ class SubmitPsychologyAnalysisResponse(BaseModel):
     job_id: str
     status: AnalysisJobStatus = AnalysisJobStatus.PENDING
     estimated_time_seconds: int = 60  # 약 1분
+
+
+class SubmitMemoCategoryAnalysisRequest(BaseModel):
+    """메모 카테고리 비동기 분석 요청"""
+    user_id: str
+    category_id: Optional[str] = None
+    category_name: Optional[str] = None
+    focus: List[str] = Field(default_factory=list)
+    max_memos: int = Field(default=120, ge=10, le=400)
+
+
+class SubmitMemoCategoryAnalysisResponse(BaseModel):
+    """메모 카테고리 비동기 분석 응답"""
+    success: bool = True
+    job_id: str
+    status: AnalysisJobStatus = AnalysisJobStatus.PENDING
+    estimated_time_seconds: int = 90
+
+
+class MemoCategoryAnalysisResultResponse(BaseModel):
+    """메모 카테고리 분석 결과 응답"""
+    success: bool = True
+    analysis_id: str
+    category_id: Optional[str] = None
+    category_name: str
+    memo_count: int = 0
+    result: dict = Field(default_factory=dict)
+    created_at: datetime
+    completed_at: Optional[datetime] = None
 
 
 class ProcessJobRequest(BaseModel):

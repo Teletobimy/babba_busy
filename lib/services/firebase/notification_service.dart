@@ -353,9 +353,15 @@ class NotificationService {
           if (jobType == 'psychology_test') {
             debugPrint('🔔 심리 검사 알림 → /tools/psychology/history');
             context.go('/tools/psychology/history');
-          } else {
+          } else if (jobType == 'business_review') {
             debugPrint('🔔 사업 분석 알림 → /tools/business/history');
             context.go('/tools/business/history');
+          } else if (jobType == 'memo_category_analysis') {
+            debugPrint('🔔 메모 카테고리 분석 알림 → /home');
+            context.go('/home');
+          } else {
+            debugPrint('🔔 분석 알림(기본) → /home');
+            context.go('/home');
           }
           break;
         case 'album':

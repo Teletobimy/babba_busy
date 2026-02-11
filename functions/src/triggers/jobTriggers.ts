@@ -128,6 +128,8 @@ function getRouteForJobType(jobType: string): string {
     return "/tools/business/history";
   case "psychology_test":
     return "/tools/psychology/history";
+  case "memo_category_analysis":
+    return "/home";
   default:
     return "/home";
   }

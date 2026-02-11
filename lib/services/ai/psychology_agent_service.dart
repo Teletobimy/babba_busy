@@ -92,6 +92,8 @@ JSON 형식으로만 응답하세요:
         sessionId: sessionId,
         progress: 1.0,
         isComplete: true,
+        answered: totalCount,
+        total: totalCount,
       );
     }
 
@@ -109,6 +111,8 @@ JSON 형식으로만 응답하세요:
         progress: nextIdx / totalCount,
         isComplete: false,
         nextQuestion: PsychologyQuestion.fromJson(jsonData),
+        answered: nextIdx,
+        total: totalCount,
       );
     } catch (e) {
       return PsychologyAnswerResult(
@@ -120,6 +124,8 @@ JSON 형식으로만 응답하세요:
           question: '다음 질문을 불러오지 못했습니다. 평소 스트레스 관리는 어떻게 하시나요?',
           options: ['전혀 안 함', '조금 함', '보통', '하는 편', '아주 잘 함'],
         ),
+        answered: nextIdx,
+        total: totalCount,
       );
     }
   }

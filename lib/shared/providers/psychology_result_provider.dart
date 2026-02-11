@@ -112,23 +112,27 @@ class PsychologyResultService {
     required String sessionId,
     required String testType,
     required Map<String, dynamic> result,
-    List<int> answers = const [],
+    List<int>? answers,
     String? familyId,
     bool isShared = false,
   }) async {
     final resultsRef = _resultsRef;
     if (resultsRef == null) return;
 
-    await resultsRef.doc(sessionId).set({
+    final payload = <String, dynamic>{
       'userId': _userId,
       'familyId': familyId,
       'testType': testType,
-      'answers': answers,
       'result': result,
       'completedAt': FieldValue.serverTimestamp(),
       'isShared': isShared,
       'sourceSessionId': sessionId,
-    }, SetOptions(merge: true));
+    };
+    if (answers != null) {
+      payload['answers'] = answers;
+    }
+
+    await resultsRef.doc(sessionId).set(payload, SetOptions(merge: true));
   }
 
   /// 검사 결과 삭제

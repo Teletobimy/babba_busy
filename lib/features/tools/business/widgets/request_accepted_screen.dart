@@ -17,12 +17,14 @@ class RequestAcceptedScreen extends ConsumerStatefulWidget {
   final String jobId;
   final int estimatedTimeSeconds;
   final VoidCallback? onWaitHere;
+  final AnalysisJobType? initialJobType;
 
   const RequestAcceptedScreen({
     super.key,
     required this.jobId,
     this.estimatedTimeSeconds = 120,
     this.onWaitHere,
+    this.initialJobType,
   });
 
   @override
@@ -151,7 +153,9 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
                       AnalysisJob(
                         id: widget.jobId,
                         userId: '',
-                        jobType: AnalysisJobType.businessReview,
+                        jobType:
+                            widget.initialJobType ??
+                            AnalysisJobType.businessReview,
                         status: AnalysisJobStatus.pending,
                         input: {},
                         progress: AnalysisJobProgress(
@@ -228,9 +232,11 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
     }
 
     if (!mounted) return;
-    final route = job.jobType == AnalysisJobType.psychologyTest
-        ? '/tools/psychology/history'
-        : '/tools/business/history';
+    final route = switch (job.jobType) {
+      AnalysisJobType.psychologyTest => '/tools/psychology/history',
+      AnalysisJobType.businessReview => '/tools/business/history',
+      AnalysisJobType.memoCategoryAnalysis => '/home',
+    };
     context.go(route);
   }
 
@@ -268,7 +274,6 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
       await resultService.saveResultFromSession(
         sessionId: sessionId,
         testType: testType,
-        answers: const [],
         result: resultPayload,
       );
     } catch (_) {
@@ -277,13 +282,29 @@ class _RequestAcceptedScreenState extends ConsumerState<RequestAcceptedScreen> {
   }
 
   Widget _buildProgressCard(BuildContext context, AnalysisJob job) {
-    final steps = [
-      ('시장 조사', Iconsax.chart),
-      ('경쟁사 분석', Iconsax.people),
-      ('제품 기획', Iconsax.box),
-      ('재무 분석', Iconsax.money),
-      ('최종 리포트', Iconsax.document_text),
-    ];
+    final steps = job.jobType == AnalysisJobType.psychologyTest
+        ? [
+            ('점수 계산', Icons.calculate),
+            ('패턴 분석', Icons.insights),
+            ('강점 분석', Icons.psychology_alt),
+            ('성장 제안', Icons.trending_up),
+            ('최종 리포트', Iconsax.document_text),
+          ]
+        : job.jobType == AnalysisJobType.memoCategoryAnalysis
+        ? [
+            ('분석 축 설계', Icons.alt_route),
+            ('문맥 압축', Icons.compress),
+            ('통합 분석', Icons.hub),
+            ('품질 검증', Icons.verified),
+            ('최종 정리', Iconsax.document_text),
+          ]
+        : [
+            ('시장 조사', Iconsax.chart),
+            ('경쟁사 분석', Iconsax.people),
+            ('제품 기획', Iconsax.box),
+            ('재무 분석', Iconsax.money),
+            ('최종 리포트', Iconsax.document_text),
+          ];
 
     return Container(
       padding: const EdgeInsets.all(20),

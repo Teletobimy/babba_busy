@@ -7,6 +7,8 @@ from models import (
     SubmitBusinessAnalysisResponse,
     SubmitPsychologyAnalysisRequest,
     SubmitPsychologyAnalysisResponse,
+    SubmitMemoCategoryAnalysisRequest,
+    SubmitMemoCategoryAnalysisResponse,
     AnalysisJobResponse,
     AnalysisJobProgress,
     AnalysisJobStatus,
@@ -15,7 +17,7 @@ from models import (
     ErrorResponse,
 )
 from services import FirestoreCache
-from agents import BusinessPMAgent
+from agents import BusinessPMAgent, MemoCategoryPMAgent
 from agents.psychology_agents import PsychologyPMAgent, TestType
 from dependencies import get_current_user
 
@@ -24,6 +26,7 @@ router = APIRouter(prefix="/api/jobs", tags=["Analysis Jobs"])
 # PM 에이전트 싱글톤
 business_pm = BusinessPMAgent()
 psychology_pm = PsychologyPMAgent()
+memo_category_pm = MemoCategoryPMAgent()
 
 # 사용자당 동시 진행 가능한 작업 수 제한
 MAX_CONCURRENT_JOBS = 1
@@ -625,4 +628,206 @@ async def submit_psychology_analysis(
         raise
     except Exception as e:
         print(f"Submit psychology analysis error: {e}")
+        raise HTTPException(status_code=500, detail="분석 요청 중 오류가 발생했습니다.")
+
+
+async def _process_memo_category_analysis(job_id: str, user_id: str, input_data: dict):
+    """백그라운드에서 메모 카테고리 분석 수행"""
+    try:
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.PROCESSING.value,
+            "startedAt": datetime.utcnow(),
+            "updatedAt": datetime.utcnow(),
+        })
+
+        category_id = str(input_data.get("categoryId", "")).strip() or None
+        category_name = str(input_data.get("categoryName", "")).strip()
+        max_memos_raw = input_data.get("maxMemos", 120)
+        try:
+            max_memos = int(max_memos_raw)
+        except Exception:
+            max_memos = 120
+        max_memos = max(10, min(max_memos, 400))
+
+        focus_raw = input_data.get("focus", [])
+        focus: list[str] = []
+        if isinstance(focus_raw, list):
+            for item in focus_raw:
+                value = str(item).strip()
+                if value and value not in focus:
+                    focus.append(value)
+                    if len(focus) >= 8:
+                        break
+
+        memos = await FirestoreCache.get_user_memos(
+            user_id=user_id,
+            category_id=category_id,
+            category_name=category_name or None,
+            limit=max_memos,
+        )
+
+        if not memos:
+            raise Exception("분석할 메모가 없습니다.")
+
+        resolved_category_name = category_name
+        if not resolved_category_name:
+            for memo in memos:
+                value = str(memo.get("categoryName", "")).strip()
+                if value:
+                    resolved_category_name = value
+                    break
+
+        if not resolved_category_name:
+            resolved_category_name = "전체 메모"
+
+        step_names = [
+            "planning",
+            "context_compaction",
+            "synthesis",
+            "quality_validation",
+            "finalization",
+        ]
+
+        async def on_progress(step: str, status: str):
+            if status == "started":
+                step_index = step_names.index(step) if step in step_names else 0
+                await FirestoreCache.update_analysis_job(job_id, {
+                    "progress": {
+                        "currentStep": step_index + 1,
+                        "totalSteps": 5,
+                        "percentage": (step_index / 5) * 100,
+                        "currentStepName": step,
+                    },
+                    "updatedAt": datetime.utcnow(),
+                })
+            elif status == "completed":
+                step_index = step_names.index(step) if step in step_names else 0
+                await FirestoreCache.update_analysis_job(job_id, {
+                    "progress": {
+                        "currentStep": step_index + 1,
+                        "totalSteps": 5,
+                        "percentage": ((step_index + 1) / 5) * 100,
+                        "currentStepName": step,
+                    },
+                    "updatedAt": datetime.utcnow(),
+                })
+
+        result = await memo_category_pm.run(
+            category_name=resolved_category_name,
+            memos=memos,
+            requested_focus=focus,
+            on_progress=on_progress,
+        )
+
+        now = datetime.utcnow()
+        analysis_data = {
+            "userId": user_id,
+            "jobId": job_id,
+            "categoryId": category_id,
+            "categoryName": resolved_category_name,
+            "memoCount": len(memos),
+            "focus": focus,
+            "result": result,
+            "status": "completed",
+            "createdAt": now,
+            "completedAt": now,
+        }
+
+        analysis_id = await FirestoreCache.save_memo_category_analysis(
+            user_id=user_id,
+            analysis_data=analysis_data,
+        )
+
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.COMPLETED.value,
+            "resultId": analysis_id,
+            "progress": {
+                "currentStep": 5,
+                "totalSteps": 5,
+                "percentage": 100.0,
+                "currentStepName": "completed",
+            },
+            "completedAt": now,
+            "updatedAt": now,
+        })
+
+        print(f"Memo category analysis completed for job {job_id}")
+
+    except Exception as e:
+        print(f"Memo category analysis failed for job {job_id}: {e}")
+        await FirestoreCache.update_analysis_job(job_id, {
+            "status": AnalysisJobStatus.FAILED.value,
+            "error": {
+                "code": "analysis_failed",
+                "message": str(e),
+                "retryable": True,
+            },
+            "updatedAt": datetime.utcnow(),
+        })
+
+
+@router.post(
+    "/memo/category/submit",
+    response_model=SubmitMemoCategoryAnalysisResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def submit_memo_category_analysis(
+    request: SubmitMemoCategoryAnalysisRequest,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """메모 카테고리 분석 요청 (비동기)"""
+    try:
+        if current_user["uid"] != request.user_id:
+            raise HTTPException(status_code=403, detail="권한이 없습니다.")
+
+        category_id = request.category_id.strip() if request.category_id else None
+        category_name = request.category_name.strip() if request.category_name else None
+
+        focus: list[str] = []
+        for item in request.focus:
+            value = str(item).strip()
+            if value and value not in focus:
+                focus.append(value)
+            if len(focus) >= 8:
+                break
+
+        input_data = {
+            "categoryId": category_id,
+            "categoryName": category_name,
+            "focus": focus,
+            "maxMemos": request.max_memos,
+        }
+
+        job_id, message = await _create_analysis_job_atomic(
+            user_id=request.user_id,
+            job_type=AnalysisJobType.MEMO_CATEGORY_ANALYSIS,
+            input_data=input_data,
+        )
+
+        if job_id is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{message} 완료 후 다시 시도해주세요.",
+            )
+
+        background_tasks.add_task(
+            _process_memo_category_analysis,
+            job_id,
+            request.user_id,
+            input_data,
+        )
+
+        estimated = max(45, min(240, int(request.max_memos * 0.8)))
+
+        return SubmitMemoCategoryAnalysisResponse(
+            job_id=job_id,
+            status=AnalysisJobStatus.PENDING,
+            estimated_time_seconds=estimated,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Submit memo category analysis error: {e}")
         raise HTTPException(status_code=500, detail="분석 요청 중 오류가 발생했습니다.")

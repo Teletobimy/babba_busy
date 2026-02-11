@@ -194,20 +194,24 @@ class FirestoreCache:
         Returns:
             (success, message): 성공 여부와 메시지
         """
-        # 진행 중인 작업 수 확인
         jobs_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS)
-        query = jobs_ref.where(filter=FieldFilter("userId", "==", user_id)).where(
-            filter=FieldFilter("status", "in", ["pending", "processing"])
-        )
-        docs = list(query.stream())
+        job_ref = jobs_ref.document(job_id)
+        transaction = db.transaction()
 
-        if len(docs) >= max_concurrent:
-            return False, "이미 진행 중인 분석이 있습니다."
+        @firestore.transactional
+        def _create_job(txn):
+            query = jobs_ref.where(filter=FieldFilter("userId", "==", user_id)).where(
+                filter=FieldFilter("status", "in", ["pending", "processing"])
+            )
+            docs = list(query.stream(transaction=txn))
 
-        # 새 작업 생성
-        doc_ref = db.collection(FirestoreCache.COLLECTION_ANALYSIS_JOBS).document(job_id)
-        doc_ref.set(data)
-        return True, "success"
+            if len(docs) >= max_concurrent:
+                return False, "이미 진행 중인 분석이 있습니다."
+
+            txn.set(job_ref, data)
+            return True, "success"
+
+        return _create_job(transaction)
 
     @staticmethod
     async def create_analysis_job_atomic(user_id: str, job_id: str, data: dict, max_concurrent: int = 1) -> tuple[bool, str]:
@@ -320,6 +324,210 @@ class FirestoreCache:
         """심리검사 결과 저장"""
         return await asyncio.to_thread(
             FirestoreCache._save_psychology_result_sync, user_id, result_data, result_id
+        )
+
+    @staticmethod
+    def _get_psychology_results_sync(user_id: str, limit: int = 10) -> list[dict]:
+        """심리검사 결과 목록 조회 (동기)"""
+        query = (
+            db.collection("users")
+            .document(user_id)
+            .collection("psychology_results")
+            .order_by("completedAt", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+        )
+        docs = query.stream()
+
+        results: list[dict] = []
+        for doc in docs:
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            results.append(data)
+        return results
+
+    @staticmethod
+    async def get_psychology_results(user_id: str, limit: int = 10) -> list[dict]:
+        """심리검사 결과 목록 조회"""
+        return await asyncio.to_thread(
+            FirestoreCache._get_psychology_results_sync,
+            user_id,
+            limit,
+        )
+
+    @staticmethod
+    def _get_user_memos_sync(
+        user_id: str,
+        category_id: Optional[str] = None,
+        category_name: Optional[str] = None,
+        limit: int = 120,
+    ) -> list[dict]:
+        """사용자 메모 목록 조회 (동기)"""
+        query = db.collection("users").document(user_id).collection("memos")
+
+        if category_id:
+            query = query.where(filter=FieldFilter("categoryId", "==", category_id))
+        elif category_name:
+            query = query.where(filter=FieldFilter("categoryName", "==", category_name))
+
+        docs = query.stream()
+
+        def _as_sort_datetime(raw: Any) -> datetime:
+            if isinstance(raw, datetime):
+                return raw
+            if isinstance(raw, str):
+                try:
+                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+                except Exception:
+                    return datetime.min
+            return datetime.min
+
+        items: list[dict] = []
+        for doc in docs:
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            items.append(data)
+            if len(items) >= limit:
+                break
+
+        def _sort_key(item: dict) -> datetime:
+            updated_at = _as_sort_datetime(item.get("updatedAt"))
+            if updated_at != datetime.min:
+                return updated_at
+            return _as_sort_datetime(item.get("createdAt"))
+
+        items.sort(key=_sort_key, reverse=True)
+        return items[:limit]
+
+    @staticmethod
+    async def get_user_memos(
+        user_id: str,
+        category_id: Optional[str] = None,
+        category_name: Optional[str] = None,
+        limit: int = 120,
+    ) -> list[dict]:
+        """사용자 메모 목록 조회"""
+        return await asyncio.to_thread(
+            FirestoreCache._get_user_memos_sync,
+            user_id,
+            category_id,
+            category_name,
+            limit,
+        )
+
+    @staticmethod
+    def _save_memo_category_analysis_sync(
+        user_id: str,
+        analysis_data: dict,
+        analysis_id: Optional[str] = None,
+    ) -> str:
+        """메모 카테고리 분석 결과 저장 (동기)"""
+        if analysis_id:
+            doc_ref = (
+                db.collection("users")
+                .document(user_id)
+                .collection("memo_category_analyses")
+                .document(analysis_id)
+            )
+            doc_ref.set(analysis_data, merge=True)
+        else:
+            doc_ref = (
+                db.collection("users")
+                .document(user_id)
+                .collection("memo_category_analyses")
+                .document()
+            )
+            doc_ref.set(analysis_data)
+        return doc_ref.id
+
+    @staticmethod
+    async def save_memo_category_analysis(
+        user_id: str,
+        analysis_data: dict,
+        analysis_id: Optional[str] = None,
+    ) -> str:
+        """메모 카테고리 분석 결과 저장"""
+        return await asyncio.to_thread(
+            FirestoreCache._save_memo_category_analysis_sync,
+            user_id,
+            analysis_data,
+            analysis_id,
+        )
+
+    @staticmethod
+    def _get_memo_category_analysis_sync(user_id: str, analysis_id: str) -> Optional[dict]:
+        """메모 카테고리 분석 결과 단건 조회 (동기)"""
+        doc_ref = (
+            db.collection("users")
+            .document(user_id)
+            .collection("memo_category_analyses")
+            .document(analysis_id)
+        )
+        doc = doc_ref.get()
+        if not doc.exists:
+            return None
+        data = doc.to_dict() or {}
+        data["id"] = doc.id
+        return data
+
+    @staticmethod
+    async def get_memo_category_analysis(user_id: str, analysis_id: str) -> Optional[dict]:
+        """메모 카테고리 분석 결과 단건 조회"""
+        return await asyncio.to_thread(
+            FirestoreCache._get_memo_category_analysis_sync,
+            user_id,
+            analysis_id,
+        )
+
+    @staticmethod
+    def _get_memo_category_analyses_sync(
+        user_id: str,
+        limit: int = 20,
+        category_id: Optional[str] = None,
+    ) -> list[dict]:
+        """메모 카테고리 분석 결과 목록 조회 (동기)"""
+        query = db.collection("users").document(user_id).collection("memo_category_analyses")
+        if category_id:
+            query = query.where(filter=FieldFilter("categoryId", "==", category_id))
+
+        docs = query.stream()
+
+        def _as_sort_datetime(raw: Any) -> datetime:
+            if isinstance(raw, datetime):
+                return raw
+            if isinstance(raw, str):
+                try:
+                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
+                except Exception:
+                    return datetime.min
+            return datetime.min
+
+        items: list[dict] = []
+        for doc in docs:
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            items.append(data)
+
+        def _sort_key(item: dict) -> datetime:
+            completed_at = _as_sort_datetime(item.get("completedAt"))
+            if completed_at != datetime.min:
+                return completed_at
+            return _as_sort_datetime(item.get("createdAt"))
+
+        items.sort(key=_sort_key, reverse=True)
+        return items[:limit]
+
+    @staticmethod
+    async def get_memo_category_analyses(
+        user_id: str,
+        limit: int = 20,
+        category_id: Optional[str] = None,
+    ) -> list[dict]:
+        """메모 카테고리 분석 결과 목록 조회"""
+        return await asyncio.to_thread(
+            FirestoreCache._get_memo_category_analyses_sync,
+            user_id,
+            limit,
+            category_id,
         )
 
 
