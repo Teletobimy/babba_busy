@@ -10,7 +10,9 @@ import '../../../shared/providers/people_provider.dart';
 const Color peopleColor = Color(0xFF5B8DEF);
 
 class AddPersonSheet extends ConsumerStatefulWidget {
-  const AddPersonSheet({super.key});
+  final Person? initialPerson;
+
+  const AddPersonSheet({super.key, this.initialPerson});
 
   @override
   ConsumerState<AddPersonSheet> createState() => _AddPersonSheetState();
@@ -32,6 +34,27 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
   String? _relationship;
   final List<String> _tags = [];
   bool _isSaving = false;
+
+  bool get _isEditMode => widget.initialPerson != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final person = widget.initialPerson;
+    if (person == null) return;
+
+    _nameController.text = person.name;
+    _phoneController.text = person.phone ?? '';
+    _emailController.text = person.email ?? '';
+    _addressController.text = person.address ?? '';
+    _companyController.text = person.company ?? '';
+    _personalityController.text = person.personality ?? '';
+    _noteController.text = person.note ?? '';
+    _birthday = person.birthday;
+    _mbti = person.mbti;
+    _relationship = person.relationship;
+    _tags.addAll(person.tags);
+  }
 
   @override
   void dispose() {
@@ -86,7 +109,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
 
                   // 타이틀
                   Text(
-                    '새 사람 추가',
+                    _isEditMode ? '사람 정보 수정' : '새 사람 추가',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppTheme.spacingL),
@@ -352,8 +375,8 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text(
-                            '저장하기',
+                        : Text(
+                            _isEditMode ? '수정하기' : '저장하기',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -386,34 +409,78 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
     setState(() => _isSaving = true);
 
     try {
-      final person = Person(
-        id: '',
-        familyId: '',
-        name: _nameController.text.trim(),
-        birthday: _birthday,
-        mbti: _mbti,
-        phone: _optional(_phoneController.text),
-        email: _optional(_emailController.text),
-        address: _optional(_addressController.text),
-        personality: _optional(_personalityController.text),
-        relationship: _relationship,
-        company: _optional(_companyController.text),
-        note: _optional(_noteController.text),
-        tags: List<String>.from(_tags),
-        createdAt: DateTime.now(),
-        createdBy: '',
-      );
+      final peopleService = ref.read(peopleServiceProvider);
+      final normalizedTags = _tags
+          .map((tag) => tag.trim())
+          .where((tag) => tag.isNotEmpty)
+          .toSet()
+          .toList();
 
-      await ref.read(peopleServiceProvider).addPerson(person);
+      if (_isEditMode) {
+        final origin = widget.initialPerson!;
+        final updated = Person(
+          id: origin.id,
+          familyId: origin.familyId,
+          name: _nameController.text.trim(),
+          profilePhotoUrl: origin.profilePhotoUrl,
+          birthday: _birthday,
+          mbti: _mbti,
+          phone: _optional(_phoneController.text),
+          email: _optional(_emailController.text),
+          address: _optional(_addressController.text),
+          personality: _optional(_personalityController.text),
+          relationship: _relationship,
+          company: _optional(_companyController.text),
+          note: _optional(_noteController.text),
+          events: origin.events,
+          carePriority: origin.carePriority,
+          lastContactAt: origin.lastContactAt,
+          lastCareActionAt: origin.lastCareActionAt,
+          nextCareDueAt: origin.nextCareDueAt,
+          lifeContextSummary: origin.lifeContextSummary,
+          lifeEvents: origin.lifeEvents,
+          giftPreference: origin.giftPreference,
+          giftHistory: origin.giftHistory,
+          assistantSnapshot: origin.assistantSnapshot,
+          customFields: origin.customFields,
+          tags: normalizedTags,
+          createdAt: origin.createdAt,
+          createdBy: origin.createdBy,
+        );
+        await peopleService.updatePerson(updated);
+      } else {
+        final person = Person(
+          id: '',
+          familyId: '',
+          name: _nameController.text.trim(),
+          birthday: _birthday,
+          mbti: _mbti,
+          phone: _optional(_phoneController.text),
+          email: _optional(_emailController.text),
+          address: _optional(_addressController.text),
+          personality: _optional(_personalityController.text),
+          relationship: _relationship,
+          company: _optional(_companyController.text),
+          note: _optional(_noteController.text),
+          tags: normalizedTags,
+          createdAt: DateTime.now(),
+          createdBy: '',
+        );
+        await peopleService.addPerson(person);
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${_nameController.text}님이 추가되었습니다'),
+          content: Text(
+            _isEditMode
+                ? '${_nameController.text}님 정보가 수정되었습니다'
+                : '${_nameController.text}님이 추가되었습니다',
+          ),
           backgroundColor: peopleColor,
         ),
       );
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

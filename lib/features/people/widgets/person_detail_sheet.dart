@@ -3,23 +3,32 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/person.dart';
+import '../../../shared/providers/people_provider.dart';
+import '../../../shared/utils/people_care_assistant.dart';
+import 'add_person_sheet.dart';
 
 const Color peopleColor = Color(0xFF5B8DEF);
 
 class PersonDetailSheet extends ConsumerWidget {
   final Person person;
 
-  const PersonDetailSheet({
-    super.key,
-    required this.person,
-  });
+  const PersonDetailSheet({super.key, required this.person});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final careTarget =
+        ref.watch(personCareTargetProvider(person.id)) ??
+        PeopleCareTarget(
+          person: person,
+          score: calculateCarePriorityScore(person),
+          reasons: buildCareReasons(person),
+          giftSuggestions: recommendGiftIdeas(person, max: 4),
+        );
 
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
@@ -37,7 +46,9 @@ class PersonDetailSheet extends ConsumerWidget {
             children: [
               // 핸들
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingM),
+                padding: const EdgeInsets.symmetric(
+                  vertical: AppTheme.spacingM,
+                ),
                 child: Container(
                   width: 40,
                   height: 4,
@@ -58,142 +69,142 @@ class PersonDetailSheet extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 프로필 헤더
-                      _buildProfileHeader(context),
+                      _buildProfileHeader(context, ref),
                       const SizedBox(height: AppTheme.spacingL),
 
                       // 빠른 액션 버튼
                       _buildQuickActions(context),
                       const SizedBox(height: AppTheme.spacingL),
 
+                      // AI 챙김 요약
+                      _buildAssistantSection(context, careTarget),
+
                       // 기본 정보
-                      _buildSection(
-                        context,
-                        '기본 정보',
-                        [
-                          if (person.birthday != null)
-                            _InfoRow(
-                              icon: Iconsax.cake,
-                              label: '생일',
-                              value:
-                                  '${DateFormat('yyyy년 M월 d일').format(person.birthday!)} (만 ${person.age}세)',
-                              trailing: person.daysUntilBirthday != null
-                                  ? Text(
-                                      person.daysUntilBirthday == 0
-                                          ? '오늘!'
-                                          : 'D-${person.daysUntilBirthday}',
-                                      style: TextStyle(
-                                        color: (person.daysUntilBirthday ?? 999) <= 7
-                                            ? const Color(0xFFFF6B6B)
-                                            : peopleColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    )
-                                  : null,
+                      _buildSection(context, '기본 정보', [
+                        if (person.birthday != null)
+                          _InfoRow(
+                            icon: Iconsax.cake,
+                            label: '생일',
+                            value:
+                                '${DateFormat('yyyy년 M월 d일').format(person.birthday!)} (만 ${person.age}세)',
+                            trailing: person.daysUntilBirthday != null
+                                ? Text(
+                                    person.daysUntilBirthday == 0
+                                        ? '오늘!'
+                                        : 'D-${person.daysUntilBirthday}',
+                                    style: TextStyle(
+                                      color:
+                                          (person.daysUntilBirthday ?? 999) <= 7
+                                          ? const Color(0xFFFF6B6B)
+                                          : peopleColor,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                        if (person.mbti != null)
+                          _InfoRow(
+                            icon: Iconsax.personalcard,
+                            label: 'MBTI',
+                            value: person.mbti!,
+                          ),
+                        if (person.relationship != null)
+                          _InfoRow(
+                            icon: Iconsax.people,
+                            label: '관계',
+                            value: PersonRelationship.getLabel(
+                              person.relationship!,
                             ),
-                          if (person.mbti != null)
-                            _InfoRow(
-                              icon: Iconsax.personalcard,
-                              label: 'MBTI',
-                              value: person.mbti!,
-                            ),
-                          if (person.relationship != null)
-                            _InfoRow(
-                              icon: Iconsax.people,
-                              label: '관계',
-                              value: PersonRelationship.getLabel(
-                                  person.relationship!),
-                            ),
-                          if (person.company != null)
-                            _InfoRow(
-                              icon: Iconsax.building,
-                              label: '회사/학교',
-                              value: person.company!,
-                            ),
-                        ],
-                      ),
+                          ),
+                        if (person.company != null)
+                          _InfoRow(
+                            icon: Iconsax.building,
+                            label: '회사/학교',
+                            value: person.company!,
+                          ),
+                      ]),
 
                       // 연락처
                       if (person.phone != null ||
                           person.email != null ||
                           person.address != null)
-                        _buildSection(
-                          context,
-                          '연락처',
-                          [
-                            if (person.phone != null)
-                              _InfoRow(
-                                icon: Iconsax.call,
-                                label: '전화',
-                                value: person.phone!,
-                                onTap: () => _copyToClipboard(
-                                    context, '전화번호', person.phone!),
+                        _buildSection(context, '연락처', [
+                          if (person.phone != null)
+                            _InfoRow(
+                              icon: Iconsax.call,
+                              label: '전화',
+                              value: person.phone!,
+                              onTap: () => _copyToClipboard(
+                                context,
+                                '전화번호',
+                                person.phone!,
                               ),
-                            if (person.email != null)
-                              _InfoRow(
-                                icon: Iconsax.sms,
-                                label: '이메일',
-                                value: person.email!,
-                                onTap: () => _copyToClipboard(
-                                    context, '이메일', person.email!),
+                            ),
+                          if (person.email != null)
+                            _InfoRow(
+                              icon: Iconsax.sms,
+                              label: '이메일',
+                              value: person.email!,
+                              onTap: () => _copyToClipboard(
+                                context,
+                                '이메일',
+                                person.email!,
                               ),
-                            if (person.address != null)
-                              _InfoRow(
-                                icon: Iconsax.location,
-                                label: '주소',
-                                value: person.address!,
-                                onTap: () => _copyToClipboard(
-                                    context, '주소', person.address!),
+                            ),
+                          if (person.address != null)
+                            _InfoRow(
+                              icon: Iconsax.location,
+                              label: '주소',
+                              value: person.address!,
+                              onTap: () => _copyToClipboard(
+                                context,
+                                '주소',
+                                person.address!,
                               ),
-                          ],
-                        ),
+                            ),
+                        ]),
 
                       // 성격/특징
                       if (person.personality != null)
-                        _buildSection(
-                          context,
-                          '성격/특징',
-                          [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(AppTheme.spacingM),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.backgroundDark
-                                    : AppColors.backgroundLight,
-                                borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusMedium),
-                              ),
-                              child: Text(
-                                person.personality!,
-                                style: Theme.of(context).textTheme.bodyMedium,
+                        _buildSection(context, '성격/특징', [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppTheme.spacingM),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.backgroundDark
+                                  : AppColors.backgroundLight,
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
                               ),
                             ),
-                          ],
-                        ),
+                            child: Text(
+                              person.personality!,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ]),
 
                       // 메모
                       if (person.note != null)
-                        _buildSection(
-                          context,
-                          '메모',
-                          [
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(AppTheme.spacingM),
-                              decoration: BoxDecoration(
-                                color: isDark
-                                    ? AppColors.backgroundDark
-                                    : AppColors.backgroundLight,
-                                borderRadius: BorderRadius.circular(
-                                    AppTheme.radiusMedium),
-                              ),
-                              child: Text(
-                                person.note!,
-                                style: Theme.of(context).textTheme.bodyMedium,
+                        _buildSection(context, '메모', [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppTheme.spacingM),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? AppColors.backgroundDark
+                                  : AppColors.backgroundLight,
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
                               ),
                             ),
-                          ],
-                        ),
+                            child: Text(
+                              person.note!,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                          ),
+                        ]),
 
                       // 커스텀 필드
                       if (person.customFields.isNotEmpty)
@@ -220,8 +231,11 @@ class PersonDetailSheet extends ConsumerWidget {
                               label: event.title,
                               value: DateFormat('M월 d일').format(event.date),
                               trailing: event.isYearly
-                                  ? const Icon(Iconsax.repeat,
-                                      size: 16, color: Colors.grey)
+                                  ? const Icon(
+                                      Iconsax.repeat,
+                                      size: 16,
+                                      color: Colors.grey,
+                                    )
                                   : null,
                             );
                           }).toList(),
@@ -246,8 +260,9 @@ class PersonDetailSheet extends ConsumerWidget {
                               ),
                               decoration: BoxDecoration(
                                 color: peopleColor.withValues(alpha: 0.1),
-                                borderRadius:
-                                    BorderRadius.circular(AppTheme.radiusFull),
+                                borderRadius: BorderRadius.circular(
+                                  AppTheme.radiusFull,
+                                ),
                               ),
                               child: Text(
                                 '#$tag',
@@ -273,7 +288,7 @@ class PersonDetailSheet extends ConsumerWidget {
     );
   }
 
-  Widget _buildProfileHeader(BuildContext context) {
+  Widget _buildProfileHeader(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Row(
@@ -281,8 +296,9 @@ class PersonDetailSheet extends ConsumerWidget {
         // 아바타
         CircleAvatar(
           radius: 40,
-          backgroundColor:
-              _getRelationshipColor(person.relationship).withValues(alpha: 0.2),
+          backgroundColor: _getRelationshipColor(
+            person.relationship,
+          ).withValues(alpha: 0.2),
           backgroundImage: person.profilePhotoUrl != null
               ? NetworkImage(person.profilePhotoUrl!)
               : null,
@@ -307,9 +323,8 @@ class PersonDetailSheet extends ConsumerWidget {
                   Flexible(
                     child: Text(
                       person.name,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                   if (person.mbti != null) ...[
@@ -344,20 +359,31 @@ class PersonDetailSheet extends ConsumerWidget {
                     if (person.company != null) person.company,
                   ].join(' • '),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
                 ),
             ],
           ),
         ),
         // 편집 버튼
-        IconButton(
-          onPressed: () {
-            // TODO: 편집 기능
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            switch (value) {
+              case 'edit':
+                _showEditSheet(context);
+                break;
+              case 'delete':
+                _confirmDeletePerson(context, ref);
+                break;
+            }
           },
-          icon: const Icon(Iconsax.edit_2),
+          itemBuilder: (context) => const [
+            PopupMenuItem<String>(value: 'edit', child: Text('정보 수정')),
+            PopupMenuItem<String>(value: 'delete', child: Text('삭제')),
+          ],
+          icon: const Icon(Iconsax.more),
         ),
       ],
     );
@@ -373,7 +399,7 @@ class PersonDetailSheet extends ConsumerWidget {
             label: '전화',
             color: const Color(0xFF4ECDC4),
             onTap: () {
-              // TODO: 전화 걸기
+              _makePhoneCall(context);
             },
           ),
         if (person.phone != null)
@@ -382,7 +408,7 @@ class PersonDetailSheet extends ConsumerWidget {
             label: '문자',
             color: const Color(0xFF7C4DFF),
             onTap: () {
-              // TODO: 문자 보내기
+              _sendSms(context);
             },
           ),
         if (person.email != null)
@@ -391,7 +417,7 @@ class PersonDetailSheet extends ConsumerWidget {
             label: '이메일',
             color: const Color(0xFFFFA726),
             onTap: () {
-              // TODO: 이메일 보내기
+              _sendEmail(context);
             },
           ),
         _QuickActionButton(
@@ -399,7 +425,7 @@ class PersonDetailSheet extends ConsumerWidget {
           label: '일정추가',
           color: peopleColor,
           onTap: () {
-            // TODO: 캘린더에 일정 추가
+            _addCalendarEvent(context);
           },
         ),
       ],
@@ -417,14 +443,117 @@ class PersonDetailSheet extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: AppTheme.spacingL),
-        Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
+        Text(title, style: Theme.of(context).textTheme.titleSmall),
         const SizedBox(height: AppTheme.spacingS),
         ...children,
       ],
     );
+  }
+
+  Widget _buildAssistantSection(
+    BuildContext context,
+    PeopleCareTarget careTarget,
+  ) {
+    final scoreColor = _careScoreColor(careTarget.score);
+
+    return _buildSection(context, 'AI 챙김 요약', [
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppTheme.spacingM),
+        decoration: BoxDecoration(
+          color: scoreColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          border: Border.all(color: scoreColor.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Iconsax.star_1, size: 16, color: Color(0xFFFFA726)),
+                const SizedBox(width: 6),
+                Text(
+                  '챙김 우선순위 ${careTarget.score}점',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: scoreColor,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: (careTarget.score / 100).clamp(0, 1),
+                minHeight: 8,
+                backgroundColor: scoreColor.withValues(alpha: 0.18),
+                valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '챙김 포인트',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            ...careTarget.reasons.map(
+              (reason) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '• ',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scoreColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        reason,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '추천 선물/행동',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: careTarget.giftSuggestions.map((suggestion) {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Text(
+                    suggestion,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    ]);
   }
 
   void _copyToClipboard(BuildContext context, String label, String value) {
@@ -435,6 +564,157 @@ class PersonDetailSheet extends ConsumerWidget {
         duration: const Duration(seconds: 1),
       ),
     );
+  }
+
+  Future<void> _showEditSheet(BuildContext context) async {
+    final edited = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => AddPersonSheet(initialPerson: person),
+    );
+    if (edited == true && context.mounted) {
+      Navigator.of(context).pop();
+    }
+  }
+
+  Future<void> _confirmDeletePerson(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('사람 삭제'),
+        content: Text('${person.name}님의 정보를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('삭제', style: TextStyle(color: AppColors.errorLight)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(peopleServiceProvider).deletePerson(person.id);
+      if (!context.mounted) return;
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${person.name}님이 삭제되었습니다'),
+          backgroundColor: AppColors.errorLight,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+    }
+  }
+
+  Future<void> _makePhoneCall(BuildContext context) async {
+    final phone = _normalizedPhone(person.phone);
+    if (phone == null) {
+      _showActionError(context, '전화번호가 없습니다.');
+      return;
+    }
+    await _openUri(
+      context,
+      Uri(scheme: 'tel', path: phone),
+      failureMessage: '전화 앱을 열 수 없습니다.',
+    );
+  }
+
+  Future<void> _sendSms(BuildContext context) async {
+    final phone = _normalizedPhone(person.phone);
+    if (phone == null) {
+      _showActionError(context, '문자를 보낼 전화번호가 없습니다.');
+      return;
+    }
+    await _openUri(
+      context,
+      Uri(scheme: 'sms', path: phone),
+      failureMessage: '문자 앱을 열 수 없습니다.',
+    );
+  }
+
+  Future<void> _sendEmail(BuildContext context) async {
+    final email = _normalizedEmail(person.email);
+    if (email == null) {
+      _showActionError(context, '이메일 주소가 없습니다.');
+      return;
+    }
+    await _openUri(
+      context,
+      Uri(scheme: 'mailto', path: email),
+      failureMessage: '이메일 앱을 열 수 없습니다.',
+    );
+  }
+
+  Future<void> _addCalendarEvent(BuildContext context) async {
+    final now = DateTime.now();
+    final startUtc = now.add(const Duration(hours: 1)).toUtc();
+    final endUtc = startUtc.add(const Duration(hours: 1));
+
+    final start = DateFormat("yyyyMMdd'T'HHmmss'Z'").format(startUtc);
+    final end = DateFormat("yyyyMMdd'T'HHmmss'Z'").format(endUtc);
+
+    final details = <String>[
+      '${person.name} 관련 일정',
+      if (_normalizedPhone(person.phone) != null) '전화: ${person.phone}',
+      if (_normalizedEmail(person.email) != null) '이메일: ${person.email}',
+      if ((person.note ?? '').trim().isNotEmpty) '메모: ${person.note}',
+    ].join('\n');
+
+    final uri = Uri.https('calendar.google.com', '/calendar/render', {
+      'action': 'TEMPLATE',
+      'text': '${person.name} 일정',
+      'dates': '$start/$end',
+      'details': details,
+    });
+
+    await _openUri(context, uri, failureMessage: '캘린더를 열 수 없습니다.');
+  }
+
+  String? _normalizedPhone(String? rawPhone) {
+    if (rawPhone == null) return null;
+    final normalized = rawPhone.replaceAll(RegExp(r'[^0-9+]'), '');
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  String? _normalizedEmail(String? rawEmail) {
+    if (rawEmail == null) return null;
+    final normalized = rawEmail.trim();
+    return normalized.isEmpty ? null : normalized;
+  }
+
+  Future<void> _openUri(
+    BuildContext context,
+    Uri uri, {
+    required String failureMessage,
+  }) async {
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+      if (!context.mounted) return;
+      _showActionError(context, failureMessage);
+    } catch (_) {
+      if (!context.mounted) return;
+      _showActionError(context, failureMessage);
+    }
+  }
+
+  void _showActionError(BuildContext context, String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Color _getRelationshipColor(String? relationship) {
@@ -452,6 +732,13 @@ class PersonDetailSheet extends ConsumerWidget {
       default:
         return peopleColor;
     }
+  }
+
+  Color _careScoreColor(int score) {
+    if (score >= 80) return const Color(0xFFE53935);
+    if (score >= 60) return const Color(0xFFFFA726);
+    if (score >= 40) return const Color(0xFF1E88E5);
+    return const Color(0xFF43A047);
   }
 }
 
@@ -484,8 +771,9 @@ class _InfoRow extends StatelessWidget {
             Icon(
               icon,
               size: 20,
-              color:
-                  isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
             ),
             const SizedBox(width: 12),
             SizedBox(
@@ -493,17 +781,14 @@ class _InfoRow extends StatelessWidget {
               child: Text(
                 label,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isDark
-                          ? AppColors.textSecondaryDark
-                          : AppColors.textSecondaryLight,
-                    ),
+                  color: isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight,
+                ),
               ),
             ),
             Expanded(
-              child: Text(
-                value,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
+              child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
             ),
             if (trailing != null) trailing!,
             if (onTap != null)

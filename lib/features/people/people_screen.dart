@@ -25,6 +25,7 @@ class PeopleScreen extends ConsumerWidget {
     final searchQuery = ref.watch(searchQueryProvider);
     final selectedRelationship = ref.watch(selectedRelationshipFilterProvider);
     final upcomingBirthdays = ref.watch(upcomingBirthdaysProvider);
+    final topCareTargets = ref.watch(topCareTargetsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Stack(
@@ -219,6 +220,128 @@ class PeopleScreen extends ConsumerWidget {
               ).animate().fadeIn(duration: 300.ms, delay: 150.ms),
 
             if (upcomingBirthdays.isNotEmpty && selectedRelationship == null)
+              const SizedBox(height: AppTheme.spacingM),
+
+            // 챙김 우선순위 TOP 3
+            if (selectedRelationship == null &&
+                searchQuery.isEmpty &&
+                topCareTargets.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                padding: const EdgeInsets.all(AppTheme.spacingM),
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.surfaceDark : Colors.white,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  border: Border.all(color: peopleColor.withValues(alpha: 0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Iconsax.star_1,
+                          size: 18,
+                          color: Color(0xFFFFA726),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '지금 챙기면 좋은 사람',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    ...topCareTargets.map((target) {
+                      return InkWell(
+                        onTap: () => _showPersonDetail(context, target.person),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 16,
+                                backgroundColor: peopleColor.withValues(
+                                  alpha: 0.15,
+                                ),
+                                child: Text(
+                                  target.person.name[0],
+                                  style: const TextStyle(
+                                    color: peopleColor,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      target.person.name,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    Text(
+                                      target.reasons.first,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: isDark
+                                                ? AppColors.textSecondaryDark
+                                                : AppColors.textSecondaryLight,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: _careScoreColor(
+                                    target.score,
+                                  ).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall,
+                                  ),
+                                ),
+                                child: Text(
+                                  '${target.score}점',
+                                  style: TextStyle(
+                                    color: _careScoreColor(target.score),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 300.ms, delay: 180.ms),
+
+            if (selectedRelationship == null &&
+                searchQuery.isEmpty &&
+                topCareTargets.isNotEmpty)
               const SizedBox(height: AppTheme.spacingM),
 
             // 사람 목록
@@ -688,6 +811,13 @@ class PeopleScreen extends ConsumerWidget {
     if (value == null) return null;
     final normalized = value.trim();
     return normalized.isEmpty ? null : normalized;
+  }
+
+  Color _careScoreColor(int score) {
+    if (score >= 80) return const Color(0xFFE53935);
+    if (score >= 60) return const Color(0xFFFFA726);
+    if (score >= 40) return const Color(0xFF1E88E5);
+    return const Color(0xFF43A047);
   }
 
   void _showAddPersonSheet(BuildContext context) {

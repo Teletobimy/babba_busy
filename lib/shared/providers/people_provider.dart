@@ -4,6 +4,7 @@ import '../models/person.dart';
 import 'auth_provider.dart';
 import 'group_provider.dart';
 import '../services/contact_import_service.dart';
+import '../utils/people_care_assistant.dart';
 
 /// 실제 Firebase에서 가져오는 사람 목록 Provider
 final peopleProvider = StreamProvider<List<Person>>((ref) {
@@ -211,4 +212,30 @@ final displayPeopleProvider = Provider<List<Person>>((ref) {
 
   if (relationship == null) return filtered;
   return filtered.where((p) => p.relationship == relationship).toList();
+});
+
+/// 챙김 우선순위 대상 목록 (전체 기준)
+final peopleCareTargetsProvider = Provider<List<PeopleCareTarget>>((ref) {
+  final people = ref.watch(smartPeopleProvider);
+  if (people.isEmpty) return const [];
+  return buildTopCareTargets(people, limit: people.length);
+});
+
+/// 상위 챙김 대상 TOP 3
+final topCareTargetsProvider = Provider<List<PeopleCareTarget>>((ref) {
+  final targets = ref.watch(peopleCareTargetsProvider);
+  if (targets.isEmpty) return const [];
+  return targets.take(3).toList();
+});
+
+/// 특정 사람의 챙김 타깃 정보
+final personCareTargetProvider = Provider.family<PeopleCareTarget?, String>((
+  ref,
+  personId,
+) {
+  final targets = ref.watch(peopleCareTargetsProvider);
+  for (final target in targets) {
+    if (target.person.id == personId) return target;
+  }
+  return null;
 });
