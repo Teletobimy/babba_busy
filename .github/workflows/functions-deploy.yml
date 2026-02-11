@@ -21,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Detect deploy targets
         id: detect
@@ -34,8 +36,18 @@ jobs:
             storage_changed=true
           else
             before="${{ github.event.before }}"
+            if [[ -n "$before" && "$before" != "0000000000000000000000000000000000000000" ]] && ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              echo "Before SHA not found in checkout: $before"
+              before=""
+            fi
+
             if [[ -z "$before" || "$before" == "0000000000000000000000000000000000000000" ]]; then
               before="$(git rev-list --max-count=1 HEAD^ || true)"
+            fi
+
+            if [[ -n "$before" ]] && ! git cat-file -e "$before^{commit}" 2>/dev/null; then
+              echo "Fallback before SHA is invalid: $before"
+              before=""
             fi
 
             if [[ -z "$before" ]]; then

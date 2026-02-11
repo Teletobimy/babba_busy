@@ -48,3 +48,6 @@ app.*.map.json
 .env
 .env.local
 .env.*.localnul
+
+# Local agent scratch notes
+.claude/agents/user-feedback-analyst.md
