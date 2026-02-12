@@ -7,8 +7,7 @@ import 'group_provider.dart';
 /// 전체 커뮤니티 목록 (최신 갱신순)
 final communitiesProvider = StreamProvider<List<CommunitySpace>>((ref) {
   final firestore = ref.watch(firestoreProvider);
-  final user = ref.watch(currentUserProvider);
-  if (firestore == null || user == null) return Stream.value(const []);
+  if (firestore == null) return Stream.value(const []);
 
   return firestore
       .collection('communities')
@@ -28,8 +27,7 @@ final communityProvider = StreamProvider.family<CommunitySpace?, String>((
   communityId,
 ) {
   final firestore = ref.watch(firestoreProvider);
-  final user = ref.watch(currentUserProvider);
-  if (firestore == null || user == null || communityId.isEmpty) {
+  if (firestore == null || communityId.isEmpty) {
     return Stream.value(null);
   }
 
@@ -45,8 +43,7 @@ final communityProvider = StreamProvider.family<CommunitySpace?, String>((
 final communityPostsProvider =
     StreamProvider.family<List<CommunityPost>, String>((ref, communityId) {
       final firestore = ref.watch(firestoreProvider);
-      final user = ref.watch(currentUserProvider);
-      if (firestore == null || user == null || communityId.isEmpty) {
+      if (firestore == null || communityId.isEmpty) {
         return Stream.value(const []);
       }
 
@@ -71,9 +68,7 @@ final communityCommentsProvider =
       ({String communityId, String postId})
     >((ref, params) {
       final firestore = ref.watch(firestoreProvider);
-      final user = ref.watch(currentUserProvider);
       if (firestore == null ||
-          user == null ||
           params.communityId.isEmpty ||
           params.postId.isEmpty) {
         return Stream.value(const []);

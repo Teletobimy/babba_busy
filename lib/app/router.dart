@@ -265,6 +265,9 @@ class RouterNotifier extends ChangeNotifier {
     final isLoggedIn = authState.valueOrNull != null;
     final isAuthRoute = state.matchedLocation.startsWith('/auth');
     final isOnboarding = state.matchedLocation == '/onboarding';
+    final isCommunityRoute =
+        state.matchedLocation == '/tools/community' ||
+        state.matchedLocation.startsWith('/tools/community/');
 
     debugPrint('[Router]   authState.isLoading: ${authState.isLoading}');
     debugPrint('[Router]   authState.hasValue: ${authState.hasValue}');
@@ -283,20 +286,24 @@ class RouterNotifier extends ChangeNotifier {
     debugPrint('[Router]   _hasInitializedGroup: $_hasInitializedGroup');
     debugPrint('[Router]   isAuthRoute: $isAuthRoute');
     debugPrint('[Router]   isOnboarding: $isOnboarding');
+    debugPrint('[Router]   isCommunityRoute: $isCommunityRoute');
 
     // 1. 로그인하지 않은 경우
     if (!isLoggedIn) {
       debugPrint('[Router] ❌ DECISION: Not logged in');
-      if (!isAuthRoute) {
+      if (!isAuthRoute && !isCommunityRoute) {
         debugPrint('[Router] ➡️ REDIRECT to /auth/login');
         return '/auth/login';
       }
-      debugPrint('[Router] ✅ STAY on auth route');
+      debugPrint('[Router] ✅ STAY on public/auth route');
       return null;
     }
 
     // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
-    if (memberships.isLoading && !isOnboarding && !isAuthRoute) {
+    if (memberships.isLoading &&
+        !isOnboarding &&
+        !isAuthRoute &&
+        !isCommunityRoute) {
       debugPrint('[Router] ⏳ WAIT: Memberships still loading');
       return null;
     }
@@ -307,7 +314,11 @@ class RouterNotifier extends ChangeNotifier {
     // 3. 핵심 수정: 그룹이 있지만 초기화가 완료되지 않은 경우 대기
     // 이 조건이 없으면 selectedGroupIdProvider가 null인 상태에서 /home으로 이동하여
     // 모든 Feature Provider가 빈 데이터를 반환함
-    if (hasGroups && !isGroupInitialized && !isOnboarding && !isAuthRoute) {
+    if (hasGroups &&
+        !isGroupInitialized &&
+        !isOnboarding &&
+        !isAuthRoute &&
+        !isCommunityRoute) {
       debugPrint(
         '[Router] ⏳ WAIT: Has groups ($hasGroups) but not initialized ($isGroupInitialized)',
       );
@@ -318,7 +329,7 @@ class RouterNotifier extends ChangeNotifier {
     }
 
     // 4. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
-    if (!isOnboarding && !isAuthRoute) {
+    if (!isOnboarding && !isAuthRoute && !isCommunityRoute) {
       if (!hasGroups && !onboardingCompleted) {
         debugPrint(
           '[Router] 🎯 DECISION: No groups ($hasGroups) & no onboarding ($onboardingCompleted)',

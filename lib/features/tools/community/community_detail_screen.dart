@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_colors.dart';
@@ -20,6 +21,14 @@ class CommunityDetailScreen extends ConsumerStatefulWidget {
 
 class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
   Future<void> _showCreatePostSheet() async {
+    if (ref.read(currentUserProvider) == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인 후 글을 작성할 수 있습니다.')));
+      return;
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -67,7 +76,11 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
   Widget build(BuildContext context) {
     final communityAsync = ref.watch(communityProvider(widget.communityId));
     final postsAsync = ref.watch(communityPostsProvider(widget.communityId));
-    final currentUserId = ref.watch(currentUserProvider)?.uid;
+    final currentUser = ref.watch(currentUserProvider);
+    final currentUserId = currentUser?.uid;
+    final isLoggedIn = currentUser != null;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final noticeColor = isDark ? AppColors.primaryDark : AppColors.primaryLight;
 
     return Scaffold(
       appBar: AppBar(
@@ -78,18 +91,20 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
         ),
         actions: [
           IconButton(
-            onPressed: _showCreatePostSheet,
-            icon: const Icon(Iconsax.edit_2),
-            tooltip: '글쓰기',
+            onPressed: isLoggedIn
+                ? _showCreatePostSheet
+                : () => context.push('/auth/login'),
+            icon: Icon(isLoggedIn ? Iconsax.edit_2 : Iconsax.login_1),
+            tooltip: isLoggedIn ? '글쓰기' : '로그인',
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreatePostSheet,
+        onPressed: isLoggedIn ? _showCreatePostSheet : null,
         backgroundColor: AppColors.communityColor,
         foregroundColor: Colors.white,
-        icon: const Icon(Iconsax.edit_2),
-        label: const Text('글쓰기'),
+        icon: Icon(isLoggedIn ? Iconsax.edit_2 : Iconsax.lock_1),
+        label: Text(isLoggedIn ? '글쓰기' : '로그인 후 작성'),
       ),
       body: Column(
         children: [
@@ -112,6 +127,43 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
               child: Text('커뮤니티 정보를 불러오지 못했습니다.\n$error'),
             ),
           ),
+          if (!isLoggedIn)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(
+                AppTheme.spacingL,
+                0,
+                AppTheme.spacingL,
+                AppTheme.spacingS,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingM,
+                vertical: AppTheme.spacingS,
+              ),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? noticeColor.withValues(alpha: 0.15)
+                    : noticeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                border: Border.all(color: noticeColor.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Iconsax.info_circle, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '읽기 전용 모드입니다. 글/댓글 작성은 로그인 후 가능합니다.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/auth/login'),
+                    child: const Text('로그인'),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: postsAsync.when(
               data: (posts) {
@@ -417,7 +469,7 @@ class _CreatePostSheetState extends ConsumerState<_CreatePostSheet> {
     setState(() => _submitting = true);
 
     try {
-      await ref
+      final postId = await ref
           .read(communityServiceProvider)
           .createPost(
             communityId: widget.communityId,
@@ -425,6 +477,9 @@ class _CreatePostSheetState extends ConsumerState<_CreatePostSheet> {
             content: _contentController.text,
             tags: _parseTags(_tagsController.text),
           );
+      if (postId == null) {
+        throw Exception('로그인 후 이용해주세요.');
+      }
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -543,6 +598,14 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
 
   Future<void> _submitComment() async {
     if (_sendingComment) return;
+    if (ref.read(currentUserProvider) == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('로그인 후 댓글을 작성할 수 있습니다.')));
+      return;
+    }
+
     setState(() => _sendingComment = true);
     try {
       await ref
@@ -606,6 +669,7 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
       )),
     );
     final currentUserId = ref.watch(currentUserProvider)?.uid;
+    final isLoggedIn = currentUserId != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -794,47 +858,84 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
                     ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppTheme.spacingL,
-                    AppTheme.spacingS,
-                    AppTheme.spacingL,
-                    AppTheme.spacingM,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          maxLength: 2000,
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: const InputDecoration(
-                            counterText: '',
-                            hintText: '댓글을 입력하세요',
+                if (isLoggedIn)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppTheme.spacingL,
+                      AppTheme.spacingS,
+                      AppTheme.spacingL,
+                      AppTheme.spacingM,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _commentController,
+                            maxLength: 2000,
+                            minLines: 1,
+                            maxLines: 4,
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              hintText: '댓글을 입력하세요',
+                            ),
+                            onSubmitted: (_) => _submitComment(),
                           ),
-                          onSubmitted: (_) => _submitComment(),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _sendingComment ? null : _submitComment,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.communityColor,
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _sendingComment ? null : _submitComment,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.communityColor,
+                          ),
+                          child: _sendingComment
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Iconsax.send_1, size: 18),
                         ),
-                        child: _sendingComment
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Iconsax.send_1, size: 18),
+                      ],
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppTheme.spacingL,
+                      AppTheme.spacingS,
+                      AppTheme.spacingL,
+                      AppTheme.spacingM,
+                    ),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(AppTheme.spacingM),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
+                        border: Border.all(color: Colors.black12),
                       ),
-                    ],
+                      child: Row(
+                        children: [
+                          const Icon(Iconsax.lock_1, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '댓글 작성은 로그인 후 가능합니다.',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => context.push('/auth/login'),
+                            child: const Text('로그인'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
               ],
             ),
           ),

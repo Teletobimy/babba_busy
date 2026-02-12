@@ -6,6 +6,7 @@ import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/community.dart';
+import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/providers/community_provider.dart';
 
 class CommunityHubScreen extends ConsumerStatefulWidget {
@@ -52,25 +53,29 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen> {
   @override
   Widget build(BuildContext context) {
     final communitiesAsync = ref.watch(communitiesProvider);
+    final isLoggedIn = ref.watch(currentUserProvider) != null;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final noticeColor = isDark ? AppColors.primaryDark : AppColors.primaryLight;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('커뮤니티'),
         actions: [
           IconButton(
-            onPressed: _openCreateCommunitySheet,
-            icon: const Icon(Iconsax.add),
-            tooltip: '커뮤니티 만들기',
+            onPressed: isLoggedIn
+                ? _openCreateCommunitySheet
+                : () => context.push('/auth/login'),
+            icon: Icon(isLoggedIn ? Iconsax.add : Iconsax.login_1),
+            tooltip: isLoggedIn ? '커뮤니티 만들기' : '로그인',
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateCommunitySheet,
+        onPressed: isLoggedIn ? _openCreateCommunitySheet : null,
         backgroundColor: AppColors.communityColor,
         foregroundColor: Colors.white,
-        icon: const Icon(Iconsax.add),
-        label: const Text('새 커뮤니티'),
+        icon: Icon(isLoggedIn ? Iconsax.add : Iconsax.lock_1),
+        label: Text(isLoggedIn ? '새 커뮤니티' : '로그인 후 생성'),
       ),
       body: Column(
         children: [
@@ -105,6 +110,43 @@ class _CommunityHubScreenState extends ConsumerState<CommunityHubScreen> {
               ],
             ),
           ),
+          if (!isLoggedIn)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(
+                AppTheme.spacingL,
+                0,
+                AppTheme.spacingL,
+                AppTheme.spacingS,
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingM,
+                vertical: AppTheme.spacingS,
+              ),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? noticeColor.withValues(alpha: 0.15)
+                    : noticeColor.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                border: Border.all(color: noticeColor.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Iconsax.info_circle, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '지금은 읽기 전용입니다. 글 작성은 로그인 후 가능합니다.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => context.push('/auth/login'),
+                    child: const Text('로그인'),
+                  ),
+                ],
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(
               AppTheme.spacingL,
@@ -360,6 +402,9 @@ class _CreateCommunitySheetState extends ConsumerState<_CreateCommunitySheet> {
             description: _descriptionController.text,
             tags: _parseTags(_tagsController.text),
           );
+      if (communityId == null) {
+        throw Exception('로그인 후 이용해주세요.');
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop(communityId);
