@@ -22,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   String? _errorMessage;
+  bool get _isBusy => _isLoading || _isGoogleLoading;
 
   @override
   void dispose() {
@@ -31,6 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isBusy) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -72,6 +74,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _handleGoogleLogin() async {
+    if (_isBusy) return;
     setState(() {
       _isGoogleLoading = true;
       _errorMessage = null;
@@ -94,6 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _showPasswordResetDialog(BuildContext context) async {
+    if (_isBusy) return;
     final emailController = TextEditingController(text: _emailController.text);
 
     final result = await showDialog<String>(
@@ -238,6 +242,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // 이메일 입력
                 TextFormField(
+                  enabled: !_isBusy,
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
@@ -259,10 +264,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // 비밀번호 입력
                 TextFormField(
+                  enabled: !_isBusy,
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _handleLogin(),
+                  onFieldSubmitted: (_) {
+                    if (!_isBusy) {
+                      _handleLogin();
+                    }
+                  },
                   decoration: InputDecoration(
                     labelText: '비밀번호',
                     prefixIcon: const Icon(Iconsax.lock),
@@ -270,9 +280,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       icon: Icon(
                         _obscurePassword ? Iconsax.eye : Iconsax.eye_slash,
                       ),
-                      onPressed: () {
-                        setState(() => _obscurePassword = !_obscurePassword);
-                      },
+                      onPressed: _isBusy
+                          ? null
+                          : () {
+                              setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              );
+                            },
                     ),
                   ),
                   validator: (value) {
@@ -291,7 +305,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: _isLoading ? null : _handleLogin,
+                    onPressed: _isBusy ? null : _handleLogin,
                     child: _isLoading
                         ? const SizedBox(
                             width: 24,
@@ -348,7 +362,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 SizedBox(
                   height: 52,
                   child: OutlinedButton(
-                    onPressed: _isGoogleLoading ? null : _handleGoogleLogin,
+                    onPressed: _isBusy ? null : _handleGoogleLogin,
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(
                         color: isDark
@@ -398,7 +412,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () => _showPasswordResetDialog(context),
+                    onPressed: _isBusy
+                        ? null
+                        : () => _showPasswordResetDialog(context),
                     child: Text(
                       '비밀번호를 잊으셨나요?',
                       style: TextStyle(
@@ -422,7 +438,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     TextButton(
-                      onPressed: () => context.go('/auth/signup'),
+                      onPressed: _isBusy
+                          ? null
+                          : () => context.go('/auth/signup'),
                       child: const Text('회원가입'),
                     ),
                   ],

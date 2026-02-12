@@ -352,8 +352,11 @@ class PeopleScreen extends ConsumerWidget {
                       onAdd: () => _showAddPersonSheet(context),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppTheme.spacingL,
+                      padding: const EdgeInsets.fromLTRB(
+                        AppTheme.spacingL,
+                        0,
+                        AppTheme.spacingL,
+                        140,
                       ),
                       itemCount: people.length,
                       itemBuilder: (context, index) {

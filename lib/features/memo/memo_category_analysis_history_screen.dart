@@ -192,9 +192,33 @@ class _MemoCategoryAnalysisHistoryScreenState
                         _autoRefreshTimer?.cancel();
                         _autoRefreshTimer = null;
                         return Center(
-                          child: Text(
-                            '분석 이력이 없습니다.',
-                            style: TextStyle(color: AppColors.grayScale[500]),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Iconsax.document_text,
+                                size: 48,
+                                color: AppColors.grayScale[400],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                '분석 이력이 없습니다.',
+                                style: TextStyle(
+                                  color: AppColors.grayScale[600],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (Navigator.of(context).canPop()) {
+                                    context.pop();
+                                    return;
+                                  }
+                                  context.go('/tools');
+                                },
+                                child: const Text('이전 화면으로'),
+                              ),
+                            ],
                           ),
                         );
                       }

@@ -33,6 +33,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   String? _errorMessage;
   String? _inviteCode; // 생성 완료 시 표시할 초대 코드
   bool _isTransitioningToHome = false; // 홈으로 전환 중 상태
+  bool get _isBusy => _isLoading || _isStartingAlone || _isTransitioningToHome;
 
   @override
   void dispose() {
@@ -44,6 +45,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   // 초기 화면으로 돌아가기
   void _goToSelection() {
+    if (_isBusy) return;
     setState(() {
       _mode = 'selection';
       _errorMessage = null;
@@ -80,13 +82,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           .collection('memberships')
           .where('userId', isEqualTo: user.uid)
           .get();
-      debugPrint('[OnboardingScreen] 📋 Found ${memberships.docs.length} memberships');
+      debugPrint(
+        '[OnboardingScreen] 📋 Found ${memberships.docs.length} memberships',
+      );
 
       // 2. "나만의 공간" 그룹이 이미 있는지 확인
       String? existingMySpaceId;
       for (final doc in memberships.docs) {
         final groupId = doc.data()['groupId'] as String;
-        final groupDoc = await firestore.collection('families').doc(groupId).get();
+        final groupDoc = await firestore
+            .collection('families')
+            .doc(groupId)
+            .get();
         if (groupDoc.exists && groupDoc.data()?['name'] == '나만의 공간') {
           existingMySpaceId = groupId;
           debugPrint('[OnboardingScreen] ✅ Found existing "나만의 공간": $groupId');
@@ -96,7 +103,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
       // 3. 이미 "나만의 공간"이 있으면 생성하지 않고 온보딩만 완료
       if (existingMySpaceId != null) {
-        debugPrint('[OnboardingScreen] ⏭️ Skipping creation, setting existing group');
+        debugPrint(
+          '[OnboardingScreen] ⏭️ Skipping creation, setting existing group',
+        );
         // 핵심 수정: 기존 그룹을 selectedGroupIdProvider에 직접 설정
         ref.read(selectedGroupIdProvider.notifier).state = existingMySpaceId;
         ref.read(selectedGroupInitializedProvider.notifier).state = true;
@@ -119,7 +128,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
       // 랜덤 색상 선택
       final color = AppColors.memberColors[0];
-      final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+      final colorHex =
+          '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
       final result = await authService.createFamily(
         '나만의 공간', // 기본 그룹명
@@ -163,6 +173,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   // 그룹 생성 또는 참여 제출
   Future<void> _handleSubmit() async {
+    if (_isBusy) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -173,7 +184,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     try {
       final authService = ref.read(authServiceProvider);
       final color = AppColors.memberColors[_selectedColorIndex];
-      final colorHex = '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
+      final colorHex =
+          '#${color.toARGB32().toRadixString(16).substring(2).toUpperCase()}';
 
       if (_mode == 'create') {
         final result = await authService.createFamily(
@@ -194,8 +206,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('last_selected_group_id', result.groupId);
 
-        await completeOnboarding(ref);
-        setState(() => _inviteCode = result.inviteCode); // 성공 화면 표시
+        // 초대 코드 성공 화면을 먼저 보여준 뒤, 시작하기에서 온보딩 완료 처리
+        setState(() => _inviteCode = result.inviteCode);
       } else if (_mode == 'join') {
         await authService.joinFamily(
           _inviteCodeController.text.trim(),
@@ -214,7 +226,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
               .limit(1)
               .get();
           if (memberships.docs.isNotEmpty) {
-            final newGroupId = memberships.docs.first.data()['groupId'] as String;
+            final newGroupId =
+                memberships.docs.first.data()['groupId'] as String;
             ref.read(selectedGroupIdProvider.notifier).state = newGroupId;
             ref.read(selectedGroupInitializedProvider.notifier).state = true;
             final prefs = await SharedPreferences.getInstance();
@@ -237,7 +250,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
-    
     // 초대 코드가 생성된 경우 성공 화면 표시 (그룹 생성 모드에서)
     if (_inviteCode != null) {
       return _buildSuccessScreen(context);
@@ -246,33 +258,52 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
     return Scaffold(
       appBar: AppBar(
         // 선택 화면이 아닐 때는 뒤로가기 버튼 표시
-        leading: _mode != 'selection' 
+        leading: _mode != 'selection'
             ? IconButton(
                 icon: const Icon(Iconsax.arrow_left),
-                onPressed: _goToSelection,
+                onPressed: _isBusy ? null : _goToSelection,
               )
             : null,
         title: Text(_getTitle()),
         actions: [
           TextButton(
-            onPressed: () => ref.read(authServiceProvider).signOut(),
+            onPressed: _isBusy
+                ? null
+                : () => ref.read(authServiceProvider).signOut(),
             child: const Text('로그아웃'),
           ),
         ],
       ),
       body: SafeArea(
-        child: _mode == 'selection' 
-            ? _buildSelectionView(context)
-            : _buildFormView(context),
+        child: Stack(
+          children: [
+            AbsorbPointer(
+              absorbing: _isBusy,
+              child: _mode == 'selection'
+                  ? _buildSelectionView(context)
+                  : _buildFormView(context),
+            ),
+            if (_isBusy && _mode == 'selection')
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: Color(0x66000000),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   String _getTitle() {
     switch (_mode) {
-      case 'create': return '새 그룹 만들기';
-      case 'join': return '그룹 참여하기';
-      default: return 'BABBA 시작하기';
+      case 'create':
+        return '새 그룹 만들기';
+      case 'join':
+        return '그룹 참여하기';
+      default:
+        return 'BABBA 시작하기';
     }
   }
 
@@ -315,7 +346,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             icon: Iconsax.add_circle,
             title: '새 그룹 만들기',
             subtitle: '가족, 친구, 동료와 함께 쓸 공간을 만듭니다.',
-            onTap: () => setState(() => _mode = 'create'),
+            onTap: _isBusy ? null : () => setState(() => _mode = 'create'),
           ),
           const SizedBox(height: AppTheme.spacingM),
 
@@ -324,9 +355,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             icon: Iconsax.key,
             title: '초대 코드로 참여',
             subtitle: '이미 만들어진 그룹에 합류합니다.',
-            onTap: () => setState(() => _mode = 'join'),
+            onTap: _isBusy ? null : () => setState(() => _mode = 'join'),
           ),
-          
+
           if (_errorMessage != null) ...[
             const SizedBox(height: AppTheme.spacingL),
             Text(
@@ -404,10 +435,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
             const SizedBox(height: AppTheme.spacingL),
 
             // 색상 선택
-            Text(
-              '나의 색상',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text('나의 색상', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: AppTheme.spacingS),
             Text(
               '할일과 일정에서 나를 나타낼 색상을 선택하세요',
@@ -423,7 +451,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                   color: AppColors.memberColors[index],
                   label: AppColors.memberColorNames[index],
                   isSelected: _selectedColorIndex == index,
-                  onTap: () => setState(() => _selectedColorIndex = index),
+                  onTap: _isBusy
+                      ? null
+                      : () => setState(() => _selectedColorIndex = index),
                 ),
               ),
             ),
@@ -440,12 +470,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                 ),
                 child: Row(
                   children: [
-                    Icon(Iconsax.warning_2, color: AppColors.errorLight, size: 20),
+                    Icon(
+                      Iconsax.warning_2,
+                      color: AppColors.errorLight,
+                      size: 20,
+                    ),
                     const SizedBox(width: AppTheme.spacingS),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: TextStyle(color: AppColors.errorLight, fontSize: 13),
+                        style: TextStyle(
+                          color: AppColors.errorLight,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ],
@@ -496,7 +533,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                         Iconsax.tick_circle5,
                         size: 80,
                         color: AppColors.successLight,
-                      ).animate().scale(duration: 400.ms, curve: Curves.elasticOut),
+                      ).animate().scale(
+                        duration: 400.ms,
+                        curve: Curves.elasticOut,
+                      ),
                       const SizedBox(height: AppTheme.spacingL),
                       Text(
                         '그룹이 생성되었습니다!',
@@ -511,35 +551,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
                       ).animate().fadeIn(delay: 300.ms, duration: 300.ms),
                       const SizedBox(height: AppTheme.spacingXL),
                       Container(
-                        padding: const EdgeInsets.all(AppTheme.spacingL),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryLight.withValues(alpha: 0.1),
-                          borderRadius:
-                              BorderRadius.circular(AppTheme.radiusMedium),
-                          border: Border.all(
-                            color: AppColors.primaryLight.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Column(
-                          children: [
-                            Text(
-                              '초대 코드',
-                              style: Theme.of(context).textTheme.bodySmall,
+                            padding: const EdgeInsets.all(AppTheme.spacingL),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryLight.withValues(
+                                alpha: 0.1,
+                              ),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusMedium,
+                              ),
+                              border: Border.all(
+                                color: AppColors.primaryLight.withValues(
+                                  alpha: 0.3,
+                                ),
+                              ),
                             ),
-                            const SizedBox(height: AppTheme.spacingS),
-                            Text(
-                              _inviteCode!,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineLarge
-                                  ?.copyWith(
-                                    color: AppColors.primaryLight,
-                                    letterSpacing: 4,
-                                  ),
+                            child: Column(
+                              children: [
+                                Text(
+                                  '초대 코드',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: AppTheme.spacingS),
+                                Text(
+                                  _inviteCode!,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineLarge
+                                      ?.copyWith(
+                                        color: AppColors.primaryLight,
+                                        letterSpacing: 4,
+                                      ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ).animate().fadeIn(delay: 400.ms, duration: 300.ms).slideY(begin: 0.1),
+                          )
+                          .animate()
+                          .fadeIn(delay: 400.ms, duration: 300.ms)
+                          .slideY(begin: 0.1),
                       const SizedBox(height: AppTheme.spacingXL),
                       ElevatedButton(
                         onPressed: _navigateToHome,
@@ -561,6 +609,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
     // 전환 애니메이션을 위한 짧은 지연
     await Future.delayed(const Duration(milliseconds: 300));
+    await completeOnboarding(ref);
 
     // invalidate 제거 - 라우터가 자동으로 멤버십 감지하므로 불필요한 리스너 재트리거 방지
 
@@ -589,10 +638,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
           Text(
             'BABBA 시작하기...',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight,
-                ),
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
           ),
         ],
       ),
@@ -620,19 +669,17 @@ class _SelectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Card(
       elevation: isPrimary ? 4 : 0,
-      color: isPrimary 
-          ? Theme.of(context).colorScheme.primary 
+      color: isPrimary
+          ? Theme.of(context).colorScheme.primary
           : (isDark ? AppColors.surfaceDark : Colors.white),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        side: isPrimary 
-            ? BorderSide.none 
-            : BorderSide(
-                color: isDark ? Colors.grey[800]! : Colors.grey[200]!,
-              ),
+        side: isPrimary
+            ? BorderSide.none
+            : BorderSide(color: isDark ? Colors.grey[800]! : Colors.grey[200]!),
       ),
       child: InkWell(
         onTap: onTap,
@@ -644,23 +691,29 @@ class _SelectionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isPrimary 
+                  color: isPrimary
                       ? Colors.white.withValues(alpha: 0.2)
-                      : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      : Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: isLoading 
+                child: isLoading
                     ? SizedBox(
-                        width: 24, 
-                        height: 24, 
+                        width: 24,
+                        height: 24,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2, 
-                          color: isPrimary ? Colors.white : Theme.of(context).colorScheme.primary
-                        )
+                          strokeWidth: 2,
+                          color: isPrimary
+                              ? Colors.white
+                              : Theme.of(context).colorScheme.primary,
+                        ),
                       )
                     : Icon(
-                        icon, 
-                        color: isPrimary ? Colors.white : Theme.of(context).colorScheme.primary,
+                        icon,
+                        color: isPrimary
+                            ? Colors.white
+                            : Theme.of(context).colorScheme.primary,
                       ),
               ),
               const SizedBox(width: AppTheme.spacingM),
@@ -679,7 +732,9 @@ class _SelectionCard extends StatelessWidget {
                     Text(
                       subtitle,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isPrimary ? Colors.white.withValues(alpha: 0.9) : AppColors.textSecondaryLight,
+                        color: isPrimary
+                            ? Colors.white.withValues(alpha: 0.9)
+                            : AppColors.textSecondaryLight,
                       ),
                     ),
                   ],
@@ -701,7 +756,7 @@ class _ColorOption extends StatelessWidget {
   final Color color;
   final String label;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _ColorOption({
     required this.color,
@@ -740,7 +795,11 @@ class _ColorOption extends StatelessWidget {
                   : null,
             ),
             child: isSelected
-                ? const Icon(Iconsax.tick_circle5, color: Colors.white, size: 24)
+                ? const Icon(
+                    Iconsax.tick_circle5,
+                    color: Colors.white,
+                    size: 24,
+                  )
                 : null,
           ),
           const SizedBox(height: 4),

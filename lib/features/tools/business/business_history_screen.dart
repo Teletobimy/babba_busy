@@ -10,12 +10,14 @@ import '../../../shared/models/business_review.dart';
 import '../../../shared/models/analysis_job.dart';
 import '../../../shared/providers/business_review_provider.dart';
 import '../../../shared/providers/analysis_job_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
 
 class BusinessHistoryScreen extends ConsumerWidget {
   const BusinessHistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
     final reviewsAsync = ref.watch(businessReviewsProvider);
     final pendingJobsAsync = ref.watch(pendingAnalysisJobsProvider);
 
@@ -37,37 +39,68 @@ class BusinessHistoryScreen extends ConsumerWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
-        body: reviewsAsync.when(
-          data: (reviews) {
-            // 진행 중인 작업 필터링 (사업 검토만)
-            final pendingJobs =
-                pendingJobsAsync.valueOrNull
-                    ?.where(
-                      (job) => job.jobType == AnalysisJobType.businessReview,
-                    )
-                    .toList() ??
-                [];
+        body: user == null
+            ? _buildLoginRequired(context)
+            : reviewsAsync.when(
+                data: (reviews) {
+                  // 진행 중인 작업 필터링 (사업 검토만)
+                  final pendingJobs =
+                      pendingJobsAsync.valueOrNull
+                          ?.where(
+                            (job) =>
+                                job.jobType == AnalysisJobType.businessReview,
+                          )
+                          .toList() ??
+                      [];
 
-            if (reviews.isEmpty && pendingJobs.isEmpty) {
-              return _buildEmptyState(context);
-            }
+                  if (reviews.isEmpty && pendingJobs.isEmpty) {
+                    return _buildEmptyState(context);
+                  }
 
-            return _buildContent(context, ref, reviews, pendingJobs);
-          },
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, _) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Iconsax.warning_2, size: 48, color: AppColors.coral[400]),
-                const SizedBox(height: 16),
-                Text(
-                  '이력을 불러올 수 없습니다',
-                  style: TextStyle(color: AppColors.grayScale[600]),
+                  return _buildContent(context, ref, reviews, pendingJobs);
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Iconsax.warning_2,
+                        size: 48,
+                        color: AppColors.coral[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '이력을 불러올 수 없습니다',
+                        style: TextStyle(color: AppColors.grayScale[600]),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildLoginRequired(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Iconsax.lock_1, size: 48, color: AppColors.grayScale[400]),
+            const SizedBox(height: 12),
+            Text(
+              '로그인이 필요합니다',
+              style: TextStyle(color: AppColors.grayScale[700], fontSize: 16),
             ),
-          ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => context.push('/auth/login'),
+              child: const Text('로그인'),
+            ),
+          ],
         ),
       ),
     );

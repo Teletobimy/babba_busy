@@ -27,7 +27,7 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   String? _selectedBudget;
 
   bool _isAnalyzing = false;
-  bool _useAsyncMode = true; // 비동기 모드 기본 활성화
+  final bool _useAsyncMode = true; // 비동기 모드 기본 활성화
   String? _submittedJobId;
   int _estimatedTimeSeconds = 120;
   Map<String, String> _analysisProgress = {};
@@ -275,14 +275,6 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
     );
   }
 
-  void _switchToSyncMode() {
-    setState(() {
-      _useAsyncMode = false;
-      _submittedJobId = null;
-    });
-    _startAnalysis();
-  }
-
   // P1: 분석 중 이탈 방지 다이얼로그
   Future<bool> _showExitConfirmDialog() async {
     if (!_isAnalyzing) return true;
@@ -309,12 +301,13 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(currentUserProvider);
+
     // 비동기 분석 요청 완료 시 접수 확인 화면 표시
     if (_submittedJobId != null) {
       return RequestAcceptedScreen(
         jobId: _submittedJobId!,
         estimatedTimeSeconds: _estimatedTimeSeconds,
-        onWaitHere: _switchToSyncMode,
       );
     }
 
@@ -350,7 +343,16 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
             if (!_isAnalyzing)
               IconButton(
                 icon: const Icon(Iconsax.document_text),
-                onPressed: () => context.push('/tools/business/history'),
+                onPressed: () {
+                  if (currentUser == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('로그인 후 이용할 수 있습니다.')),
+                    );
+                    context.push('/auth/login');
+                    return;
+                  }
+                  context.push('/tools/business/history');
+                },
               ),
           ],
         ),
@@ -360,164 +362,171 @@ class _BusinessReviewScreenState extends ConsumerState<BusinessReviewScreen> {
   }
 
   Widget _buildInputView() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 헤더
-          Text(
-            '💡 사업 아이디어를 입력하세요',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'AI가 시장조사, 경쟁사 분석, 상품 기획, 재무 분석을 수행합니다',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: AppColors.grayScale[600]),
-          ),
-          const SizedBox(height: 24),
+    final viewInsets = MediaQuery.viewInsetsOf(context);
 
-          // 아이디어 입력
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: _inputError != null
-                  ? Border.all(color: AppColors.coral[400]!, width: 2)
-                  : null,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () => FocusScope.of(context).unfocus(),
+      child: SingleChildScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + viewInsets.bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 헤더
+            Text(
+              '💡 사업 아이디어를 입력하세요',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
-            child: TextField(
-              controller: _ideaController,
-              maxLines: 6,
-              maxLength: 2000,
-              onChanged: (value) {
-                // P1: 입력 중 에러 해제
-                if (_inputError != null && value.trim().length >= 10) {
-                  setState(() => _inputError = null);
-                }
-              },
-              decoration: InputDecoration(
-                hintText:
-                    '예: 반려동물 산책 매칭 서비스를 만들고 싶어요.\n'
-                    '견주들이 시간이 없을 때 근처 산책 도우미를 찾을 수 있고,\n'
-                    '산책 도우미는 부수입을 얻을 수 있는 플랫폼입니다.',
-                hintStyle: TextStyle(color: AppColors.grayScale[400]),
-                errorText: _inputError, // P1: 에러 메시지 표시
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.all(16),
-              ),
+            const SizedBox(height: 8),
+            Text(
+              'AI가 시장조사, 경쟁사 분석, 상품 기획, 재무 분석을 수행합니다',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.grayScale[600]),
             ),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-          // 산업 분야 선택
-          Text(
-            '산업 분야 (선택)',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _industries.map((industry) {
-              final isSelected = _selectedIndustry == industry;
-              return ChoiceChip(
-                label: Text(industry),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedIndustry = selected ? industry : null;
-                  });
-                },
-                selectedColor: AppColors.coral[100],
-                backgroundColor: Colors.white,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? AppColors.coral[700]
-                      : AppColors.grayScale[700],
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-
-          // 예산 선택
-          Text(
-            '예상 예산 (선택)',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _budgets.map((budget) {
-              final isSelected = _selectedBudget == budget;
-              return ChoiceChip(
-                label: Text(budget),
-                selected: isSelected,
-                onSelected: (selected) {
-                  setState(() {
-                    _selectedBudget = selected ? budget : null;
-                  });
-                },
-                selectedColor: AppColors.sage[100],
-                backgroundColor: Colors.white,
-                labelStyle: TextStyle(
-                  color: isSelected
-                      ? AppColors.sage[700]
-                      : AppColors.grayScale[700],
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 32),
-
-          // 분석 버튼 또는 진행 상황
-          if (_isAnalyzing) _buildProgressView() else _buildAnalyzeButton(),
-
-          if (_error != null) ...[
-            const SizedBox(height: 16),
+            // 아이디어 입력
             Container(
-              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red[50],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.error_outline, color: Colors.red[700]),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _error!,
-                      style: TextStyle(color: Colors.red[700]),
-                    ),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: _inputError != null
+                    ? Border.all(color: AppColors.coral[400]!, width: 2)
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
+              child: TextField(
+                controller: _ideaController,
+                maxLines: 6,
+                maxLength: 2000,
+                onChanged: (value) {
+                  // P1: 입력 중 에러 해제
+                  if (_inputError != null && value.trim().length >= 10) {
+                    setState(() => _inputError = null);
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText:
+                      '예: 반려동물 산책 매칭 서비스를 만들고 싶어요.\n'
+                      '견주들이 시간이 없을 때 근처 산책 도우미를 찾을 수 있고,\n'
+                      '산책 도우미는 부수입을 얻을 수 있는 플랫폼입니다.',
+                  hintStyle: TextStyle(color: AppColors.grayScale[400]),
+                  errorText: _inputError, // P1: 에러 메시지 표시
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+              ),
             ),
+            const SizedBox(height: 20),
+
+            // 산업 분야 선택
+            Text(
+              '산업 분야 (선택)',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _industries.map((industry) {
+                final isSelected = _selectedIndustry == industry;
+                return ChoiceChip(
+                  label: Text(industry),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedIndustry = selected ? industry : null;
+                    });
+                  },
+                  selectedColor: AppColors.coral[100],
+                  backgroundColor: Colors.white,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? AppColors.coral[700]
+                        : AppColors.grayScale[700],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+
+            // 예산 선택
+            Text(
+              '예상 예산 (선택)',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _budgets.map((budget) {
+                final isSelected = _selectedBudget == budget;
+                return ChoiceChip(
+                  label: Text(budget),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      _selectedBudget = selected ? budget : null;
+                    });
+                  },
+                  selectedColor: AppColors.sage[100],
+                  backgroundColor: Colors.white,
+                  labelStyle: TextStyle(
+                    color: isSelected
+                        ? AppColors.sage[700]
+                        : AppColors.grayScale[700],
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 32),
+
+            // 분석 버튼 또는 진행 상황
+            if (_isAnalyzing) _buildProgressView() else _buildAnalyzeButton(),
+
+            if (_error != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.error_outline, color: Colors.red[700]),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: Colors.red[700]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

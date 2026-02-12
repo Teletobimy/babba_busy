@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/psychology_test_result.dart';
 import '../../../shared/providers/psychology_result_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
 
 /// 심리검사 이력 화면
 class PsychologyHistoryScreen extends ConsumerWidget {
@@ -14,6 +15,7 @@ class PsychologyHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
     final resultsAsync = ref.watch(psychologyResultsProvider);
 
     return PopScope(
@@ -34,22 +36,55 @@ class PsychologyHistoryScreen extends ConsumerWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
         ),
-      body: resultsAsync.when(
-        data: (results) => results.isEmpty
-            ? _buildEmptyState(context)
-            : _buildResultsList(context, results),
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Iconsax.warning_2, size: 48, color: AppColors.grayScale[400]),
-              const SizedBox(height: 16),
-              Text('이력을 불러올 수 없습니다', style: TextStyle(color: AppColors.grayScale[600])),
-            ],
-          ),
-        ),
+        body: user == null
+            ? _buildLoginRequired(context)
+            : resultsAsync.when(
+                data: (results) => results.isEmpty
+                    ? _buildEmptyState(context)
+                    : _buildResultsList(context, results),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Iconsax.warning_2,
+                        size: 48,
+                        color: AppColors.grayScale[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        '이력을 불러올 수 없습니다',
+                        style: TextStyle(color: AppColors.grayScale[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
       ),
+    );
+  }
+
+  Widget _buildLoginRequired(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Iconsax.lock_1, size: 48, color: AppColors.grayScale[400]),
+            const SizedBox(height: 12),
+            Text(
+              '로그인이 필요합니다',
+              style: TextStyle(fontSize: 16, color: AppColors.grayScale[700]),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: () => context.push('/auth/login'),
+              child: const Text('로그인'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -59,33 +94,26 @@ class PsychologyHistoryScreen extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Iconsax.document,
-            size: 64,
-            color: AppColors.grayScale[300],
-          ),
+          Icon(Iconsax.document, size: 64, color: AppColors.grayScale[300]),
           const SizedBox(height: 16),
           Text(
             '아직 검사 이력이 없습니다',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppColors.grayScale[500],
-            ),
+            style: TextStyle(fontSize: 16, color: AppColors.grayScale[500]),
           ),
           const SizedBox(height: 8),
           Text(
             '심리검사를 진행하면 여기에 기록됩니다',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.grayScale[400],
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.grayScale[400]),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildResultsList(BuildContext context, List<PsychologyTestResult> results) {
+  Widget _buildResultsList(
+    BuildContext context,
+    List<PsychologyTestResult> results,
+  ) {
     // 날짜별 그룹화
     final groupedResults = <String, List<PsychologyTestResult>>{};
     for (final result in results) {
@@ -213,7 +241,12 @@ class PsychologyHistoryScreen extends ConsumerWidget {
           children: [
             Text(result.testTypeIcon, style: const TextStyle(fontSize: 24)),
             const SizedBox(width: 8),
-            Expanded(child: Text(result.testTypeName, style: const TextStyle(fontSize: 18))),
+            Expanded(
+              child: Text(
+                result.testTypeName,
+                style: const TextStyle(fontSize: 18),
+              ),
+            ),
           ],
         ),
         content: SingleChildScrollView(
@@ -226,7 +259,10 @@ class PsychologyHistoryScreen extends ConsumerWidget {
                 style: TextStyle(color: AppColors.grayScale[600], fontSize: 14),
               ),
               const SizedBox(height: 16),
-              const Text('결과 요약', style: TextStyle(fontWeight: FontWeight.w600)),
+              const Text(
+                '결과 요약',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 8),
               _buildResultSummary(result),
             ],

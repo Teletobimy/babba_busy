@@ -423,11 +423,18 @@ class _TransactionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (transactions.isEmpty) {
-      return const TransactionEmptyState();
+      return TransactionEmptyState(
+        onAdd: () => _showAddTransactionSheet(context),
+      );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingL,
+        0,
+        AppTheme.spacingL,
+        96,
+      ),
       itemCount: transactions.length,
       itemBuilder: (context, index) {
         final transaction = transactions[index];
@@ -456,6 +463,15 @@ class _TransactionList extends StatelessWidget {
       builder: (context) => AddTransactionSheet(transaction: transaction),
     );
   }
+
+  void _showAddTransactionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const AddTransactionSheet(),
+    );
+  }
 }
 
 class _RecurringList extends StatelessWidget {
@@ -467,10 +483,15 @@ class _RecurringList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (transactions.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         icon: Iconsax.repeat,
         title: '고정 지출이 없습니다',
         subtitle: '매월 반복되는 지출을 등록해보세요',
+        action: ElevatedButton.icon(
+          onPressed: () => _showAddTransactionSheet(context),
+          icon: const Icon(Iconsax.add),
+          label: const Text('고정 지출 추가'),
+        ),
       );
     }
 
@@ -513,7 +534,12 @@ class _RecurringList extends StatelessWidget {
         const SizedBox(height: AppTheme.spacingM),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+            padding: const EdgeInsets.fromLTRB(
+              AppTheme.spacingL,
+              0,
+              AppTheme.spacingL,
+              96,
+            ),
             itemCount: transactions.length,
             itemBuilder: (context, index) {
               final transaction = transactions[index];
@@ -545,6 +571,15 @@ class _RecurringList extends StatelessWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => AddTransactionSheet(transaction: transaction),
+    );
+  }
+
+  void _showAddTransactionSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const AddTransactionSheet(),
     );
   }
 }

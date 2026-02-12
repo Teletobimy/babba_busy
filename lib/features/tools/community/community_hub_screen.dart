@@ -392,14 +392,22 @@ class _CreateCommunitySheetState extends ConsumerState<_CreateCommunitySheet> {
 
   Future<void> _submit() async {
     if (_submitting) return;
+    final name = _nameController.text.trim();
+    final description = _descriptionController.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('커뮤니티 이름을 입력해주세요.')));
+      return;
+    }
     setState(() => _submitting = true);
 
     try {
       final communityId = await ref
           .read(communityServiceProvider)
           .createCommunity(
-            name: _nameController.text,
-            description: _descriptionController.text,
+            name: name,
+            description: description,
             tags: _parseTags(_tagsController.text),
           );
       if (communityId == null) {

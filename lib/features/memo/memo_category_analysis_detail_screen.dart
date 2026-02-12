@@ -104,7 +104,32 @@ class _MemoCategoryAnalysisDetailScreenState
 
           final data = snapshot.data;
           if (data == null) {
-            return const Center(child: Text('분석 결과가 없습니다.'));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Iconsax.document_text,
+                      size: 44,
+                      color: AppColors.grayScale[500],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '분석 결과가 없습니다.',
+                      style: TextStyle(color: AppColors.grayScale[700]),
+                    ),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: () =>
+                          context.go('/memo/category-analysis/history'),
+                      child: const Text('분석 이력 보기'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final result = data.result;

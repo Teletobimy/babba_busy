@@ -57,9 +57,16 @@ class _CommunityDetailScreenState extends ConsumerState<CommunityDetailScreen> {
     );
 
     if (confirmed != true || !mounted) return;
-    await ref
-        .read(communityServiceProvider)
-        .deletePost(communityId: widget.communityId, postId: post.id);
+    try {
+      await ref
+          .read(communityServiceProvider)
+          .deletePost(communityId: widget.communityId, postId: post.id);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('게시글 삭제 실패: $e')));
+    }
   }
 
   void _openPostDetail(CommunityPost post) {
@@ -466,6 +473,21 @@ class _CreatePostSheetState extends ConsumerState<_CreatePostSheet> {
 
   Future<void> _submit() async {
     if (_submitting) return;
+    final title = _titleController.text.trim();
+    final content = _contentController.text.trim();
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('제목을 입력해주세요.')));
+      return;
+    }
+    if (content.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('본문을 입력해주세요.')));
+      return;
+    }
+
     setState(() => _submitting = true);
 
     try {
@@ -473,8 +495,8 @@ class _CreatePostSheetState extends ConsumerState<_CreatePostSheet> {
           .read(communityServiceProvider)
           .createPost(
             communityId: widget.communityId,
-            title: _titleController.text,
-            content: _contentController.text,
+            title: title,
+            content: content,
             tags: _parseTags(_tagsController.text),
           );
       if (postId == null) {
@@ -589,6 +611,8 @@ class _PostDetailSheet extends ConsumerStatefulWidget {
 class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
   final TextEditingController _commentController = TextEditingController();
   bool _sendingComment = false;
+  bool get _canSubmitComment =>
+      !_sendingComment && _commentController.text.trim().isNotEmpty;
 
   @override
   void dispose() {
@@ -598,6 +622,15 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
 
   Future<void> _submitComment() async {
     if (_sendingComment) return;
+    final content = _commentController.text.trim();
+    if (content.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('댓글 내용을 입력해주세요.')));
+      return;
+    }
+
     if (ref.read(currentUserProvider) == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -613,9 +646,10 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
           .addComment(
             communityId: widget.communityId,
             postId: widget.post.id,
-            content: _commentController.text,
+            content: content,
           );
       _commentController.clear();
+      if (mounted) setState(() {});
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -650,13 +684,20 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
     );
 
     if (confirmed != true) return;
-    await ref
-        .read(communityServiceProvider)
-        .deleteComment(
-          communityId: widget.communityId,
-          postId: widget.post.id,
-          commentId: comment.id,
-        );
+    try {
+      await ref
+          .read(communityServiceProvider)
+          .deleteComment(
+            communityId: widget.communityId,
+            postId: widget.post.id,
+            commentId: comment.id,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('댓글 삭제 실패: $e')));
+    }
   }
 
   @override
@@ -878,12 +919,17 @@ class _PostDetailSheetState extends ConsumerState<_PostDetailSheet> {
                               counterText: '',
                               hintText: '댓글을 입력하세요',
                             ),
-                            onSubmitted: (_) => _submitComment(),
+                            onChanged: (_) => setState(() {}),
+                            onSubmitted: (_) {
+                              if (_canSubmitComment) {
+                                _submitComment();
+                              }
+                            },
                           ),
                         ),
                         const SizedBox(width: 8),
                         FilledButton(
-                          onPressed: _sendingComment ? null : _submitComment,
+                          onPressed: _canSubmitComment ? _submitComment : null,
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.communityColor,
                           ),

@@ -56,7 +56,14 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
     try {
       final user = ref.read(currentUserProvider);
 
-      if (user == null) throw Exception('로그인이 필요합니다');
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _error = '로그인이 필요합니다. 로그인 후 다시 시도해주세요.';
+          _isLoading = false;
+        });
+        return;
+      }
 
       final userId = user.uid;
 
@@ -77,8 +84,11 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       });
     } catch (e) {
       if (!mounted) return;
+      final isAuthError = e.toString().contains('로그인이 필요합니다');
       setState(() {
-        _error = "Cloud Run 연결 실패: $e"; // 더 구체적인 에러 메시지
+        _error = isAuthError
+            ? '로그인이 필요합니다. 로그인 후 다시 시도해주세요.'
+            : '검사를 불러오지 못했습니다.\n$e';
         _isLoading = false;
       });
     }
@@ -116,7 +126,15 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
     try {
       final user = ref.read(currentUserProvider);
 
-      if (user == null) throw Exception('로그인이 필요합니다');
+      if (user == null) {
+        if (!mounted) return;
+        setState(() {
+          _error = '로그인이 필요합니다. 로그인 후 다시 시도해주세요.';
+          _isSubmitting = false;
+          _selectedAnswerIndex = null;
+        });
+        return;
+      }
 
       final userId = user.uid;
 
@@ -167,7 +185,14 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
     try {
       final user = ref.read(currentUserProvider);
-      if (user == null) throw Exception('로그인이 필요합니다');
+      if (user == null) {
+        setState(() {
+          _error = '로그인이 필요합니다. 로그인 후 다시 시도해주세요.';
+          _isSubmitting = false;
+          _isAnalyzing = false;
+        });
+        return;
+      }
       final userId = user.uid;
 
       final aiService = ref.read(aiApiServiceProvider);
@@ -201,12 +226,20 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
 
       // DB에 결과 저장
       if (_analysis != null) {
-        final resultService = ref.read(psychologyResultServiceProvider);
-        await resultService.saveResult(
-          testType: widget.testType,
-          answers: _answers,
-          result: _analysis!,
-        );
+        try {
+          final resultService = ref.read(psychologyResultServiceProvider);
+          await resultService.saveResult(
+            testType: widget.testType,
+            answers: _answers,
+            result: _analysis!,
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('결과 저장 실패: $e')));
+          }
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -221,7 +254,14 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   /// 비동기 분석 요청 (백그라운드 처리)
   Future<void> _submitAsyncAnalysis() async {
     final user = ref.read(currentUserProvider);
-    if (user == null || _sessionId == null) return;
+    if (user == null) {
+      setState(() {
+        _error = '로그인이 필요합니다. 로그인 후 다시 시도해주세요.';
+        _isSubmitting = false;
+      });
+      return;
+    }
+    if (_sessionId == null) return;
 
     setState(() {
       _showAnalysisChoice = false;
@@ -285,7 +325,7 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
       return _buildResultScreen();
     }
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: AppColors.grayScale[50],
       appBar: AppBar(
         title: Text(_getTestName(widget.testType)),
@@ -297,6 +337,20 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
           : _error != null
           ? _buildErrorView()
           : _buildAnalysisProgress(),
+    );
+
+    if (!_isAnalyzing) {
+      return scaffold;
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _showExitDialog();
+        }
+      },
+      child: scaffold,
     );
   }
 
@@ -319,6 +373,8 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
   }
 
   Widget _buildErrorView() {
+    final requiresLogin = _error?.contains('로그인이 필요합니다') ?? false;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -350,22 +406,35 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                   icon: const Icon(Iconsax.arrow_left),
                   label: const Text('돌아가기'),
                 ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    setState(() {
-                      _error = null;
-                      _isLoading = true;
-                    });
-                    _startTest();
-                  },
-                  icon: const Icon(Iconsax.refresh),
-                  label: const Text('다시 시도'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.coral[500],
-                    foregroundColor: Colors.white,
+                if (requiresLogin) ...[
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () => context.push('/auth/login'),
+                    icon: const Icon(Iconsax.user),
+                    label: const Text('로그인'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.coral[500],
+                      foregroundColor: Colors.white,
+                    ),
                   ),
-                ),
+                ] else ...[
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        _error = null;
+                        _isLoading = true;
+                      });
+                      _startTest();
+                    },
+                    icon: const Icon(Iconsax.refresh),
+                    label: const Text('다시 시도'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.coral[500],
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -382,6 +451,12 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Iconsax.arrow_left),
+          onPressed: _isSubmitting
+              ? null
+              : () => context.go('/tools/psychology'),
+        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -481,7 +556,10 @@ class _PsychologyTestScreenState extends ConsumerState<PsychologyTestScreen> {
                 subtitle: '화면을 유지하며 실시간 진행 상황을 확인합니다',
                 isRecommended: false,
                 onTap: () {
-                  setState(() => _showAnalysisChoice = false);
+                  setState(() {
+                    _showAnalysisChoice = false;
+                    _error = null;
+                  });
                   _getResult();
                 },
               ).animate().fadeIn(delay: 600.ms).slideY(begin: 0.2),

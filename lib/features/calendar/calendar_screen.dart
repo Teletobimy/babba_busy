@@ -25,18 +25,22 @@ import '../../shared/providers/todo_provider.dart';
 /// 캘린더 뷰 모드
 enum CalendarViewMode {
   month, // 월간 뷰
-  week,  // 주간 뷰
-  day,   // 일간 뷰
+  week, // 주간 뷰
+  day, // 일간 뷰
 }
 
 /// 선택된 날짜 Provider
 final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
 
 /// 캘린더 뷰 모드 Provider
-final calendarViewModeProvider = StateProvider<CalendarViewMode>((ref) => CalendarViewMode.month);
+final calendarViewModeProvider = StateProvider<CalendarViewMode>(
+  (ref) => CalendarViewMode.month,
+);
 
 /// 캘린더 포맷 Provider (TableCalendar용)
-final calendarFormatProvider = StateProvider<CalendarFormat>((ref) => CalendarFormat.month);
+final calendarFormatProvider = StateProvider<CalendarFormat>(
+  (ref) => CalendarFormat.month,
+);
 
 /// 캘린더 멤버 필터
 final calendarMemberFilterProvider = StateProvider<String?>((ref) => null);
@@ -87,22 +91,28 @@ class CalendarScreen extends ConsumerWidget {
                               : Iconsax.tick_circle5,
                         ),
                         onPressed: () {
-                          ref.read(showCompletedInCalendarProvider.notifier).state =
-                              !ref.read(showCompletedInCalendarProvider);
+                          ref
+                              .read(showCompletedInCalendarProvider.notifier)
+                              .state = !ref.read(
+                            showCompletedInCalendarProvider,
+                          );
                         },
-                        tooltip: '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
+                        tooltip:
+                            '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
                       ),
                       // 뷰 모드 전환 버튼
                       _ViewModeButton(
                         currentMode: viewMode,
                         onModeChanged: (mode) {
-                          ref.read(calendarViewModeProvider.notifier).state = mode;
+                          ref.read(calendarViewModeProvider.notifier).state =
+                              mode;
                         },
                       ),
                       // 오늘로 이동
                       TextButton(
                         onPressed: () {
-                          ref.read(selectedDateProvider.notifier).state = DateTime.now();
+                          ref.read(selectedDateProvider.notifier).state =
+                              DateTime.now();
                         },
                         child: const Text('오늘'),
                       ),
@@ -206,7 +216,12 @@ class CalendarScreen extends ConsumerWidget {
     );
   }
 
-  void _showTodosPopup(BuildContext context, WidgetRef ref, DateTime date, List members) {
+  void _showTodosPopup(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime date,
+    List members,
+  ) {
     final holiday = ref.read(holidayForDateProvider(date));
 
     showModalBottomSheet(
@@ -247,7 +262,8 @@ class _TodosPopup extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final now = DateTime.now();
-    final isToday = date.year == now.year && date.month == now.month && date.day == now.day;
+    final isToday =
+        date.year == now.year && date.month == now.month && date.day == now.day;
 
     // ✅ 모달 내부에서 provider watch - 실시간 업데이트!
     final todos = ref.watch(smartTodosForDateProvider(date));
@@ -293,7 +309,9 @@ class _TodosPopup extends ConsumerWidget {
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
                         color: AppColors.calendarColor.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusSmall,
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -321,16 +339,18 @@ class _TodosPopup extends ConsumerWidget {
                       children: [
                         Text(
                           DateFormat('M월 d일 EEEE', 'ko_KR').format(date),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
                         ),
                         Row(
                           children: [
                             if (isToday)
                               Container(
                                 margin: const EdgeInsets.only(top: 4, right: 6),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
                                   color: AppColors.calendarColor,
                                   borderRadius: BorderRadius.circular(10),
@@ -347,12 +367,19 @@ class _TodosPopup extends ConsumerWidget {
                             if (holiday != null)
                               Container(
                                 margin: const EdgeInsets.only(top: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.errorLight.withValues(alpha: 0.15),
+                                  color: AppColors.errorLight.withValues(
+                                    alpha: 0.15,
+                                  ),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: AppColors.errorLight.withValues(alpha: 0.5),
+                                    color: AppColors.errorLight.withValues(
+                                      alpha: 0.5,
+                                    ),
                                     width: 1,
                                   ),
                                 ),
@@ -410,11 +437,12 @@ class _TodosPopup extends ConsumerWidget {
                         const SizedBox(height: AppTheme.spacingM),
                         Text(
                           '이 날짜에 일정이 없습니다',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
+                              ),
                         ),
                         const SizedBox(height: AppTheme.spacingS),
                         TextButton.icon(
@@ -427,20 +455,22 @@ class _TodosPopup extends ConsumerWidget {
                   )
                 : ListView.builder(
                     shrinkWrap: true,
-                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppTheme.spacingL,
+                    ),
                     itemCount: todos.length,
                     itemBuilder: (context, index) {
                       final todo = todos[index];
                       return Padding(
-                        padding: const EdgeInsets.only(bottom: AppTheme.spacingS),
+                        padding: const EdgeInsets.only(
+                          bottom: AppTheme.spacingS,
+                        ),
                         child: Consumer(
                           builder: (context, ref, child) {
                             return GestureDetector(
-                              onTap: () => _showTodoActionsSheet(context, ref, todo),
-                              child: TodoCard(
-                                todo: todo,
-                                members: members,
-                              ),
+                              onTap: () =>
+                                  _showTodoActionsSheet(context, ref, todo),
+                              child: TodoCard(todo: todo, members: members),
                             );
                           },
                         ),
@@ -450,13 +480,19 @@ class _TodosPopup extends ConsumerWidget {
           ),
 
           // 하단 여백
-          SizedBox(height: MediaQuery.of(context).padding.bottom + AppTheme.spacingM),
+          SizedBox(
+            height: MediaQuery.of(context).padding.bottom + AppTheme.spacingM,
+          ),
         ],
       ),
     );
   }
 
-  void _showTodoActionsSheet(BuildContext context, WidgetRef ref, TodoItem todo) {
+  void _showTodoActionsSheet(
+    BuildContext context,
+    WidgetRef ref,
+    TodoItem todo,
+  ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // 반복 인스턴스의 경우 원본 ID 추출
     final actualTodoId = todo.parentTodoId ?? todo.id;
@@ -492,7 +528,10 @@ class _TodosPopup extends ConsumerWidget {
               ),
               // 제목
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL, vertical: AppTheme.spacingM),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                  vertical: AppTheme.spacingM,
+                ),
                 child: Text(
                   todo.title,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -520,7 +559,10 @@ class _TodosPopup extends ConsumerWidget {
               // 삭제 버튼
               ListTile(
                 leading: Icon(Iconsax.trash, color: AppColors.errorLight),
-                title: Text('삭제', style: TextStyle(color: AppColors.errorLight)),
+                title: Text(
+                  '삭제',
+                  style: TextStyle(color: AppColors.errorLight),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _showDeleteConfirmDialog(context, ref, todo, actualTodoId);
@@ -534,7 +576,12 @@ class _TodosPopup extends ConsumerWidget {
     );
   }
 
-  void _showDeleteConfirmDialog(BuildContext context, WidgetRef ref, TodoItem todo, String todoId) {
+  void _showDeleteConfirmDialog(
+    BuildContext context,
+    WidgetRef ref,
+    TodoItem todo,
+    String todoId,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -556,9 +603,9 @@ class _TodosPopup extends ConsumerWidget {
               } catch (e) {
                 if (context.mounted) {
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('삭제 실패: $e')),
-                  );
+                  ScaffoldMessenger.of(
+                    context,
+                  ).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
                 }
               }
             },
@@ -726,19 +773,24 @@ class _MonthView extends ConsumerWidget {
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final safeAreaBottom = MediaQuery.of(context).padding.bottom;
     // 헤더(약 80) + 요일행(50) + 달력헤더(60) + 멤버필터(60) + 하단 여백 계산
-    final availableHeight = screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
+    final availableHeight =
+        screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
     final rowHeight = (availableHeight / 6).clamp(65.0, 95.0);
 
     // 반복 확장된 월간 데이터 사용 (점 표시용)
-    final expandedTodos = ref.watch(expandedTodosForMonthProvider((
-      year: selectedDate.year,
-      month: selectedDate.month,
-    )));
+    final expandedTodos = ref.watch(
+      expandedTodosForMonthProvider((
+        year: selectedDate.year,
+        month: selectedDate.month,
+      )),
+    );
 
     // 선택된 멤버에 따라 Todo 필터링
     final filteredTodos = selectedMemberId == null
         ? expandedTodos
-        : expandedTodos.where((todo) => todo.isAssignedTo(selectedMemberId)).toList();
+        : expandedTodos
+              .where((todo) => todo.isAssignedTo(selectedMemberId))
+              .toList();
 
     return SingleChildScrollView(
       child: Column(
@@ -763,44 +815,58 @@ class _MonthView extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
                 borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                boxShadow: isDark ? AppTheme.softShadowDark : AppTheme.softShadowLight,
+                boxShadow: isDark
+                    ? AppTheme.softShadowDark
+                    : AppTheme.softShadowLight,
               ),
               child: TableCalendar<TodoItem>(
                 firstDay: DateTime(2020, 1, 1),
                 lastDay: DateTime(2030, 12, 31),
                 focusedDay: selectedDate,
                 calendarFormat: calendarFormat,
+                availableGestures: AvailableGestures.horizontalSwipe,
+                availableCalendarFormats: const {CalendarFormat.month: '월간'},
                 selectedDayPredicate: (day) => isSameDay(selectedDate, day),
                 onDaySelected: (selectedDay, focusedDay) {
                   onDaySelected(selectedDay);
                 },
+                onPageChanged: (focusedDay) {
+                  onDaySelected(focusedDay);
+                },
                 onFormatChanged: onFormatChanged,
                 eventLoader: (day) {
                   // 해당 날짜의 Todo 필터링
-                  return filteredTodos.where((todo) => _isTodoOnDate(todo, day)).toList();
+                  return filteredTodos
+                      .where((todo) => _isTodoOnDate(todo, day))
+                      .toList();
                 },
                 locale: 'ko_KR',
                 rowHeight: rowHeight,
                 headerStyle: HeaderStyle(
                   formatButtonVisible: false,
                   titleCentered: true,
-                  titleTextStyle: Theme.of(context).textTheme.titleMedium!.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  titleTextStyle: Theme.of(context).textTheme.titleMedium!
+                      .copyWith(fontWeight: FontWeight.w600),
                   headerPadding: const EdgeInsets.symmetric(vertical: 16),
                   leftChevronIcon: Icon(
                     Iconsax.arrow_left_2,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                   rightChevronIcon: Icon(
                     Iconsax.arrow_right_3,
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                 ),
                 daysOfWeekHeight: 40,
                 daysOfWeekStyle: DaysOfWeekStyle(
                   weekdayStyle: TextStyle(
-                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                   ),
@@ -818,7 +884,9 @@ class _MonthView extends ConsumerWidget {
                     shape: BoxShape.circle,
                   ),
                   todayTextStyle: TextStyle(
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                     fontWeight: FontWeight.w600,
                   ),
                   selectedDecoration: const BoxDecoration(
@@ -830,7 +898,9 @@ class _MonthView extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                   ),
                   defaultTextStyle: TextStyle(
-                    color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                    color: isDark
+                        ? AppColors.textPrimaryDark
+                        : AppColors.textPrimaryLight,
                   ),
                   weekendTextStyle: TextStyle(
                     color: AppColors.errorLight.withValues(alpha: 0.8),
@@ -840,14 +910,32 @@ class _MonthView extends ConsumerWidget {
                 calendarBuilders: CalendarBuilders(
                   // 커스텀 날짜 셀 빌더 (아바타 포함)
                   defaultBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, false, false, filteredTodos);
+                    return _buildDayCell(
+                      context,
+                      day,
+                      false,
+                      false,
+                      filteredTodos,
+                    );
                   },
                   selectedBuilder: (context, day, focusedDay) {
-                    return _buildDayCell(context, day, true, false, filteredTodos);
+                    return _buildDayCell(
+                      context,
+                      day,
+                      true,
+                      false,
+                      filteredTodos,
+                    );
                   },
                   todayBuilder: (context, day, focusedDay) {
                     final isSelected = isSameDay(selectedDate, day);
-                    return _buildDayCell(context, day, isSelected, true, filteredTodos);
+                    return _buildDayCell(
+                      context,
+                      day,
+                      isSelected,
+                      true,
+                      filteredTodos,
+                    );
                   },
                 ),
               ),
@@ -868,75 +956,93 @@ class _MonthView extends ConsumerWidget {
       // 시간 있음: 날짜 범위 체크 (정규화)
       final startDate = date_utils.normalizeDate(todo.startTime!);
       final endDate = date_utils.normalizeDate(todo.endTime ?? todo.startTime!);
-      return !normalizedDay.isBefore(startDate) && !normalizedDay.isAfter(endDate);
+      return !normalizedDay.isBefore(startDate) &&
+          !normalizedDay.isAfter(endDate);
     } else if (todo.dueDate != null) {
       // 시간 미정: 날짜만 비교
-      return date_utils.normalizeDate(todo.dueDate!).isAtSameMomentAs(normalizedDay);
+      return date_utils
+          .normalizeDate(todo.dueDate!)
+          .isAtSameMomentAs(normalizedDay);
     }
     return false;
   }
 
-  Widget _buildDayCell(BuildContext context, DateTime day, bool isSelected, bool isToday, List<TodoItem> filteredTodos) {
-    final dayTodos = filteredTodos.where((todo) => _isTodoOnDate(todo, day)).toList();
-    final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+  Widget _buildDayCell(
+    BuildContext context,
+    DateTime day,
+    bool isSelected,
+    bool isToday,
+    List<TodoItem> filteredTodos,
+  ) {
+    final dayTodos = filteredTodos
+        .where((todo) => _isTodoOnDate(todo, day))
+        .toList();
+    final isWeekend =
+        day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
     final holiday = _getHolidayForDay(day);
     final isHoliday = holiday != null;
 
-    return Container(
-      margin: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? AppColors.calendarColor
-            : isToday
-                ? AppColors.calendarColor.withValues(alpha: 0.15)
-                : null,
-        borderRadius: BorderRadius.circular(8),
-        border: isToday && !isSelected
-            ? Border.all(color: AppColors.calendarColor, width: 1.5)
-            : null,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          const SizedBox(height: 4),
-          // 날짜 숫자
-          Text(
-            '${day.day}',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: isSelected || isToday ? FontWeight.w600 : FontWeight.w500,
-              color: isSelected
-                  ? Colors.white
-                  : (isHoliday || isWeekend)
-                      ? AppColors.errorLight
-                      : (isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
-            ),
-          ),
-          // 공휴일 이름 표시
-          if (isHoliday && !isSelected)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Text(
-                _shortenHolidayName(holiday.name),
-                style: TextStyle(
-                  fontSize: 8,
-                  color: AppColors.errorLight,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
+    return SizedBox.expand(
+      child: Container(
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.calendarColor
+              : isToday
+              ? AppColors.calendarColor.withValues(alpha: 0.15)
+              : null,
+          borderRadius: BorderRadius.circular(8),
+          border: isToday && !isSelected
+              ? Border.all(color: AppColors.calendarColor, width: 1.5)
+              : null,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.start,
+          children: [
+            const SizedBox(height: 4),
+            // 날짜 숫자
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected || isToday
+                    ? FontWeight.w600
+                    : FontWeight.w500,
+                color: isSelected
+                    ? Colors.white
+                    : (isHoliday || isWeekend)
+                    ? AppColors.errorLight
+                    : (isDark
+                          ? AppColors.textPrimaryDark
+                          : AppColors.textPrimaryLight),
               ),
             ),
-          // 멤버별 색상 점 + 개수 표시
-          if (dayTodos.isNotEmpty)
-            Expanded(
-              child: Padding(
+            // 공휴일 이름 표시
+            if (isHoliday && !isSelected)
+              Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: _buildMemberDots(dayTodos, isSelected),
+                child: Text(
+                  _shortenHolidayName(holiday.name),
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: AppColors.errorLight,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
               ),
-            ),
-        ],
+            // 멤버별 색상 점 + 개수 표시
+            if (dayTodos.isNotEmpty)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: _buildMemberDots(dayTodos, isSelected),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -983,7 +1089,9 @@ class _MonthView extends ConsumerWidget {
           (m) => m.id == entry.key,
           orElse: () => null,
         );
-        final memberColor = member != null ? _parseColor(member.color) : AppColors.calendarColor;
+        final memberColor = member != null
+            ? _parseColor(member.color)
+            : AppColors.calendarColor;
         final count = entry.value;
 
         // count > 1이면 숫자 배지, 아니면 점만 표시
@@ -1027,7 +1135,9 @@ class _MonthView extends ConsumerWidget {
     try {
       final hex = colorHex.replaceAll('#', '');
       if (hex.length != 6) {
-        debugPrint('⚠️ Invalid color format: $colorHex (expected 6 hex digits)');
+        debugPrint(
+          '⚠️ Invalid color format: $colorHex (expected 6 hex digits)',
+        );
         return AppColors.memberColors[0];
       }
       return Color(int.parse('FF$hex', radix: 16));

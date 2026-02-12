@@ -460,6 +460,16 @@ class _MemoContent extends ConsumerWidget {
           ),
           const SizedBox(height: AppTheme.spacingS),
           Text('새 메모를 추가해보세요', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: AppTheme.spacingL),
+          ElevatedButton.icon(
+            onPressed: () => _showAddMemoSheet(context),
+            icon: const Icon(Iconsax.add),
+            label: const Text('메모 추가'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.memoColor,
+              foregroundColor: Colors.white,
+            ),
+          ),
         ],
       ),
     );
@@ -542,6 +552,7 @@ class _MemoContent extends ConsumerWidget {
     );
 
     SubmitJobResult? submitResult;
+    var shouldShowPendingCategoryDialog = false;
     try {
       submitResult = await ref
           .read(aiApiServiceProvider)
@@ -560,14 +571,14 @@ class _MemoContent extends ConsumerWidget {
             lowerMessage.contains('pending') ||
             e.message.contains('진행 중');
         if (isDuplicatePending) {
-          _showPendingCategoryAnalysisDialog(context);
+          shouldShowPendingCategoryDialog = true;
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('분석 요청 실패: ${e.message}')));
           return;
         }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('분석 요청 실패: ${e.message}')));
       }
-      return;
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -577,12 +588,23 @@ class _MemoContent extends ConsumerWidget {
       return;
     } finally {
       if (context.mounted) {
-        Navigator.of(context, rootNavigator: true).pop();
+        Navigator.of(context, rootNavigator: true).maybePop();
       }
     }
 
     if (!context.mounted) return;
+    if (shouldShowPendingCategoryDialog) {
+      _showPendingCategoryAnalysisDialog(context);
+      return;
+    }
+
     final accepted = submitResult;
+    if (accepted == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('분석 요청 응답이 올바르지 않습니다.')));
+      return;
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => RequestAcceptedScreen(

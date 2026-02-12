@@ -300,10 +300,7 @@ class RouterNotifier extends ChangeNotifier {
     }
 
     // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
-    if (memberships.isLoading &&
-        !isOnboarding &&
-        !isAuthRoute &&
-        !isCommunityRoute) {
+    if (memberships.isLoading && !isOnboarding && !isCommunityRoute) {
       debugPrint('[Router] ⏳ WAIT: Memberships still loading');
       return null;
     }
@@ -328,17 +325,31 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 4. 로그인했지만 그룹이 없고 온보딩을 아직 안 한 경우
+    // 4. 로그인했고 그룹이 없으면 온보딩으로 이동 (onboardingCompleted 값과 무관)
     if (!isOnboarding && !isAuthRoute && !isCommunityRoute) {
-      if (!hasGroups && !onboardingCompleted) {
+      if (!hasGroups) {
         debugPrint(
-          '[Router] 🎯 DECISION: No groups ($hasGroups) & no onboarding ($onboardingCompleted)',
+          '[Router] 🎯 DECISION: No groups ($hasGroups), redirect to onboarding',
         );
         debugPrint('[Router] ➡️ REDIRECT to /onboarding');
         return '/onboarding';
       }
       // 그룹이 있는데 온보딩 상태가 아니면 온보딩 완료로 간주 (기기 이동 등)
       _markOnboardingCompleteIfNeeded(hasGroups, onboardingCompleted);
+    }
+
+    // 4-1. 로그인 사용자가 인증 페이지에 있으면 그룹 보유 여부에 따라 이동
+    if (isAuthRoute) {
+      if (hasGroups) {
+        debugPrint(
+          '[Router] 🏠 DECISION: Logged in user on auth route -> /home',
+        );
+        return '/home';
+      }
+      debugPrint(
+        '[Router] 🧭 DECISION: Logged in user without groups on auth route -> /onboarding',
+      );
+      return '/onboarding';
     }
 
     // 5. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
@@ -349,9 +360,9 @@ class RouterNotifier extends ChangeNotifier {
     final shouldRedirectToHome =
         isLoggedIn &&
         !isAlreadyAtHome &&
-        (isAuthRoute ||
-            (hasGroups && isOnboarding) ||
-            (onboardingCompleted && isOnboarding));
+        hasGroups &&
+        onboardingCompleted &&
+        isOnboarding;
     debugPrint('[Router]   shouldRedirectToHome check:');
     debugPrint('[Router]     isLoggedIn=$isLoggedIn');
     debugPrint('[Router]     isAlreadyAtHome=$isAlreadyAtHome');

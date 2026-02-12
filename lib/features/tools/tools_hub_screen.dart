@@ -39,7 +39,16 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
   void initState() {
     super.initState();
     final activeModules = ref.read(activeModulesProvider);
-    _tabController = TabController(length: activeModules.length, vsync: this);
+    final savedIndex = ref.read(selectedToolTabProvider);
+    final length = activeModules.isEmpty ? 1 : activeModules.length;
+    final initialIndex = activeModules.isEmpty
+        ? 0
+        : savedIndex.clamp(0, activeModules.length - 1).toInt();
+    _tabController = TabController(
+      length: length,
+      vsync: this,
+      initialIndex: initialIndex,
+    );
     _tabController.addListener(_handleTabChange);
   }
 
@@ -60,19 +69,6 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
     final activeModules = ref.watch(activeModulesProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 활성화된 모듈이 변경되면 탭 컨트롤러 재생성
-    if (_tabController.length != activeModules.length) {
-      _tabController.removeListener(_handleTabChange);
-      _tabController.dispose();
-      _tabController = TabController(
-        length: activeModules.length,
-        vsync: this,
-        initialIndex: 0,
-      );
-      _tabController.addListener(_handleTabChange);
-    }
-
-    // 활성화된 모듈이 없으면
     if (activeModules.isEmpty) {
       return Scaffold(
         body: SafeArea(
@@ -106,6 +102,23 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
           ),
         ),
       );
+    }
+
+    // 활성화된 모듈이 변경되면 탭 컨트롤러 재생성
+    if (_tabController.length != activeModules.length) {
+      final savedIndex = ref.read(selectedToolTabProvider);
+      _tabController.removeListener(_handleTabChange);
+      _tabController.dispose();
+      final initialIndex = savedIndex
+          .clamp(0, activeModules.length - 1)
+          .toInt();
+      _tabController = TabController(
+        length: activeModules.length,
+        vsync: this,
+        initialIndex: initialIndex,
+      );
+      _tabController.addListener(_handleTabChange);
+      ref.read(selectedToolTabProvider.notifier).state = initialIndex;
     }
 
     return Scaffold(
@@ -146,53 +159,67 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
                       children: List.generate(activeModules.length, (index) {
                         final module = activeModules[index];
                         final isSelected = _tabController.index == index;
-                        return GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _tabController.animateTo(index);
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? _getModuleColor(module)
-                                  : Colors.transparent,
+                        return Semantics(
+                          button: true,
+                          selected: isSelected,
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _tabController.animateTo(index);
+                                });
+                              },
                               borderRadius: BorderRadius.circular(
                                 AppTheme.radiusSmall,
                               ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  _getModuleIcon(module),
-                                  size: 16,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : (isDark
-                                            ? AppColors.textSecondaryDark
-                                            : AppColors.textSecondaryLight),
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minHeight: 44,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  module.label,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : (isDark
-                                              ? AppColors.textSecondaryDark
-                                              : AppColors.textSecondaryLight),
-                                    fontWeight: isSelected
-                                        ? FontWeight.w600
-                                        : FontWeight.w400,
-                                    fontSize: 13,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? _getModuleColor(module)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall,
                                   ),
                                 ),
-                              ],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _getModuleIcon(module),
+                                      size: 16,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : (isDark
+                                                ? AppColors.textSecondaryDark
+                                                : AppColors.textSecondaryLight),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      module.label,
+                                      style: TextStyle(
+                                        color: isSelected
+                                            ? Colors.white
+                                            : (isDark
+                                                  ? AppColors.textSecondaryDark
+                                                  : AppColors
+                                                        .textSecondaryLight),
+                                        fontWeight: isSelected
+                                            ? FontWeight.w600
+                                            : FontWeight.w400,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         );
@@ -850,7 +877,8 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     });
 
     try {
-      final caption = _messageController.text.trim();
+      final initialText = _messageController.text;
+      final caption = initialText.trim();
       await ref
           .read(chatServiceProvider)
           .sendAttachmentMessage(
@@ -865,7 +893,9 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
             },
           );
 
-      _messageController.clear();
+      if (_messageController.text == initialText) {
+        _messageController.clear();
+      }
       if (mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _scrollToBottom();

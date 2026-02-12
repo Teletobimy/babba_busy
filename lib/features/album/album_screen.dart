@@ -265,7 +265,12 @@ class _TimelineView extends ConsumerWidget {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingL,
+        0,
+        AppTheme.spacingL,
+        96,
+      ),
       itemCount: groupedAlbums.length,
       itemBuilder: (context, index) {
         final entry = groupedAlbums.entries.elementAt(index);
@@ -329,9 +334,19 @@ class _PersonView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final albumsByPerson = ref.watch(albumsByPersonProvider);
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final albumsByPerson = <String, List<Album>>{};
+
+    for (final album in albums) {
+      if (album.participants.isEmpty) {
+        albumsByPerson.putIfAbsent('_other', () => []).add(album);
+        continue;
+      }
+      for (final personId in album.participants) {
+        albumsByPerson.putIfAbsent(personId, () => []).add(album);
+      }
+    }
 
     if (albumsByPerson.isEmpty) {
       return Center(
@@ -352,13 +367,38 @@ class _PersonView extends ConsumerWidget {
                     : AppColors.textSecondaryLight,
               ),
             ),
+            const SizedBox(height: AppTheme.spacingS),
+            Text(
+              '앨범 추가 시 참여자를 입력해보세요',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: AppTheme.spacingL),
+            ElevatedButton.icon(
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const AddAlbumSheet(),
+              ),
+              icon: const Icon(Iconsax.add),
+              label: const Text('앨범 추가'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.memoryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingL,
+        AppTheme.spacingL,
+        AppTheme.spacingL,
+        120,
+      ),
       itemCount: albumsByPerson.length,
       itemBuilder: (context, index) {
         final entry = albumsByPerson.entries.elementAt(index);
@@ -427,8 +467,16 @@ class _LocationView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final albumsByLocation = ref.watch(albumsByLocationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final albumsByLocation = <String, List<Album>>{};
+
+    for (final album in albums.where(
+      (a) => a.hasLocation && (a.placeName?.trim().isNotEmpty ?? false),
+    )) {
+      albumsByLocation
+          .putIfAbsent(album.placeName!.trim(), () => [])
+          .add(album);
+    }
 
     if (albumsByLocation.isEmpty) {
       return Center(
@@ -454,13 +502,33 @@ class _LocationView extends ConsumerWidget {
               '앨범 추가 시 위치 정보를 입력해보세요',
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            const SizedBox(height: AppTheme.spacingL),
+            ElevatedButton.icon(
+              onPressed: () => showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (context) => const AddAlbumSheet(),
+              ),
+              icon: const Icon(Iconsax.add),
+              label: const Text('앨범 추가'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.memoryColor,
+                foregroundColor: Colors.white,
+              ),
+            ),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(AppTheme.spacingL),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.spacingL,
+        AppTheme.spacingL,
+        AppTheme.spacingL,
+        120,
+      ),
       itemCount: albumsByLocation.length,
       itemBuilder: (context, index) {
         final entry = albumsByLocation.entries.elementAt(index);

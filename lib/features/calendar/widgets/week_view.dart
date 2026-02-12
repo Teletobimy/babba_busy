@@ -21,10 +21,15 @@ class WeekView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     // 주의 시작일 (월요일)
-    final startOfWeek = focusedDay.subtract(Duration(days: focusedDay.weekday - 1));
-    final days = List.generate(7, (index) => startOfWeek.add(Duration(days: index)));
+    final startOfWeek = focusedDay.subtract(
+      Duration(days: focusedDay.weekday - 1),
+    );
+    final days = List.generate(
+      7,
+      (index) => startOfWeek.add(Duration(days: index)),
+    );
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
@@ -40,18 +45,10 @@ class WeekView extends ConsumerWidget {
         ),
         const SizedBox(height: AppTheme.spacingS),
         // 시간 미정 섹션
-        _UndecidedWeekSection(
-          days: days,
-          isDark: isDark,
-        ),
+        _UndecidedWeekSection(days: days, isDark: isDark),
         // 시간대별 이벤트
         Expanded(
-          child: _TimeGrid(
-            days: days,
-            selectedDay: focusedDay,
-            onDaySelected: onDaySelected,
-            isDark: isDark,
-          ),
+          child: _TimeGrid(days: days, isDark: isDark),
         ),
       ],
     );
@@ -87,12 +84,14 @@ class _WeekHeader extends StatelessWidget {
         children: days.asMap().entries.map((entry) {
           final index = entry.key;
           final day = entry.value;
-          final isToday = day.year == today.year && 
-                          day.month == today.month && 
-                          day.day == today.day;
-          final isSelected = day.year == selectedDay.year && 
-                             day.month == selectedDay.month && 
-                             day.day == selectedDay.day;
+          final isToday =
+              day.year == today.year &&
+              day.month == today.month &&
+              day.day == today.day;
+          final isSelected =
+              day.year == selectedDay.year &&
+              day.month == selectedDay.month &&
+              day.day == selectedDay.day;
           final isWeekend = index >= 5;
 
           return Expanded(
@@ -101,11 +100,11 @@ class _WeekHeader extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: isSelected 
-                      ? AppColors.calendarColor 
-                      : (isToday 
-                          ? AppColors.calendarColor.withValues(alpha: 0.2) 
-                          : Colors.transparent),
+                  color: isSelected
+                      ? AppColors.calendarColor
+                      : (isToday
+                            ? AppColors.calendarColor.withValues(alpha: 0.2)
+                            : Colors.transparent),
                   borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
                 child: Column(
@@ -114,13 +113,13 @@ class _WeekHeader extends StatelessWidget {
                       dayNames[index],
                       style: TextStyle(
                         fontSize: 11,
-                        color: isSelected 
+                        color: isSelected
                             ? Colors.white
-                            : (isWeekend 
-                                ? AppColors.errorLight.withValues(alpha: 0.8)
-                                : (isDark 
-                                    ? AppColors.textSecondaryDark 
-                                    : AppColors.textSecondaryLight)),
+                            : (isWeekend
+                                  ? AppColors.errorLight.withValues(alpha: 0.8)
+                                  : (isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight)),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -128,14 +127,16 @@ class _WeekHeader extends StatelessWidget {
                       '${day.day}',
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: isToday || isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected 
+                        fontWeight: isToday || isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: isSelected
                             ? Colors.white
-                            : (isWeekend 
-                                ? AppColors.errorLight.withValues(alpha: 0.8)
-                                : (isDark 
-                                    ? AppColors.textPrimaryDark 
-                                    : AppColors.textPrimaryLight)),
+                            : (isWeekend
+                                  ? AppColors.errorLight.withValues(alpha: 0.8)
+                                  : (isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight)),
                       ),
                     ),
                   ],
@@ -151,16 +152,9 @@ class _WeekHeader extends StatelessWidget {
 
 class _TimeGrid extends ConsumerWidget {
   final List<DateTime> days;
-  final DateTime selectedDay;
-  final Function(DateTime) onDaySelected;
   final bool isDark;
 
-  const _TimeGrid({
-    required this.days,
-    required this.selectedDay,
-    required this.onDaySelected,
-    required this.isDark,
-  });
+  const _TimeGrid({required this.days, required this.isDark});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -205,59 +199,51 @@ class _TimeGrid extends ConsumerWidget {
             ...days.map((day) {
               final todos = allTodos[day] ?? [];
               // 시간 있는 할일만 필터링
-              final timedTodos = todos.where((t) => t.hasTime && t.startTime != null).toList();
-              final isSelected = day.year == selectedDay.year &&
-                                 day.month == selectedDay.month &&
-                                 day.day == selectedDay.day;
+              final timedTodos = todos
+                  .where((t) => t.hasTime && t.startTime != null)
+                  .toList();
 
               return Expanded(
-                child: GestureDetector(
-                  onTap: () => onDaySelected(day),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        left: BorderSide(
-                          color: (isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
-                          width: 0.5,
-                        ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: BorderSide(
+                        color:
+                            (isDark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight)
+                                .withValues(alpha: 0.2),
+                        width: 0.5,
                       ),
-                      color: isSelected
-                          ? AppColors.calendarColor.withValues(alpha: 0.05)
-                          : Colors.transparent,
                     ),
-                    child: Stack(
-                      children: [
-                        // 시간 그리드 라인
-                        Column(
-                          children: List.generate(24, (hour) {
-                            return Container(
-                              height: 60,
-                              decoration: BoxDecoration(
-                                border: Border(
-                                  top: BorderSide(
-                                    color: (isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight)
-                                        .withValues(alpha: 0.1),
-                                    width: 0.5,
-                                  ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // 시간 그리드 라인
+                      Column(
+                        children: List.generate(24, (hour) {
+                          return Container(
+                            height: 60,
+                            decoration: BoxDecoration(
+                              border: Border(
+                                top: BorderSide(
+                                  color:
+                                      (isDark
+                                              ? AppColors.textSecondaryDark
+                                              : AppColors.textSecondaryLight)
+                                          .withValues(alpha: 0.1),
+                                  width: 0.5,
                                 ),
                               ),
-                            );
-                          }),
-                        ),
-                        // 할일 블록
-                        ...timedTodos.map((todo) {
-                          return _TodoBlock(
-                            todo: todo,
-                            isDark: isDark,
+                            ),
                           );
                         }),
-                      ],
-                    ),
+                      ),
+                      // 할일 블록
+                      ...timedTodos.map((todo) {
+                        return _TodoBlock(todo: todo, day: day, isDark: isDark);
+                      }),
+                    ],
                   ),
                 ),
               );
@@ -271,10 +257,12 @@ class _TimeGrid extends ConsumerWidget {
 
 class _TodoBlock extends StatelessWidget {
   final TodoItem todo;
+  final DateTime day;
   final bool isDark;
 
   const _TodoBlock({
     required this.todo,
+    required this.day,
     required this.isDark,
   });
 
@@ -282,14 +270,26 @@ class _TodoBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     if (todo.startTime == null) return const SizedBox.shrink();
 
-    final startHour = todo.startTime!.hour + todo.startTime!.minute / 60;
-    final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
-    final endHour = endTime.hour + endTime.minute / 60;
-    final duration = endHour - startHour;
+    final startTime = todo.startTime!;
+    final rawEndTime = todo.endTime ?? startTime.add(const Duration(hours: 1));
+    final endTime = rawEndTime.isAfter(startTime)
+        ? rawEndTime
+        : startTime.add(const Duration(minutes: 30));
+
+    final dayStart = DateTime(day.year, day.month, day.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    if (!endTime.isAfter(dayStart) || !startTime.isBefore(dayEnd)) {
+      return const SizedBox.shrink();
+    }
+
+    final visibleStart = startTime.isBefore(dayStart) ? dayStart : startTime;
+    final visibleEnd = endTime.isAfter(dayEnd) ? dayEnd : endTime;
+    final durationMinutes = visibleEnd.difference(visibleStart).inMinutes;
 
     // 최소 30분 (0.5시간) 높이 보장
-    final height = (duration < 0.5 ? 0.5 : duration) * 60;
-    final top = startHour * 60;
+    final height = (durationMinutes < 30 ? 30 : durationMinutes).toDouble();
+    final top = visibleStart.difference(dayStart).inMinutes.toDouble();
 
     final todoColor = _getEventTypeColor(todo.eventType);
 
@@ -319,7 +319,7 @@ class _TodoBlock extends StatelessWidget {
             ),
             if (height > 35)
               Text(
-                DateFormat('HH:mm').format(todo.startTime!),
+                DateFormat('HH:mm').format(visibleStart),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.8),
                   fontSize: 9,
@@ -348,10 +348,7 @@ class _UndecidedWeekSection extends ConsumerWidget {
   final List<DateTime> days;
   final bool isDark;
 
-  const _UndecidedWeekSection({
-    required this.days,
-    required this.isDark,
-  });
+  const _UndecidedWeekSection({required this.days, required this.isDark});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -380,10 +377,11 @@ class _UndecidedWeekSection extends ConsumerWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         border: Border(
           bottom: BorderSide(
-            color: (isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight)
-                .withValues(alpha: 0.2),
+            color:
+                (isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight)
+                    .withValues(alpha: 0.2),
           ),
         ),
       ),
@@ -420,10 +418,7 @@ class _UndecidedWeekSection extends ConsumerWidget {
           ...days.map((day) {
             final todos = undecidedMap[day] ?? [];
             return Expanded(
-              child: _UndecidedDayCell(
-                todos: todos,
-                isDark: isDark,
-              ),
+              child: _UndecidedDayCell(todos: todos, isDark: isDark),
             );
           }),
         ],
@@ -437,10 +432,7 @@ class _UndecidedDayCell extends StatelessWidget {
   final List<TodoItem> todos;
   final bool isDark;
 
-  const _UndecidedDayCell({
-    required this.todos,
-    required this.isDark,
-  });
+  const _UndecidedDayCell({required this.todos, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
@@ -465,11 +457,7 @@ class _UndecidedDayCell extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Iconsax.tick_square,
-                  size: 8,
-                  color: AppColors.coral[600],
-                ),
+                Icon(Iconsax.tick_square, size: 8, color: AppColors.coral[600]),
                 const SizedBox(width: 2),
                 Flexible(
                   child: Text(
