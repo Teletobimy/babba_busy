@@ -429,11 +429,11 @@ class NotificationService {
       debugPrint('🔑 FCM 토큰 요청 시작 (웹: $kIsWeb)');
 
       if (kIsWeb) {
-        // 웹에서는 VAPID 키가 필요 (공개 키이므로 코드에 포함해도 안전)
+        // 웹에서는 VAPID 키가 필요
         // Firebase Console > Project Settings > Cloud Messaging > Web Push certificates
-        const vapidKey =
-            '***REMOVED_FCM_VAPID_KEY***';
-        debugPrint('🌐 웹 FCM 토큰 요청 (VAPID: ${vapidKey.substring(0, 20)}...)');
+        // --dart-define=FCM_VAPID_KEY=... 로 주입
+        const vapidKey = String.fromEnvironment('FCM_VAPID_KEY');
+        debugPrint('🌐 웹 FCM 토큰 요청 (VAPID: ${vapidKey.length > 20 ? vapidKey.substring(0, 20) : vapidKey}...)');
         final token = await _messaging.getToken(vapidKey: vapidKey);
         debugPrint(
           '🌐 웹 FCM 토큰 결과: ${token != null ? '${token.substring(0, 20)}...' : 'NULL'}',

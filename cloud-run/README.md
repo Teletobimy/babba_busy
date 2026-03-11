@@ -44,7 +44,7 @@ gcloud builds submit --config cloudbuild.yaml
 |--------|------|--------|
 | `ENVIRONMENT` | 환경 (development/production) | development |
 | `DEBUG` | 디버그 모드 | false |
-| `GCP_PROJECT_ID` | GCP 프로젝트 ID | ***REMOVED_PROJECT_ID*** |
+| `GCP_PROJECT_ID` | GCP 프로젝트 ID | (필수) |
 | `GEMINI_API_KEY` | Gemini API 키 | (필수) |
 | `GEMINI_MODEL` | Gemini 모델 이름 | gemini-2.5-flash-lite-preview-09-2025 |
 

@@ -74,7 +74,8 @@ GEMINI_API_KEY=your_gemini_api_key
 flutter run \
   --dart-define=AI_API_URL=https://your-cloud-run-url \
   --dart-define=VERSION_JSON_URL=https://your-project.web.app/version.json \
-  --dart-define=APP_WEB_URL=https://your-project.web.app
+  --dart-define=APP_WEB_URL=https://your-project.web.app \
+  --dart-define=FCM_VAPID_KEY=your-fcm-vapid-key
 ```
 
 ### 3. 네이버 지도 설정 (선택)
