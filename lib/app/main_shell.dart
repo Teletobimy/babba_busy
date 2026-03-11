@@ -32,6 +32,19 @@ class _MainShellState extends ConsumerState<MainShell> {
     // 첫 프레임 렌더링 후 초기화
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initialize();
+      _startLoadingTimeout();
+    });
+  }
+
+  /// 10초 후에도 그룹 초기화가 안 되면 강제로 초기화 완료 처리
+  void _startLoadingTimeout() {
+    Future.delayed(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      final isInitialized = ref.read(selectedGroupInitializedProvider);
+      if (!isInitialized) {
+        debugPrint('[MainShell] ⏰ Loading timeout (10s) - forcing initialization');
+        ref.read(selectedGroupInitializedProvider.notifier).state = true;
+      }
     });
   }
 

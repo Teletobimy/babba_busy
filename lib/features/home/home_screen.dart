@@ -68,8 +68,32 @@ class HomeScreen extends ConsumerWidget {
     final todosAsync = ref.watch(todosProvider);
     final isLoading = todosAsync.isLoading && allTodos.isEmpty;
 
-    // Show shimmer during initial load
+    // Show shimmer during initial load, but with error fallback
     if (isLoading) {
+      // todosProvider에 에러가 있으면 로딩 대신 에러 상태 표시
+      if (todosAsync.hasError) {
+        return Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Iconsax.warning_2, size: 48, color: Colors.orange),
+                  const SizedBox(height: 16),
+                  Text('데이터를 불러오지 못했어요',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => ref.invalidate(todosProvider),
+                    icon: const Icon(Iconsax.refresh),
+                    label: const Text('다시 시도'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return const Scaffold(
         body: SafeArea(
           child: HomeScreenShimmer(),
