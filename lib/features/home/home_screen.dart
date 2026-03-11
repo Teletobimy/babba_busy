@@ -25,6 +25,12 @@ final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
 /// 완료 섹션 펼침 상태
 final completedSectionExpandedProvider = StateProvider<bool>((ref) => false);
 
+/// 홈 shimmer 타임아웃 (5초 후 강제 해제)
+final _shimmerTimeoutProvider = FutureProvider<bool>((ref) async {
+  await Future.delayed(const Duration(seconds: 5));
+  return true;
+});
+
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -66,7 +72,8 @@ class HomeScreen extends ConsumerWidget {
 
     // Check loading state - use AsyncValue for better loading detection
     final todosAsync = ref.watch(todosProvider);
-    final isLoading = todosAsync.isLoading && allTodos.isEmpty;
+    final shimmerTimedOut = ref.watch(_shimmerTimeoutProvider).value ?? false;
+    final isLoading = todosAsync.isLoading && allTodos.isEmpty && !shimmerTimedOut;
 
     // Show shimmer during initial load, but with error fallback
     if (isLoading) {

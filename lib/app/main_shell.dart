@@ -43,6 +43,13 @@ class _MainShellState extends ConsumerState<MainShell> {
       final isInitialized = ref.read(selectedGroupInitializedProvider);
       if (!isInitialized) {
         debugPrint('[MainShell] ⏰ Loading timeout (10s) - forcing initialization');
+        // 멤버십이 있으면 첫 번째 그룹으로 설정
+        final memberships = ref.read(userMembershipsProvider).value ?? [];
+        if (memberships.isNotEmpty && ref.read(selectedGroupIdProvider) == null) {
+          final firstGroupId = memberships.first.groupId;
+          debugPrint('[MainShell] ⏰ Setting first group: $firstGroupId');
+          ref.read(selectedGroupIdProvider.notifier).state = firstGroupId;
+        }
         ref.read(selectedGroupInitializedProvider.notifier).state = true;
       }
     });
