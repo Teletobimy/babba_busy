@@ -177,6 +177,10 @@ class CalendarScreen extends ConsumerWidget {
             // 날짜 선택시 팝업으로 일정 표시
             _showTodosPopup(context, ref, day, members);
           },
+          onPageChanged: (day) {
+            // 월 넘길 때는 날짜만 업데이트 (팝업 열지 않음)
+            ref.read(selectedDateProvider.notifier).state = day;
+          },
           onFormatChanged: (format) {
             ref.read(calendarFormatProvider.notifier).state = format;
           },
@@ -739,6 +743,7 @@ class _MonthView extends ConsumerWidget {
   final List<Holiday> holidays;
   final bool isDark;
   final Function(DateTime) onDaySelected;
+  final Function(DateTime) onPageChanged;
   final Function(CalendarFormat) onFormatChanged;
   final VoidCallback onAddTodo;
 
@@ -751,6 +756,7 @@ class _MonthView extends ConsumerWidget {
     required this.holidays,
     required this.isDark,
     required this.onDaySelected,
+    required this.onPageChanged,
     required this.onFormatChanged,
     required this.onAddTodo,
   });
@@ -832,7 +838,7 @@ class _MonthView extends ConsumerWidget {
                   onDaySelected(selectedDay);
                 },
                 onPageChanged: (focusedDay) {
-                  onDaySelected(focusedDay);
+                  onPageChanged(focusedDay);
                 },
                 onFormatChanged: onFormatChanged,
                 eventLoader: (day) {

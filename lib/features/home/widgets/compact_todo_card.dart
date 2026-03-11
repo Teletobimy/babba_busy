@@ -11,6 +11,7 @@ import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import '../../todo/widgets/add_todo_sheet.dart';
 
 /// 메인 화면용 컴팩트 할일 카드 (접고 펼 수 있음)
 class CompactTodoCard extends ConsumerStatefulWidget {
@@ -75,6 +76,17 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
 
   void _toggleExpand() {
     setState(() => _isExpanded = !_isExpanded);
+  }
+
+  void _openEditSheet(BuildContext context) {
+    // 반복 인스턴스는 부모 todo ID로 편집
+    final todoId = widget.todo.parentTodoId ?? widget.todo.id;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddTodoSheet(todoId: todoId),
+    );
   }
 
   @override
@@ -163,57 +175,61 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                       ),
                     ),
                   ),
-                  // 제목
+                  // 제목 (탭하면 편집 시트 열기)
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppTheme.spacingS,
-                      ),
-                      child: AnimatedDefaultTextStyle(
-                        duration: const Duration(milliseconds: 200),
-                        style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                              decoration: (widget.todo.isCompleted || _showCompletionEffect)
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              color: (widget.todo.isCompleted || _showCompletionEffect)
-                                  ? (isDark
-                                      ? AppColors.textSecondaryDark
-                                      : AppColors.textSecondaryLight)
-                                  : (isDark
-                                      ? AppColors.textPrimaryDark
-                                      : AppColors.textPrimaryLight),
-                            ),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                widget.todo.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                    child: GestureDetector(
+                      onTap: () => _openEditSheet(context),
+                      behavior: HitTestBehavior.opaque,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppTheme.spacingS,
+                        ),
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                                decoration: (widget.todo.isCompleted || _showCompletionEffect)
+                                    ? TextDecoration.lineThrough
+                                    : null,
+                                color: (widget.todo.isCompleted || _showCompletionEffect)
+                                    ? (isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight)
+                                    : (isDark
+                                        ? AppColors.textPrimaryDark
+                                        : AppColors.textPrimaryLight),
                               ),
-                            ),
-                            if (widget.todo.eventType != TodoEventType.todo)
-                              Container(
-                                margin: const EdgeInsets.only(left: 4),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: widget.todo.eventType == TodoEventType.schedule
-                                      ? AppColors.primaryLight.withValues(alpha: 0.15)
-                                      : AppColors.calendarColor.withValues(alpha: 0.15),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                          child: Row(
+                            children: [
+                              Flexible(
                                 child: Text(
-                                  widget.todo.eventType.label,
-                                  style: TextStyle(
-                                    fontSize: 9,
+                                  widget.todo.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (widget.todo.eventType != TodoEventType.todo)
+                                Container(
+                                  margin: const EdgeInsets.only(left: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
                                     color: widget.todo.eventType == TodoEventType.schedule
-                                        ? AppColors.primaryLight
-                                        : AppColors.calendarColor,
-                                    fontWeight: FontWeight.w500,
+                                        ? AppColors.primaryLight.withValues(alpha: 0.15)
+                                        : AppColors.calendarColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    widget.todo.eventType.label,
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      color: widget.todo.eventType == TodoEventType.schedule
+                                          ? AppColors.primaryLight
+                                          : AppColors.calendarColor,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),

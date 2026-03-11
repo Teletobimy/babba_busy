@@ -154,6 +154,7 @@ final currentGroupProvider = StreamProvider<FamilyGroup?>((ref) {
 });
 
 /// 현재 그룹의 모든 멤버십 목록
+/// userId 기준 중복 제거 (레거시 ID + 결정적 ID 공존 시 결정적 ID 우선)
 final groupMembershipsProvider = StreamProvider<List<Membership>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
@@ -163,8 +164,24 @@ final groupMembershipsProvider = StreamProvider<List<Membership>>((ref) {
       .collection('memberships')
       .where('groupId', isEqualTo: membership.groupId)
       .snapshots()
-      .map((snapshot) =>
-          snapshot.docs.map((doc) => Membership.fromFirestore(doc)).toList());
+      .map((snapshot) {
+        final all = snapshot.docs.map((doc) => Membership.fromFirestore(doc)).toList();
+        // userId 기준 중복 제거: 결정적 ID({userId}_{groupId}) 문서 우선
+        final byUserId = <String, Membership>{};
+        for (final m in all) {
+          final existing = byUserId[m.userId];
+          if (existing == null) {
+            byUserId[m.userId] = m;
+          } else {
+            // 결정적 ID 형식인 것을 우선
+            final isDeterministic = m.id == '${m.userId}_${m.groupId}';
+            if (isDeterministic) {
+              byUserId[m.userId] = m;
+            }
+          }
+        }
+        return byUserId.values.toList();
+      });
 });
 
 /// 온보딩 완료 여부 (한 번이라도 봤으면 true)

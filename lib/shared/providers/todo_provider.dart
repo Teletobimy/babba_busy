@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -32,11 +34,20 @@ final userTodosProvider = StreamProvider<List<TodoItem>>((ref) {
 
 /// 현재 그룹에 공유된 다른 멤버들의 Todo (CollectionGroup 쿼리)
 /// Firestore 인덱스 필요: todos 컬렉션 그룹에 (sharedGroups, visibility) 복합 인덱스
+///
+/// membershipSyncProvider 완료 대기: collectionGroup 보안 규칙이 users/{uid}.groupIds를
+/// 확인하므로, 동기화 완료 전 쿼리하면 permission-denied 발생
 final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final user = ref.watch(currentUserProvider);
   final firestore = ref.watch(firestoreProvider);
   if (membership == null || user == null || firestore == null) {
+    return Stream.value([]);
+  }
+
+  // membershipSync 완료 대기 (users/{uid}.groupIds 동기화 필요)
+  final syncState = ref.watch(membershipSyncProvider);
+  if (syncState.isLoading) {
     return Stream.value([]);
   }
 
@@ -49,7 +60,14 @@ final sharedTodosProvider = StreamProvider<List<TodoItem>>((ref) {
       .map((snapshot) => snapshot.docs
           .map((doc) => TodoItem.fromFirestore(doc))
           .where((todo) => todo.ownerId != user.uid) // 내 것 제외
-          .toList());
+          .toList())
+      .transform(StreamTransformer<List<TodoItem>, List<TodoItem>>.fromHandlers(
+        handleData: (data, sink) => sink.add(data),
+        handleError: (error, stackTrace, sink) {
+          debugPrint('[sharedTodosProvider] ⚠️ Error (returning empty): $error');
+          sink.add([]); // permission-denied 등 에러 시 빈 리스트 반환
+        },
+      ));
 });
 
 /// 현재 그룹에서 볼 수 있는 모든 Todo (내 것 + 공유된 것)
