@@ -300,9 +300,9 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중인 경우 리다이렉트 대기 (Flash 방지)
-    if (memberships.isLoading && !isOnboarding && !isCommunityRoute) {
-      debugPrint('[Router] ⏳ WAIT: Memberships still loading');
+    // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중이거나 에러인 경우 리다이렉트 대기 (Flash 방지)
+    if ((memberships.isLoading || memberships.hasError) && !isOnboarding && !isCommunityRoute) {
+      debugPrint('[Router] ⏳ WAIT: Memberships loading=${memberships.isLoading} error=${memberships.hasError}');
       return null;
     }
 
@@ -347,10 +347,18 @@ class RouterNotifier extends ChangeNotifier {
         );
         return '/home';
       }
+      // 멤버십이 확실히 빈 리스트로 로드 완료된 경우에만 온보딩
+      if (memberships.hasValue && (memberships.value?.isEmpty ?? true)) {
+        debugPrint(
+          '[Router] 🧭 DECISION: Logged in user with confirmed no groups -> /onboarding',
+        );
+        return '/onboarding';
+      }
+      // 멤버십 상태가 불확실하면 /home으로 (MainShell이 처리)
       debugPrint(
-        '[Router] 🧭 DECISION: Logged in user without groups on auth route -> /onboarding',
+        '[Router] 🏠 DECISION: Memberships uncertain, defaulting to /home',
       );
-      return '/onboarding';
+      return '/home';
     }
 
     // 5. 로그인한 상태에서 인증 페이지나 불필요한 온보딩에 접근 시 홈으로
