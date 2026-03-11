@@ -73,13 +73,33 @@ final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
   )).toList();
 });
 
-/// 할일 목록
+/// 할일 목록 (visibility + sharedEventTypes 필터 적용)
 final smartTodosProvider = Provider<List<TodoItem>>((ref) {
   final todosAsync = ref.watch(todosProvider);
   if (todosAsync.hasError) {
     debugPrint('[smartTodosProvider] Error: ${todosAsync.error}');
   }
-  return todosAsync.value ?? [];
+  var todos = todosAsync.value ?? [];
+
+  // sharedEventTypes 필터: 작성자가 해당 타입을 공유하도록 설정했는지 확인
+  final membershipByUserId = ref.watch(_membershipByUserIdProvider);
+  todos = todos.where((todo) {
+    if (todo.createdBy.isEmpty) return true;
+    final creator = membershipByUserId[todo.createdBy];
+    final sharedTypes = creator?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
+    return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
+  // visibility 필터: private 일정은 본인만 볼 수 있음
+  final currentUserId = ref.watch(currentUserProvider)?.uid;
+  todos = todos.where((todo) {
+    if (todo.visibility == TodoVisibility.private) {
+      return todo.ownerId == currentUserId || todo.createdBy == currentUserId;
+    }
+    return true;
+  }).toList();
+
+  return todos;
 });
 
 /// 오늘의 할일

@@ -43,7 +43,7 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
 
     try {
       await ref.read(todoServiceProvider).toggleTodo(
-        widget.todo.id,
+        widget.todo.parentTodoId ?? widget.todo.id,
         !widget.todo.isCompleted,
         ownerId: widget.todo.ownerId,
       );
@@ -124,7 +124,7 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
             context: context,
             isScrollControlled: true,
             backgroundColor: Colors.transparent,
-            builder: (context) => AddTodoSheet(todoId: widget.todo.id),
+            builder: (context) => AddTodoSheet(todoId: widget.todo.parentTodoId ?? widget.todo.id),
           );
         },
         child: Container(

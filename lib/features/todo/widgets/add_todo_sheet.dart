@@ -217,6 +217,14 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
           sharedGroups: _sharedGroups,
           // 알림 설정
           reminderMinutes: _reminderMinutes,
+          // nullable 필드 초기화
+          clearNote: _noteController.text.trim().isEmpty,
+          clearLocation: _locationController.text.trim().isEmpty,
+          clearDueDate: _dueDate == null,
+          clearStartTime: startDateTime == null,
+          clearEndTime: endDateTime == null,
+          clearColor: _selectedColor == null,
+          clearRecurrenceEndDate: _recurrenceEndDate == null,
         );
       } else {
         // 추가 모드
@@ -249,6 +257,12 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
       }
       if (mounted) {
         Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장에 실패했습니다: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
       }
     } finally {
       if (mounted) {
@@ -497,6 +511,12 @@ class _AddTodoSheetState extends ConsumerState<AddTodoSheet> {
 
       if (mounted) {
         Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('저장에 실패했습니다: ${e.toString().replaceAll('Exception: ', '')}')),
+        );
       }
     } finally {
       if (mounted) {

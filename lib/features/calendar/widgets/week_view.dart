@@ -6,6 +6,9 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
+import '../../../shared/providers/todo_provider.dart';
+import '../../../shared/providers/auth_provider.dart';
+import '../calendar_screen.dart';
 
 /// 주간 뷰 위젯
 class WeekView extends ConsumerWidget {
@@ -158,10 +161,13 @@ class _TimeGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMemberId = ref.watch(calendarMemberFilterProvider);
     // 주간 Todo 가져오기
     final allTodos = <DateTime, List<TodoItem>>{};
     for (final day in days) {
-      allTodos[day] = ref.watch(smartTodosForDateProvider(day));
+      final dayTodos = ref.watch(smartTodosForDateProvider(day));
+      allTodos[day] = selectedMemberId == null ? dayTodos
+          : dayTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
     }
 
     return Container(
@@ -255,7 +261,7 @@ class _TimeGrid extends ConsumerWidget {
   }
 }
 
-class _TodoBlock extends StatelessWidget {
+class _TodoBlock extends ConsumerWidget {
   final TodoItem todo;
   final DateTime day;
   final bool isDark;
@@ -266,8 +272,24 @@ class _TodoBlock extends StatelessWidget {
     required this.isDark,
   });
 
+  bool _canComplete(WidgetRef ref) {
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser == null) return false;
+    return todo.canComplete(currentUser.uid);
+  }
+
+  Future<void> _toggleComplete(WidgetRef ref) async {
+    if (!_canComplete(ref)) return;
+    final resolvedId = todo.parentTodoId ?? todo.id;
+    await ref.read(todoServiceProvider).toggleTodo(
+      resolvedId,
+      !todo.isCompleted,
+      ownerId: todo.ownerId,
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (todo.startTime == null) return const SizedBox.shrink();
 
     final startTime = todo.startTime!;
@@ -298,34 +320,41 @@ class _TodoBlock extends StatelessWidget {
       left: 2,
       right: 2,
       height: height,
-      child: Container(
-        decoration: BoxDecoration(
-          color: todoColor.withValues(alpha: 0.8),
-          borderRadius: BorderRadius.circular(4),
-        ),
-        padding: const EdgeInsets.all(4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              todo.title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (height > 35)
+      child: GestureDetector(
+        onTap: () => _toggleComplete(ref),
+        child: Container(
+          decoration: BoxDecoration(
+            color: todo.isCompleted
+                ? todoColor.withValues(alpha: 0.4)
+                : todoColor.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               Text(
-                DateFormat('HH:mm').format(visibleStart),
+                todo.title,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 9,
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                  decorationColor: Colors.white,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-          ],
+              if (height > 35)
+                Text(
+                  DateFormat('HH:mm').format(visibleStart),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 9,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -352,14 +381,17 @@ class _UndecidedWeekSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMemberId = ref.watch(calendarMemberFilterProvider);
     // 각 요일별 미정 todos 수집
     final undecidedMap = <DateTime, List<TodoItem>>{};
     bool hasAny = false;
 
     for (final day in days) {
       final undecided = ref.watch(smartUndecidedTodosForDateProvider(day));
-      undecidedMap[day] = undecided;
-      if (undecided.isNotEmpty) hasAny = true;
+      final filtered = selectedMemberId == null ? undecided
+          : undecided.where((t) => t.isAssignedTo(selectedMemberId)).toList();
+      undecidedMap[day] = filtered;
+      if (filtered.isNotEmpty) hasAny = true;
     }
 
     // 미정 todos가 없으면 표시 안 함

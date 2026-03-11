@@ -228,6 +228,7 @@ class CalendarScreen extends ConsumerWidget {
     List members,
   ) {
     final holiday = ref.read(holidayForDateProvider(date));
+    final outerContext = context; // builder 진입 전 캡처
 
     showModalBottomSheet(
       context: context,
@@ -236,13 +237,13 @@ class CalendarScreen extends ConsumerWidget {
       useRootNavigator: true,
       isDismissible: true,
       enableDrag: true,
-      builder: (context) => _TodosPopup(
+      builder: (builderContext) => _TodosPopup(
         date: date,
         members: members,
         holiday: holiday,
         onAddTodo: () {
-          Navigator.pop(context);
-          _showAddTodoSheet(context, date);
+          Navigator.pop(builderContext); // popup의 context로 닫기
+          _showAddTodoSheet(outerContext, date); // 외부 context로 시트 열기
         },
       ),
     );

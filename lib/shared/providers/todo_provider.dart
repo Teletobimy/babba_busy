@@ -471,6 +471,14 @@ class TodoService {
 
   TodoService(this._ref);
 
+  /// 반복 인스턴스 ID ({parentId}_{yyyyMMdd})를 부모 ID로 변환
+  String _resolveRecurringInstanceId(String todoId) {
+    if (RegExp(r'_\d{8}$').hasMatch(todoId)) {
+      return todoId.substring(0, todoId.length - 9);
+    }
+    return todoId;
+  }
+
   FirebaseFirestore? get _firestore => _ref.read(firestoreProvider);
 
   /// 다음 알림 시간 계산 (미발송 알림 중 가장 빠른 시간)
@@ -594,6 +602,9 @@ class TodoService {
   }) async {
     if (_firestore == null) return;
 
+    // 반복 인스턴스 ID를 부모 ID로 변환
+    final resolvedId = _resolveRecurringInstanceId(todoId);
+
     // 소유자 ID가 있으면 해당 사용자의 컬렉션, 없으면 현재 사용자
     final targetUserId = ownerId ?? _userId;
     if (targetUserId == null) return;
@@ -603,7 +614,7 @@ class TodoService {
         .doc(targetUserId)
         .collection('todos');
 
-    await todosRef.doc(todoId).update({
+    await todosRef.doc(resolvedId).update({
       'isCompleted': isCompleted,
       'completedAt': isCompleted ? FieldValue.serverTimestamp() : null,
     });
@@ -636,9 +647,22 @@ class TodoService {
     List<String>? sharedGroups,
     // 알림 설정
     List<int>? reminderMinutes,
+    // nullable 필드 초기화 지원
+    bool clearNote = false,
+    bool clearLocation = false,
+    bool clearDueDate = false,
+    bool clearStartTime = false,
+    bool clearEndTime = false,
+    bool clearAssigneeId = false,
+    bool clearCalendarGroupId = false,
+    bool clearColor = false,
+    bool clearRecurrenceEndDate = false,
   }) async {
     final userTodosRef = _userTodosCollection;
     if (userTodosRef == null) return;
+
+    // 반복 인스턴스 ID를 부모 ID로 변환
+    todoId = _resolveRecurringInstanceId(todoId);
 
     final updates = <String, dynamic>{};
     if (title != null) updates['title'] = title;
@@ -670,6 +694,17 @@ class TodoService {
     // Phase 2 필드
     if (visibility != null) updates['visibility'] = visibility.value;
     if (sharedGroups != null) updates['sharedGroups'] = sharedGroups;
+
+    // nullable 필드 초기화 (FieldValue.delete()로 Firestore에서 제거)
+    if (clearNote) updates['note'] = FieldValue.delete();
+    if (clearLocation) updates['location'] = FieldValue.delete();
+    if (clearDueDate) updates['dueDate'] = FieldValue.delete();
+    if (clearStartTime) updates['startTime'] = FieldValue.delete();
+    if (clearEndTime) updates['endTime'] = FieldValue.delete();
+    if (clearAssigneeId) updates['assigneeId'] = FieldValue.delete();
+    if (clearCalendarGroupId) updates['calendarGroupId'] = FieldValue.delete();
+    if (clearColor) updates['color'] = FieldValue.delete();
+    if (clearRecurrenceEndDate) updates['recurrenceEndDate'] = FieldValue.delete();
 
     // 알림 관련 필드 변경 시 nextReminderAt 재계산 필요
     final needsReminderRecalc = reminderMinutes != null ||

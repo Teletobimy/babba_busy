@@ -5,6 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/providers/smart_provider.dart';
+import '../home_screen.dart';
 
 /// AI 요약 상태
 final aiSummaryExpandedProvider = StateProvider<bool>((ref) => true);
@@ -16,11 +17,19 @@ class AiSummaryCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isExpanded = ref.watch(aiSummaryExpandedProvider);
-    
-    // Smart Provider 사용
-    final todos = ref.watch(smartTodosProvider);
-    final upcomingTodos = ref.watch(smartUpcomingTodosProvider);
-    final todayCompleted = ref.watch(smartTodayCompletedTodosProvider);
+    final selectedMemberId = ref.watch(selectedMemberFilterProvider);
+
+    // Smart Provider 사용 + 멤버 필터 적용
+    final allTodos = ref.watch(smartTodosProvider);
+    final allUpcomingTodos = ref.watch(smartUpcomingTodosProvider);
+    final allTodayCompleted = ref.watch(smartTodayCompletedTodosProvider);
+
+    final todos = selectedMemberId == null ? allTodos
+        : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
+    final upcomingTodos = selectedMemberId == null ? allUpcomingTodos
+        : allUpcomingTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
+    final todayCompleted = selectedMemberId == null ? allTodayCompleted
+        : allTodayCompleted.where((t) => t.isAssignedTo(selectedMemberId)).toList();
 
     final pendingCount = todos.where((t) => !t.isCompleted).length;
     final completedToday = todayCompleted.length;

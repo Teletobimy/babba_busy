@@ -60,7 +60,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
 
     try {
       await ref.read(todoServiceProvider).toggleTodo(
-        widget.todo.id,
+        widget.todo.parentTodoId ?? widget.todo.id,
         !widget.todo.isCompleted,
         ownerId: widget.todo.ownerId,
       );

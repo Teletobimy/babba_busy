@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../shared/providers/auth_provider.dart';
 import '../shared/providers/group_provider.dart';
@@ -478,7 +480,34 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/home',
     refreshListenable: notifier,
     redirect: notifier.redirect,
-    debugLogDiagnostics: true,
+    debugLogDiagnostics: kDebugMode,
+    errorBuilder: (context, state) => Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Iconsax.warning_2, size: 64, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text(
+                '페이지를 찾을 수 없습니다',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                state.uri.toString(),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => GoRouter.of(context).go('/home'),
+                child: const Text('홈으로'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
     routes: [
       // 인증 라우트
       GoRoute(

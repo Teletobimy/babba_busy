@@ -75,10 +75,18 @@ final userAlbumsProvider = StreamProvider<List<Album>>((ref) {
 });
 
 /// 현재 그룹에 공유된 앨범 스트림
+/// membershipSyncProvider 완료 대기: collectionGroup 보안 규칙이 users/{uid}.groupIds를
+/// 확인하므로, 동기화 완료 전 쿼리하면 permission-denied 발생
 final sharedAlbumsProvider = StreamProvider<List<Album>>((ref) {
   final membership = ref.watch(currentMembershipProvider);
   final firestore = ref.watch(firestoreProvider);
   if (membership == null || firestore == null) return Stream.value([]);
+
+  // membershipSync 완료 대기 (users/{uid}.groupIds 동기화 필요)
+  final syncState = ref.watch(membershipSyncProvider);
+  if (syncState.isLoading) {
+    return Stream.value([]);
+  }
 
   // collectionGroup을 사용하여 모든 사용자의 앨범 중 현재 그룹에 공유된 것 조회
   return firestore
@@ -89,7 +97,14 @@ final sharedAlbumsProvider = StreamProvider<List<Album>>((ref) {
       .map(
         (snapshot) =>
             snapshot.docs.map((doc) => Album.fromFirestore(doc)).toList(),
-      );
+      )
+      .transform(StreamTransformer<List<Album>, List<Album>>.fromHandlers(
+        handleData: (data, sink) => sink.add(data),
+        handleError: (error, stackTrace, sink) {
+          debugPrint('[sharedAlbumsProvider] Error (returning empty): $error');
+          sink.add([]); // permission-denied 등 에러 시 빈 리스트 반환
+        },
+      ));
 });
 
 /// 통합 앨범 목록 (내 앨범 + 공유된 앨범, 중복 제거)

@@ -8,6 +8,7 @@ import '../../../shared/models/todo_item.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
+import '../calendar_screen.dart';
 
 /// 일간 뷰 위젯
 class DayView extends ConsumerWidget {
@@ -25,7 +26,10 @@ class DayView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final todos = ref.watch(smartTodosForDateProvider(selectedDay));
+    final allTodos = ref.watch(smartTodosForDateProvider(selectedDay));
+    final selectedMemberId = ref.watch(calendarMemberFilterProvider);
+    final todos = selectedMemberId == null ? allTodos
+        : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
     // 시간 있는 Todo
     final timedTodos = todos.where((t) => t.hasTime && t.startTime != null).toList();
     // 시간 미정 Todo
@@ -325,7 +329,7 @@ class _DayTodoBlock extends ConsumerWidget {
     final height = (duration < 0.5 ? 0.5 : duration) * 60;
     final top = startHour * 60;
 
-    final todoColor = AppColors.todoColor;
+    final todoColor = _getEventTypeColor(todo.eventType);
 
     return Positioned(
       top: top,
@@ -427,6 +431,17 @@ class _DayTodoBlock extends ConsumerWidget {
     );
   }
 
+  Color _getEventTypeColor(TodoEventType eventType) {
+    switch (eventType) {
+      case TodoEventType.event:
+        return AppColors.calendarColor;
+      case TodoEventType.todo:
+        return AppColors.todoColor;
+      case TodoEventType.schedule:
+        return AppColors.primaryLight;
+    }
+  }
+
   /// 현재 사용자가 이 할일을 완료할 수 있는지 확인
   bool _canComplete(WidgetRef ref) {
     final currentUser = ref.read(currentUserProvider);
@@ -438,8 +453,9 @@ class _DayTodoBlock extends ConsumerWidget {
     // 권한 체크
     if (!_canComplete(ref)) return;
 
+    final resolvedId = todo.parentTodoId ?? todo.id;
     await ref.read(todoServiceProvider).toggleTodo(
-      todo.id,
+      resolvedId,
       !todo.isCompleted,
       ownerId: todo.ownerId,
     );
@@ -550,8 +566,9 @@ class _UndecidedTodoItem extends ConsumerWidget {
           GestureDetector(
             onTap: canComplete
                 ? () async {
+                    final resolvedId = todo.parentTodoId ?? todo.id;
                     await ref.read(todoServiceProvider).toggleTodo(
-                      todo.id,
+                      resolvedId,
                       !todo.isCompleted,
                       ownerId: todo.ownerId,
                     );

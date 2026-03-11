@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
@@ -25,6 +24,9 @@ final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
 /// 완료 섹션 펼침 상태
 final completedSectionExpandedProvider = StateProvider<bool>((ref) => false);
 
+/// 할일 더보기 상태
+final showAllTodosProvider = StateProvider<bool>((ref) => false);
+
 /// 홈 shimmer 타임아웃 (5초 후 강제 해제)
 final _shimmerTimeoutProvider = FutureProvider<bool>((ref) async {
   await Future.delayed(const Duration(seconds: 5));
@@ -47,6 +49,7 @@ class HomeScreen extends ConsumerWidget {
       if (previous?.groupId != next?.groupId) {
         ref.read(selectedMemberFilterProvider.notifier).state = null;
         ref.read(completedSectionExpandedProvider.notifier).state = false;
+        ref.read(showAllTodosProvider.notifier).state = false;
       }
     });
 
@@ -58,7 +61,15 @@ class HomeScreen extends ConsumerWidget {
         ? allTodos
         : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
     
-    final pendingTodos = todos.where((t) => !t.isCompleted).toList();
+    final pendingTodos = todos.where((t) => !t.isCompleted).toList()
+      ..sort((a, b) {
+        final aDate = a.dueDate ?? a.startTime;
+        final bDate = b.dueDate ?? b.startTime;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;   // 날짜 없는 것 뒤로
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate); // 급한 것 먼저
+      });
     final completedTodos = todos.where((t) => t.isCompleted).toList()
       ..sort((a, b) {
         final aTime = a.completedAt ?? a.createdAt;
@@ -66,6 +77,7 @@ class HomeScreen extends ConsumerWidget {
         return bTime.compareTo(aTime); // 최근 완료된 것이 위로
       });
     final isCompletedExpanded = ref.watch(completedSectionExpandedProvider);
+    final showAllTodos = ref.watch(showAllTodosProvider);
 
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
@@ -225,7 +237,7 @@ class HomeScreen extends ConsumerWidget {
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
                     final todo = pendingTodos[index];
-                    final member = _findMember(members, todo.assigneeId);
+                    final member = _findAssignedMember(members, todo);
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppTheme.spacingL,
@@ -235,24 +247,24 @@ class HomeScreen extends ConsumerWidget {
                         assignee: member,
                       ).animate().fadeIn(
                             duration: 200.ms,
-                            delay: Duration(milliseconds: 50 * index),
+                            delay: Duration(milliseconds: 50 * (index < 10 ? index : 10)),
                           ),
                     );
                   },
-                  childCount: pendingTodos.length > 10 ? 10 : pendingTodos.length,
+                  childCount: showAllTodos ? pendingTodos.length : (pendingTodos.length > 10 ? 10 : pendingTodos.length),
                 ),
               ),
 
-            // 더보기 버튼 (할일이 10개 초과시)
+            // 더보기/접기 버튼 (할일이 10개 초과시)
             if (pendingTodos.length > 10)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
                   child: TextButton(
                     onPressed: () {
-                      context.go('/todos');
+                      ref.read(showAllTodosProvider.notifier).state = !showAllTodos;
                     },
-                    child: Text('${pendingTodos.length - 10}개 더보기'),
+                    child: Text(showAllTodos ? '접기' : '${pendingTodos.length - 10}개 더보기'),
                   ),
                 ),
               ),
@@ -303,13 +315,21 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  dynamic _findMember(List members, String? memberId) {
-    if (memberId == null || members.isEmpty) return null;
-    try {
-      return members.firstWhere((m) => m.id == memberId);
-    } catch (e) {
-      return null;
+  dynamic _findAssignedMember(List members, dynamic todo) {
+    if (members.isEmpty) return null;
+    // assigneeId 확인
+    if (todo.assigneeId != null) {
+      try {
+        return members.firstWhere((m) => m.id == todo.assigneeId);
+      } catch (_) {}
     }
+    // participants 확인
+    for (final pid in todo.participants) {
+      try {
+        return members.firstWhere((m) => m.id == pid);
+      } catch (_) {}
+    }
+    return null;
   }
 
   String _getGreeting(int hour) {
@@ -330,7 +350,7 @@ class HomeScreen extends ConsumerWidget {
 }
 
 /// 완료된 할일 섹션 위젯
-class _CompletedSection extends StatelessWidget {
+class _CompletedSection extends StatefulWidget {
   final List completedTodos;
   final List members;
   final bool isExpanded;
@@ -344,8 +364,33 @@ class _CompletedSection extends StatelessWidget {
   });
 
   @override
+  State<_CompletedSection> createState() => _CompletedSectionState();
+}
+
+class _CompletedSectionState extends State<_CompletedSection> {
+  bool _showAll = false;
+
+  dynamic _findAssignedMember(List members, dynamic todo) {
+    if (members.isEmpty) return null;
+    if (todo.assigneeId != null) {
+      try {
+        return members.firstWhere((m) => m.id == todo.assigneeId);
+      } catch (_) {}
+    }
+    for (final pid in todo.participants) {
+      try {
+        return members.firstWhere((m) => m.id == pid);
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final visibleTodos = _showAll
+        ? widget.completedTodos
+        : widget.completedTodos.take(5).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -353,7 +398,7 @@ class _CompletedSection extends StatelessWidget {
         const SizedBox(height: AppTheme.spacingM),
         // 섹션 헤더 (접기/펼치기)
         GestureDetector(
-          onTap: onToggle,
+          onTap: widget.onToggle,
           behavior: HitTestBehavior.opaque,
           child: Container(
             padding: const EdgeInsets.symmetric(
@@ -370,7 +415,7 @@ class _CompletedSection extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '완료됨 (${completedTodos.length})',
+                  '완료됨 (${widget.completedTodos.length})',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: isDark
                             ? AppColors.textSecondaryDark
@@ -379,7 +424,7 @@ class _CompletedSection extends StatelessWidget {
                 ),
                 const Spacer(),
                 AnimatedRotation(
-                  turns: isExpanded ? 0.5 : 0,
+                  turns: widget.isExpanded ? 0.5 : 0,
                   duration: const Duration(milliseconds: 200),
                   child: Icon(
                     Iconsax.arrow_down_1,
@@ -399,8 +444,8 @@ class _CompletedSection extends StatelessWidget {
           secondChild: Column(
             children: [
               const SizedBox(height: AppTheme.spacingXS),
-              ...completedTodos.map((todo) {
-                final member = _findMember(members, todo.assigneeId);
+              ...visibleTodos.map((todo) {
+                final member = _findAssignedMember(widget.members, todo);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingXS),
                   child: CompactTodoCard(
@@ -409,34 +454,18 @@ class _CompletedSection extends StatelessWidget {
                   ),
                 );
               }),
-              if (completedTodos.length > 5)
-                Padding(
-                  padding: const EdgeInsets.only(top: AppTheme.spacingXS),
-                  child: Text(
-                    '외 ${completedTodos.length - 5}개',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight,
-                        ),
-                  ),
+              if (!_showAll && widget.completedTodos.length > 5)
+                TextButton(
+                  onPressed: () => setState(() => _showAll = true),
+                  child: Text('${widget.completedTodos.length - 5}개 더보기'),
                 ),
             ],
           ),
           crossFadeState:
-              isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              widget.isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 200),
         ),
       ],
     );
-  }
-
-  dynamic _findMember(List members, String? memberId) {
-    if (memberId == null || members.isEmpty) return null;
-    try {
-      return members.firstWhere((m) => m.id == memberId);
-    } catch (e) {
-      return null;
-    }
   }
 }
