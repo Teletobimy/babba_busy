@@ -71,6 +71,32 @@
     <button onclick="updateApp()">업데이트</button>
   </div>
 
+  <!-- Cache version check - forces cache refresh on deploy -->
+  <script>
+    (function() {
+      var CACHE_VERSION = '20260312_3';
+      var stored = localStorage.getItem('cache_version');
+      if (stored !== null && stored !== CACHE_VERSION) {
+        localStorage.setItem('cache_version', CACHE_VERSION);
+        // Clear all caches and unregister service workers
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            keys.forEach(function(key) { caches.delete(key); });
+          });
+        }
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            regs.forEach(function(reg) { reg.unregister(); });
+          });
+        }
+        // Reload with fresh cache
+        setTimeout(function() { window.location.reload(); }, 200);
+        return;
+      }
+      localStorage.setItem('cache_version', CACHE_VERSION);
+    })();
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 
   <script>

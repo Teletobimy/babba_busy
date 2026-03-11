@@ -33,6 +33,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
   String? _errorMessage;
   String? _inviteCode; // 생성 완료 시 표시할 초대 코드
   bool _isTransitioningToHome = false; // 홈으로 전환 중 상태
+  bool _autoRedirecting = false; // 이미 그룹 있는 사용자 자동 리다이렉트
   bool get _isBusy => _isLoading || _isStartingAlone || _isTransitioningToHome;
 
   @override
@@ -250,6 +251,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen>
 
   @override
   Widget build(BuildContext context) {
+    // 방어적 체크: 이미 그룹이 있는 사용자가 잘못 도착한 경우 자동 복구
+    final memberships = ref.watch(userMembershipsProvider);
+    if (!_autoRedirecting && !_isBusy && _inviteCode == null &&
+        memberships.hasValue && (memberships.value?.isNotEmpty ?? false)) {
+      _autoRedirecting = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        debugPrint('[OnboardingScreen] ⚠️ User has ${memberships.value!.length} groups, auto-redirecting to /home');
+        // 그룹 초기화 보장
+        if (!ref.read(selectedGroupInitializedProvider)) {
+          final groupId = memberships.value!.first.groupId;
+          ref.read(selectedGroupIdProvider.notifier).state = groupId;
+          ref.read(selectedGroupInitializedProvider.notifier).state = true;
+        }
+        if (mounted) context.go('/home');
+      });
+    }
+    if (_autoRedirecting) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     // 초대 코드가 생성된 경우 성공 화면 표시 (그룹 생성 모드에서)
     if (_inviteCode != null) {
       return _buildSuccessScreen(context);
