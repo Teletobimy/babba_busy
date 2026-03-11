@@ -47,22 +47,40 @@
 ### 1. Firebase 설정
 
 1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
-2. iOS/Android 앱 등록
-3. `google-services.json` (Android) 또는 `GoogleService-Info.plist` (iOS) 다운로드
-4. 해당 위치에 파일 배치:
-   - Android: `android/app/google-services.json`
-   - iOS: `ios/Runner/GoogleService-Info.plist`
+2. FlutterFire CLI로 설정 파일 자동 생성:
+   ```bash
+   dart pub global activate flutterfire_cli
+   flutterfire configure
+   ```
+3. 또는 `.example` 파일을 복사하여 수동 설정:
+   ```bash
+   cp android/app/google-services.json.example android/app/google-services.json
+   cp lib/firebase_options.dart.example lib/firebase_options.dart
+   cp web/firebase-messaging-sw.js.example web/firebase-messaging-sw.js
+   cp .firebaserc.example .firebaserc
+   ```
+   복사한 파일의 `YOUR_*` placeholder를 실제 Firebase 프로젝트 값으로 교체하세요.
 
-### 2. 네이버 지도 설정 (선택)
+### 2. 환경 변수
+
+프로젝트 루트에 `.env` 파일을 생성합니다 (git에 커밋되지 않음):
+```bash
+# .env (이 파일은 .gitignore에 포함됨)
+GEMINI_API_KEY=your_gemini_api_key
+```
+
+앱 빌드 시 `--dart-define`으로 설정을 주입합니다:
+```bash
+flutter run \
+  --dart-define=AI_API_URL=https://your-cloud-run-url \
+  --dart-define=VERSION_JSON_URL=https://your-project.web.app/version.json \
+  --dart-define=APP_WEB_URL=https://your-project.web.app
+```
+
+### 3. 네이버 지도 설정 (선택)
 
 추억 지도 기능을 사용하려면 네이버 지도 SDK를 연동해야 합니다.
 현재는 플레이스홀더로 구현되어 있습니다.
-
-### 3. Gemini AI 설정 (선택)
-
-AI 요약 기능을 사용하려면:
-1. [Google AI Studio](https://makersuite.google.com/)에서 API 키 발급
-2. `lib/services/gemini/gemini_service.dart`의 `_apiKey` 값을 발급받은 키로 교체
 
 ### 4. 실행
 

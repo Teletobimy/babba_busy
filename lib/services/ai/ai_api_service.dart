@@ -14,11 +14,8 @@ final aiApiServiceProvider = Provider<AiApiService>((_) {
 class AiApiService {
   AiApiService();
 
-  // Cloud Run API URL (***REMOVED_PROJECT_ID*** 프로젝트)
-  static const String _baseUrl = String.fromEnvironment(
-    'AI_API_URL',
-    defaultValue: 'https://***REMOVED_CLOUD_RUN_URL***',
-  );
+  // Cloud Run API URL (--dart-define=AI_API_URL=... 로 주입)
+  static const String _baseUrl = String.fromEnvironment('AI_API_URL');
 
   /// Firebase Auth 토큰 가져오기
   Future<String?> _getAuthToken() async {

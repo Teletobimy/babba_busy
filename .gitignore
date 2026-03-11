@@ -56,3 +56,11 @@ key.properties
 
 # Local agent scratch notes
 .claude/agents/user-feedback-analyst.md
+
+# Firebase configuration (generated per-project)
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+lib/firebase_options.dart
+web/firebase-messaging-sw.js
+.firebaserc
+.firebase/

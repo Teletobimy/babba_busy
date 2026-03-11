@@ -150,7 +150,7 @@ class UpdateDialog extends StatelessWidget {
   }
 
   Future<void> _launchUpdate(BuildContext context) async {
-    const webUrl = 'https://***REMOVED_WEB_DOMAIN***';
+    const webUrl = String.fromEnvironment('APP_WEB_URL');
 
     final uri = Uri.parse(webUrl);
     if (await canLaunchUrl(uri)) {

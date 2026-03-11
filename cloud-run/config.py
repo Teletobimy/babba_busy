@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
 
     # Google Cloud
-    gcp_project_id: str = os.getenv("GCP_PROJECT_ID", "***REMOVED_PROJECT_ID***")
+    gcp_project_id: str = os.getenv("GCP_PROJECT_ID", "")
 
     # Gemini AI Models
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")

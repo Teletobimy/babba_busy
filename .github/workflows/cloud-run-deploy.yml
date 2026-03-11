@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: ***REMOVED_PROJECT_ID***
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: babba-ai-api
   REGION: asia-northeast3
 

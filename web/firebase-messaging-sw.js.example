@@ -1,0 +1,85 @@
+// Firebase Messaging Service Worker for Web Push Notifications
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
+
+// Firebase configuration (must match firebase_options.dart web config)
+firebase.initializeApp({
+  apiKey: 'YOUR_WEB_API_KEY',
+  appId: '1:YOUR_PROJECT_NUMBER:web:YOUR_APP_HASH',
+  messagingSenderId: 'YOUR_PROJECT_NUMBER',
+  projectId: 'your-project-id',
+  authDomain: 'your-project-id.firebaseapp.com',
+  storageBucket: 'your-project-id.firebasestorage.app',
+  measurementId: 'G-XXXXXXXXXX',
+});
+
+const messaging = firebase.messaging();
+
+// Handle background messages
+messaging.onBackgroundMessage((payload) => {
+  console.log('[firebase-messaging-sw.js] Received background message:', payload);
+
+  const notificationTitle = payload.notification?.title || 'BABBA';
+  const notificationOptions = {
+    body: payload.notification?.body || '',
+    icon: '/icons/Icon-192.png',
+    badge: '/icons/Icon-192.png',
+    tag: payload.data?.tag || 'babba-notification',
+    data: payload.data,
+  };
+
+  return self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// Handle notification click
+self.addEventListener('notificationclick', (event) => {
+  console.log('[firebase-messaging-sw.js] Notification clicked:', event);
+
+  event.notification.close();
+
+  const data = event.notification.data || {};
+  let targetUrl = '/';
+
+  // Determine target URL based on notification type
+  if (data.route) {
+    targetUrl = data.route;
+  } else {
+    switch (data.type) {
+      case 'chat':
+        targetUrl = '/home';
+        break;
+      case 'todo':
+      case 'event':
+        targetUrl = '/home';
+        break;
+      case 'business_review':
+      case 'analysis_complete':
+      case 'analysis_failed':
+        if (data.jobType === 'psychology_test') {
+          targetUrl = '/tools/psychology/history';
+        } else {
+          targetUrl = '/tools/business/history';
+        }
+        break;
+      default:
+        targetUrl = '/home';
+    }
+  }
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // If app is already open, focus it and navigate
+      for (const client of clientList) {
+        if ('focus' in client) {
+          client.focus();
+          client.postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
+          return;
+        }
+      }
+      // If app is not open, open a new window
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

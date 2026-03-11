@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -17,15 +19,14 @@ app = FastAPI(
     redoc_url="/redoc" if settings.debug else None,
 )
 
-# CORS 설정
+# CORS 설정 (환경변수 CORS_ORIGINS 로 오버라이드 가능, 쉼표 구분)
+_default_origins = ["http://localhost:*"]
+_env_origins = os.environ.get("CORS_ORIGINS", "")
+_cors_origins = [o.strip() for o in _env_origins.split(",") if o.strip()] if _env_origins else _default_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://***REMOVED_WEB_DOMAIN***",
-        "https://***REMOVED_AUTH_DOMAIN***",
-        "https://babba.ai.kr",
-        "http://localhost:*",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

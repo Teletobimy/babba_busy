@@ -26,7 +26,7 @@ class AppUpdateInfo {
 /// 앱 업데이트 체크 서비스
 class AppUpdateService {
   static const String _versionJsonUrl =
-      'https://***REMOVED_WEB_DOMAIN***/version.json';
+      String.fromEnvironment('VERSION_JSON_URL');
   static const String _skipVersionKey = 'skip_update_version';
   static const String _lastCheckKey = 'last_update_check';
   static const Duration _checkInterval = Duration(hours: 6);
