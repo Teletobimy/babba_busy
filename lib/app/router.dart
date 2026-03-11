@@ -32,6 +32,7 @@ class RouterNotifier extends ChangeNotifier {
   bool _isCompletingOnboarding = false;
   bool _hasInitializedGroup = false;
   bool _hasEverHadGroups = false; // 세션 중 그룹 감지 이력 (일시적 빈 상태 방지)
+  bool _awaitingMembershipsRefresh = false; // auth 변경 후 memberships 재로드 대기
   int _notifyCount = 0; // 디버깅: notifyListeners 호출 횟수
   int _redirectCount = 0; // 디버깅: redirect 호출 횟수
 
@@ -58,6 +59,7 @@ class RouterNotifier extends ChangeNotifier {
         );
         _hasInitializedGroup = false;
         _hasEverHadGroups = false;
+        _awaitingMembershipsRefresh = false;
         _ref.read(selectedGroupInitializedProvider.notifier).state = false;
         _ref.read(selectedGroupIdProvider.notifier).state = null;
         _ref.read(onboardingCompletedProvider.notifier).state = false;
@@ -71,6 +73,13 @@ class RouterNotifier extends ChangeNotifier {
 
       // 실제 UID 변경이 있을 때만 notify (같은 UID로 토큰 갱신 등은 무시)
       if (prevUid != nextUid) {
+        // 로그인 감지: memberships가 stale 데이터를 가지고 있으므로 재로드 대기
+        if (nextUid != null) {
+          _awaitingMembershipsRefresh = true;
+          debugPrint(
+            '[RouterNotifier] 🔄 Login detected, awaiting memberships refresh',
+          );
+        }
         _notifyCount++;
         debugPrint(
           '[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider (UID changed)',
@@ -128,8 +137,24 @@ class RouterNotifier extends ChangeNotifier {
           '[RouterNotifier]     next.value?.isNotEmpty=${next.value?.isNotEmpty}',
         );
       }
+      // auth 변경 후 memberships 재로드 완료 감지 (loading→data 전환)
+      if (_awaitingMembershipsRefresh &&
+          previous != null &&
+          previous.isLoading &&
+          !next.isLoading &&
+          next.hasValue) {
+        debugPrint(
+          '[RouterNotifier] ✅ Memberships refreshed after auth change (count: ${next.value?.length})',
+        );
+        _awaitingMembershipsRefresh = false;
+        _notifyCount++;
+        debugPrint(
+          '[RouterNotifier] 📢 notifyListeners() #$_notifyCount from memberships refresh complete',
+        );
+        notifyListeners();
+      }
       // 초기화 완료된 경우에만 notify (race condition 방지)
-      if (alreadyInitialized || _ref.read(selectedGroupInitializedProvider)) {
+      else if (alreadyInitialized || _ref.read(selectedGroupInitializedProvider)) {
         _notifyCount++;
         debugPrint(
           '[RouterNotifier] 📢 notifyListeners() #$_notifyCount from userMembershipsProvider',
@@ -295,6 +320,7 @@ class RouterNotifier extends ChangeNotifier {
     debugPrint('[Router]   selectedGroupId: $selectedGroupId');
     debugPrint('[Router]   _hasInitializedGroup: $_hasInitializedGroup');
     debugPrint('[Router]   _hasEverHadGroups: $_hasEverHadGroups');
+    debugPrint('[Router]   _awaitingMembershipsRefresh: $_awaitingMembershipsRefresh');
     debugPrint('[Router]   isAuthRoute: $isAuthRoute');
     debugPrint('[Router]   isOnboarding: $isOnboarding');
     debugPrint('[Router]   isCommunityRoute: $isCommunityRoute');
@@ -310,9 +336,10 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 2. 로그인했지만 아직 멤버십 데이터를 로딩 중이거나 에러인 경우 리다이렉트 대기 (Flash 방지)
-    if ((memberships.isLoading || memberships.hasError) && !isOnboarding && !isCommunityRoute) {
-      debugPrint('[Router] ⏳ WAIT: Memberships loading=${memberships.isLoading} error=${memberships.hasError}');
+    // 2. 로그인했지만 멤버십 데이터가 아직 신뢰할 수 없는 경우 대기 (Flash 방지)
+    // _awaitingMembershipsRefresh: auth 변경 직후, memberships가 stale 데이터를 가지고 있음
+    if ((_awaitingMembershipsRefresh || memberships.isLoading || memberships.hasError) && !isOnboarding && !isCommunityRoute) {
+      debugPrint('[Router] ⏳ WAIT: awaitingRefresh=$_awaitingMembershipsRefresh loading=${memberships.isLoading} error=${memberships.hasError}');
       return null;
     }
 
