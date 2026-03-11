@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:firebase_auth/firebase_auth.dart' as firebase;
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -46,65 +48,97 @@ bool _sameStringSet(List<String> a, List<String> b) {
 }
 
 /// 현재 사용자 정보 (User 모델)
+/// 순수하게 Firestore users/{uid} 문서만 스트리밍합니다.
+/// 부작용(membership 동기화)은 membershipSyncProvider에서 처리합니다.
 final currentUserDataProvider = StreamProvider<User?>((ref) {
   final user = ref.watch(currentUserProvider);
   final firestore = ref.watch(firestoreProvider);
   if (user == null || firestore == null) return Stream.value(null);
 
-  return firestore.collection('users').doc(user.uid).snapshots().asyncMap((
-    doc,
-  ) async {
+  return firestore
+      .collection('users')
+      .doc(user.uid)
+      .snapshots()
+      .map((doc) {
     if (!doc.exists) return null;
-
-    final data = doc.data();
-    final currentGroupIds = data != null && data['groupIds'] is List
-        ? List<String>.from(data['groupIds'])
-        : <String>[];
-
-    try {
-      final memberships = await firestore
-          .collection('memberships')
-          .where('userId', isEqualTo: user.uid)
-          .get();
-      final groupIds = memberships.docs
-          .map((m) => m.data()['groupId'] as String?)
-          .whereType<String>()
-          .toSet()
-          .toList();
-
-      if (!_sameStringSet(groupIds, currentGroupIds)) {
-        await doc.reference.set({
-          'groupIds': groupIds,
-        }, SetOptions(merge: true));
-      }
-
-      // 레거시 데이터 정규화:
-      // memberships 문서 ID를 {userId}_{groupId} 형태로 보강
-      final batch = firestore.batch();
-      var hasBatchWrites = false;
-      for (final membershipDoc in memberships.docs) {
-        final membership = Membership.fromFirestore(membershipDoc);
-        final normalizedId = '${membership.userId}_${membership.groupId}';
-
-        if (membershipDoc.id != normalizedId) {
-          batch.set(
-            firestore.collection('memberships').doc(normalizedId),
-            membership.toFirestore(),
-            SetOptions(merge: true),
-          );
-          hasBatchWrites = true;
-        }
-      }
-
-      if (hasBatchWrites) {
-        await batch.commit();
-      }
-    } catch (e) {
-      debugPrint('[AuthProvider] Failed to sync groupIds: $e');
-    }
-
     return User.fromFirestore(doc);
   });
+});
+
+/// 로그인 후 한 번만 실행: membership 정규화 및 groupIds 동기화
+///
+/// 이전에는 currentUserDataProvider의 asyncMap 안에서 매 snapshot마다
+/// 실행되던 로직을 분리한 것입니다. FutureProvider이므로 의존성(currentUserProvider)이
+/// 변경될 때만 재실행되며, 동일 세션 내 중복 실행을 방지합니다.
+///
+/// 수행 작업:
+/// 1. memberships 컬렉션에서 현재 사용자의 그룹 ID를 수집
+/// 2. users/{uid}.groupIds와 비교하여 차이가 있으면 동기화
+/// 3. 레거시 membership 문서 ID를 {userId}_{groupId} 형식으로 정규화
+final membershipSyncProvider = FutureProvider<void>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  final firestore = ref.watch(firestoreProvider);
+  if (user == null || firestore == null) return;
+
+  try {
+    // 1. 현재 사용자의 모든 membership 조회
+    final memberships = await firestore
+        .collection('memberships')
+        .where('userId', isEqualTo: user.uid)
+        .get();
+
+    final groupIds = memberships.docs
+        .map((m) => m.data()['groupId'] as String?)
+        .whereType<String>()
+        .toSet()
+        .toList();
+
+    // 2. users 문서의 groupIds와 비교하여 동기화
+    final userDoc = await firestore.collection('users').doc(user.uid).get();
+    if (userDoc.exists) {
+      final data = userDoc.data();
+      final currentGroupIds = data != null && data['groupIds'] is List
+          ? List<String>.from(data['groupIds'])
+          : <String>[];
+
+      if (!_sameStringSet(groupIds, currentGroupIds)) {
+        await userDoc.reference.set({
+          'groupIds': groupIds,
+        }, SetOptions(merge: true));
+        debugPrint(
+          '[MembershipSync] Synced groupIds: $currentGroupIds -> $groupIds',
+        );
+      }
+    }
+
+    // 3. 레거시 데이터 정규화:
+    //    memberships 문서 ID를 {userId}_{groupId} 형태로 보강
+    final batch = firestore.batch();
+    var hasBatchWrites = false;
+    for (final membershipDoc in memberships.docs) {
+      final membership = Membership.fromFirestore(membershipDoc);
+      final normalizedId = '${membership.userId}_${membership.groupId}';
+
+      if (membershipDoc.id != normalizedId) {
+        // 새 정규화 ID로 문서 복사
+        batch.set(
+          firestore.collection('memberships').doc(normalizedId),
+          membership.toFirestore(),
+          SetOptions(merge: true),
+        );
+        // 레거시 문서 삭제
+        batch.delete(membershipDoc.reference);
+        hasBatchWrites = true;
+      }
+    }
+
+    if (hasBatchWrites) {
+      await batch.commit();
+      debugPrint('[MembershipSync] Normalized legacy membership document IDs');
+    }
+  } catch (e) {
+    debugPrint('[MembershipSync] Failed to sync memberships: $e');
+  }
 });
 
 /// 현재 사용자의 가족 멤버 정보 (DEPRECATED - 하위 호환성용)
@@ -290,7 +324,7 @@ class AuthService {
 
         if (memberships != null) {
           final familyIds = memberships.docs
-              .map((doc) => doc.data()['groupId'] as String)
+              .map((doc) => doc.data()['groupId'] as String?).whereType<String>()
               .toList();
 
           // 병렬 처리: 독립적인 구독 해제 작업을 동시에 실행
@@ -444,13 +478,13 @@ class AuthService {
     }, SetOptions(merge: true));
   }
 
-  /// 6자리 초대 코드 생성
+  /// 6자리 초대 코드 생성 (암호학적으로 안전한 난수 사용)
   String _generateInviteCode() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    final random = DateTime.now().millisecondsSinceEpoch;
+    final random = Random.secure();
     return List.generate(
       6,
-      (index) => chars[(random + index * 17) % chars.length],
+      (index) => chars[random.nextInt(chars.length)],
     ).join();
   }
 

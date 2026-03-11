@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/family_member.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/utils/color_utils.dart';
 
 /// 가족 구성원 아바타 위젯
 class MemberAvatar extends StatelessWidget {
@@ -29,7 +30,7 @@ class MemberAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final memberName = member?.name ?? name ?? '?';
-    final memberColor = _parseColor(member?.color ?? color);
+    final memberColor = parseHexColor(member?.color ?? color, fallback: AppColors.memberColors[0]);
     final memberAvatar = member?.avatarUrl ?? avatarUrl;
 
     return GestureDetector(
@@ -108,17 +109,6 @@ class MemberAvatar extends StatelessWidget {
     );
   }
 
-  Color _parseColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.memberColors[0];
-    }
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.memberColors[0];
-    }
-  }
 }
 
 /// 가족 구성원 아바타 리스트

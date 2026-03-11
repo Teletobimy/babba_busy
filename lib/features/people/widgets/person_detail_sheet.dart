@@ -11,8 +11,6 @@ import '../../../shared/providers/people_provider.dart';
 import '../../../shared/utils/people_care_assistant.dart';
 import 'add_person_sheet.dart';
 
-const Color peopleColor = Color(0xFF5B8DEF);
-
 class PersonDetailSheet extends ConsumerWidget {
   final Person person;
 
@@ -95,8 +93,8 @@ class PersonDetailSheet extends ConsumerWidget {
                                     style: TextStyle(
                                       color:
                                           (person.daysUntilBirthday ?? 999) <= 7
-                                          ? const Color(0xFFFF6B6B)
-                                          : peopleColor,
+                                          ? AppColors.birthdayCountdown
+                                          : AppColors.peopleColor,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   )
@@ -259,7 +257,7 @@ class PersonDetailSheet extends ConsumerWidget {
                                 vertical: 6,
                               ),
                               decoration: BoxDecoration(
-                                color: peopleColor.withValues(alpha: 0.1),
+                                color: AppColors.peopleColor.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(
                                   AppTheme.radiusFull,
                                 ),
@@ -267,7 +265,7 @@ class PersonDetailSheet extends ConsumerWidget {
                               child: Text(
                                 '#$tag',
                                 style: TextStyle(
-                                  color: peopleColor,
+                                  color: AppColors.peopleColor,
                                   fontSize: 13,
                                 ),
                               ),
@@ -304,7 +302,7 @@ class PersonDetailSheet extends ConsumerWidget {
               : null,
           child: person.profilePhotoUrl == null
               ? Text(
-                  person.name[0],
+                  person.name.isNotEmpty ? person.name[0] : '?',
                   style: TextStyle(
                     color: _getRelationshipColor(person.relationship),
                     fontWeight: FontWeight.w600,
@@ -335,13 +333,13 @@ class PersonDetailSheet extends ConsumerWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: peopleColor.withValues(alpha: 0.1),
+                        color: AppColors.peopleColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         person.mbti!,
                         style: TextStyle(
-                          color: peopleColor,
+                          color: AppColors.peopleColor,
                           fontWeight: FontWeight.w600,
                           fontSize: 12,
                         ),
@@ -397,7 +395,7 @@ class PersonDetailSheet extends ConsumerWidget {
           _QuickActionButton(
             icon: Iconsax.call,
             label: '전화',
-            color: const Color(0xFF4ECDC4),
+            color: AppColors.actionCall,
             onTap: () {
               _makePhoneCall(context);
             },
@@ -406,7 +404,7 @@ class PersonDetailSheet extends ConsumerWidget {
           _QuickActionButton(
             icon: Iconsax.message,
             label: '문자',
-            color: const Color(0xFF7C4DFF),
+            color: AppColors.actionMessage,
             onTap: () {
               _sendSms(context);
             },
@@ -415,7 +413,7 @@ class PersonDetailSheet extends ConsumerWidget {
           _QuickActionButton(
             icon: Iconsax.sms,
             label: '이메일',
-            color: const Color(0xFFFFA726),
+            color: AppColors.actionEmail,
             onTap: () {
               _sendEmail(context);
             },
@@ -423,7 +421,7 @@ class PersonDetailSheet extends ConsumerWidget {
         _QuickActionButton(
           icon: Iconsax.calendar_add,
           label: '일정추가',
-          color: peopleColor,
+          color: AppColors.actionSchedule,
           onTap: () {
             _addCalendarEvent(context);
           },
@@ -455,6 +453,7 @@ class PersonDetailSheet extends ConsumerWidget {
     PeopleCareTarget careTarget,
   ) {
     final scoreColor = _careScoreColor(careTarget.score);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return _buildSection(context, 'AI 챙김 요약', [
       Container(
@@ -470,7 +469,7 @@ class PersonDetailSheet extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Iconsax.star_1, size: 16, color: Color(0xFFFFA726)),
+                Icon(Iconsax.star_1, size: 16, color: AppColors.actionEmail),
                 const SizedBox(width: 6),
                 Text(
                   '챙김 우선순위 ${careTarget.score}점',
@@ -540,7 +539,8 @@ class PersonDetailSheet extends ConsumerWidget {
                     vertical: 6,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.75),
+                    color: (isDark ? AppColors.surfaceDark : Colors.white)
+                        .withValues(alpha: 0.75),
                     borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                   ),
                   child: Text(
@@ -720,25 +720,25 @@ class PersonDetailSheet extends ConsumerWidget {
   Color _getRelationshipColor(String? relationship) {
     switch (relationship) {
       case PersonRelationship.family:
-        return const Color(0xFFFF6B6B);
+        return AppColors.relationFamily;
       case PersonRelationship.friend:
-        return const Color(0xFF4ECDC4);
+        return AppColors.relationFriend;
       case PersonRelationship.colleague:
-        return const Color(0xFFFFA726);
+        return AppColors.relationColleague;
       case PersonRelationship.school:
-        return const Color(0xFF7C4DFF);
+        return AppColors.relationSchool;
       case PersonRelationship.neighbor:
-        return const Color(0xFF66BB6A);
+        return AppColors.relationNeighbor;
       default:
-        return peopleColor;
+        return AppColors.relationOther;
     }
   }
 
   Color _careScoreColor(int score) {
-    if (score >= 80) return const Color(0xFFE53935);
-    if (score >= 60) return const Color(0xFFFFA726);
-    if (score >= 40) return const Color(0xFF1E88E5);
-    return const Color(0xFF43A047);
+    if (score >= 80) return AppColors.careScoreHigh;
+    if (score >= 60) return AppColors.careScoreMedium;
+    if (score >= 40) return AppColors.careScoreNormal;
+    return AppColors.careScoreLow;
   }
 }
 

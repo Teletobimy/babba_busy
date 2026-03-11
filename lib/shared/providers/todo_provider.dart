@@ -82,29 +82,42 @@ final currentGroupTodosProvider = Provider<List<TodoItem>>((ref) {
 
 /// 현재 그룹의 Todo 목록 (하위 호환성)
 /// Phase 2: currentGroupTodosProvider를 사용하여 사용자 중심 구조 지원
-final todosProvider = StreamProvider<List<TodoItem>>((ref) {
-  // Phase 2: userTodosProvider와 sharedTodosProvider가 변경될 때마다 업데이트
+///
+/// `Provider<AsyncValue>`로 구현하여 StreamProvider의 불필요한 래핑 제거.
+/// - 기존 StreamProvider는 Stream.value()로 단발성 값을 반환하면서도
+///   isLoading 시 ref.read()로 빈 리스트를 반환하는 문제가 있었음.
+/// - 이제 userTodos/sharedTodos의 AsyncValue 상태를 직접 전달하여
+///   로딩/에러/데이터 상태를 정확히 표현함.
+/// - 소비자 측 코드 (.value ?? [], .isLoading 등)는 변경 없이 호환됨.
+final todosProvider = Provider<AsyncValue<List<TodoItem>>>((ref) {
   final userTodos = ref.watch(userTodosProvider);
   final sharedTodos = ref.watch(sharedTodosProvider);
 
-  // 두 스트림 중 하나라도 로딩 중이면 이전 값 유지
-  if (userTodos.isLoading || sharedTodos.isLoading) {
-    return Stream.value(ref.read(currentGroupTodosProvider));
+  // 둘 다 에러인 경우에만 에러 전파
+  if (userTodos.hasError && sharedTodos.hasError) {
+    return AsyncValue.error(
+      userTodos.error!,
+      userTodos.stackTrace ?? StackTrace.current,
+    );
   }
 
-  // currentGroupTodosProvider의 결과를 스트림으로 반환
-  return Stream.value(ref.watch(currentGroupTodosProvider));
+  // 둘 다 로딩 중이면 로딩 상태 전파
+  // 하나만 로딩 중이면 다른 하나의 데이터와 합쳐서 보여줌 (부분 로딩 허용)
+  if (userTodos.isLoading && sharedTodos.isLoading) {
+    return const AsyncValue.loading();
+  }
+
+  return AsyncValue.data(ref.watch(currentGroupTodosProvider));
 });
 
 /// 오늘의 할일 목록
 final todayTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(todosProvider).value ?? [];
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(now);
 
   return todos.where((todo) {
     if (todo.dueDate == null) return false;
-    // normalizeDate 적용: 시간 정보 제거 후 비교
     final normalizedDueDate = date_utils.normalizeDate(todo.dueDate!);
     return normalizedDueDate.isAtSameMomentAs(today);
   }).toList();
@@ -126,15 +139,11 @@ final memberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, membe
 /// 특정 날짜의 시간 있는 할일 (Day View용)
 final timedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   final todos = ref.watch(todosProvider).value ?? [];
-  final targetDate = DateTime(date.year, date.month, date.day);
+  final targetDate = date_utils.normalizeDate(date);
 
   return todos.where((todo) {
     if (!todo.hasTime || todo.startTime == null) return false;
-    final todoDate = DateTime(
-      todo.startTime!.year,
-      todo.startTime!.month,
-      todo.startTime!.day,
-    );
+    final todoDate = date_utils.normalizeDate(todo.startTime!);
     return todoDate.isAtSameMomentAs(targetDate);
   }).toList()..sort((a, b) => a.startTime!.compareTo(b.startTime!));
 });
@@ -155,11 +164,11 @@ final completedTodosProvider = Provider<List<TodoItem>>((ref) {
 final todayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(completedTodosProvider);
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(now);
 
   return todos.where((todo) {
     final completedDate = todo.completedAt ?? todo.createdAt;
-    final todoDate = DateTime(completedDate.year, completedDate.month, completedDate.day);
+    final todoDate = date_utils.normalizeDate(completedDate);
     return todoDate.isAtSameMomentAs(today);
   }).toList();
 });
@@ -211,14 +220,14 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>(
 /// 날짜 키 정규화 (시간 제거하여 캐시 히트율 향상)
 /// DateTime 대신 정규화된 날짜 문자열(yyyyMMdd) 사용으로 재생성 방지
 final normalizedDateKeyProvider = Provider.family<DateTime, DateTime>((ref, date) {
-  return DateTime(date.year, date.month, date.day);
+  return date_utils.normalizeDate(date);
 });
 
 /// 특정 날짜의 todos (반복 인스턴스 포함)
 /// 캐싱 최적화: 날짜를 정규화하여 동일 날짜에 대한 중복 계산 방지
 final todosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   // 날짜 정규화 (시간 제거)
-  final normalizedDate = DateTime(date.year, date.month, date.day);
+  final normalizedDate = date_utils.normalizeDate(date);
   final todos = ref.watch(todosProvider).value ?? [];
   final holidays = ref.watch(allHolidaysForYearProvider(normalizedDate.year));
   final startOfDay = normalizedDate;
@@ -384,19 +393,26 @@ DateTime _getNextOccurrenceForTodo(TodoItem todo, DateTime current) {
       return _getNextWeeklyOccurrenceForTodo(current, todo.recurrenceDays!);
 
     case RecurrenceType.monthly:
-      return DateTime(
-        current.year,
-        current.month + 1,
-        current.day,
-        current.hour,
-        current.minute,
-      );
+      var nextMonth = current.month + 1;
+      var nextYear = current.year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear++;
+      }
+      // 월말 안전 처리: 다음 달의 최대 일수 확인
+      final maxDayMonthly = DateTime(nextYear, nextMonth + 1, 0).day;
+      final safeDayMonthly = current.day > maxDayMonthly ? maxDayMonthly : current.day;
+      return DateTime(nextYear, nextMonth, safeDayMonthly, current.hour, current.minute);
 
     case RecurrenceType.yearly:
+      // 윤년 안전 처리: 2월 29일 → 비윤년에서는 2월 28일
+      final nextYearValue = current.year + 1;
+      final maxDayYearly = DateTime(nextYearValue, current.month + 1, 0).day;
+      final safeDayYearly = current.day > maxDayYearly ? maxDayYearly : current.day;
       return DateTime(
-        current.year + 1,
+        nextYearValue,
         current.month,
-        current.day,
+        safeDayYearly,
         current.hour,
         current.minute,
       );
@@ -690,10 +706,10 @@ class TodoService {
 
   /// 할일 삭제 (Phase 2: 사용자 레벨)
   Future<void> deleteTodo(String todoId) async {
-    // Prevent deletion of recurring instances
-    if (todoId.contains('_')) {
+    // Prevent deletion of recurring instances (ID format: {parentId}_{yyyyMMdd})
+    if (RegExp(r'_\d{8}$').hasMatch(todoId)) {
       debugPrint('⚠️ Cannot delete recurring instance: $todoId');
-      return;
+      throw Exception('반복 인스턴스는 삭제할 수 없습니다. 원본 일정을 삭제해주세요.');
     }
     final userTodosRef = _userTodosCollection;
     if (userTodosRef == null) return;

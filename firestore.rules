@@ -52,7 +52,18 @@ service cloud.firestore {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId);
 
-      // 사용자 하위 컬렉션 (business_reviews, albums 등)
+      // 사용자 하위 컬렉션: todos (공유 todo 토글 허용)
+      match /todos/{todoId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+        // 공유 todo 토글: 그룹 멤버가 isCompleted/completedAt만 수정 가능
+        allow update: if isAuthenticated()
+          && resource.data.visibility == 'shared'
+          && hasSharedGroupAccess(resource.data.sharedGroups)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isCompleted', 'completedAt']);
+      }
+
+      // 사용자 하위 컬렉션 (business_reviews, albums 등 - todos 제외)
       match /{subcollection}/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId);
@@ -77,16 +88,48 @@ service cloud.firestore {
       // 쓰기는 users/{userId}/albums 경로에서만 허용 (위의 규칙 적용)
     }
 
+    // ============ CollectionGroup: Todos (Phase 2 멀티그룹 공유) ============
+    // 공유된 할일/일정은 소유자이거나 sharedGroups에 포함된 그룹 멤버만 읽기 가능
+    match /{path=**}/todos/{todoId} {
+      allow read: if isAuthenticated() && (
+        // 본인 소유이거나
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.createdBy == request.auth.uid ||
+        // 공유 항목 + 공유 그룹 접근 권한이 있는 경우
+        (
+          resource.data.visibility == 'shared' &&
+          hasSharedGroupAccess(resource.data.sharedGroups)
+        )
+      );
+      // 쓰기는 families/{groupId}/todos 경로에서만 허용 (위의 규칙 적용)
+    }
+
     // ============ Families (Groups) Collection ============
     match /families/{familyId} {
-      // 읽기: 인증된 사용자 (멤버십 확인은 클라이언트에서)
+      // 읽기: 인증된 사용자 (초대 코드로 가입 시 멤버 아닌 상태에서 조회 필요)
       allow read: if isAuthenticated();
 
-      // 쓰기: 생성은 본인이 memberIds에 포함된 경우만, 수정/삭제는 그룹 멤버만
+      // 생성: 본인이 memberIds에 포함된 경우만
       allow create: if isAuthenticated()
         && request.resource.data.memberIds != null
         && request.resource.data.memberIds.hasAny([request.auth.uid]);
-      allow update, delete: if isMemberOfGroup(familyId);
+      // 수정: 그룹 멤버 또는 가입 시 본인을 memberIds에 추가하는 경우
+      allow update: if isAuthenticated() && (
+        isMemberOfGroup(familyId) ||
+        // 초대 코드로 가입 시: memberIds에 본인 추가만 허용
+        request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.memberIds.hasAny([request.auth.uid])
+      );
+      allow delete: if isGroupAdmin(familyId);
+
+      // 앨범 댓글: 읽기는 그룹 멤버, 생성은 그룹 멤버, 수정/삭제는 작성자만
+      match /album_comments/{commentId} {
+        allow read: if isMemberOfGroup(familyId);
+        allow create: if isMemberOfGroup(familyId)
+          && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if isMemberOfGroup(familyId)
+          && resource.data.userId == request.auth.uid;
+      }
 
       // 가족 하위 컬렉션 (todos, events, memories, transactions)
       match /{subcollection}/{docId} {
@@ -143,10 +186,15 @@ service cloud.firestore {
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 300;
 
-      // 커뮤니티 수정/삭제는 개설자만 허용
-      allow update: if isAuthenticated()
-        && resource.data.createdBy == request.auth.uid
-        && request.resource.data.createdBy == resource.data.createdBy;
+      // 커뮤니티 수정: 개설자 전체 수정 또는 인증된 사용자의 updatedAt만 수정
+      allow update: if isAuthenticated() && (
+        (
+          resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdBy == resource.data.createdBy
+        ) || (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
+        )
+      );
       allow delete: if isAuthenticated() && resource.data.createdBy == request.auth.uid;
 
       // 게시글

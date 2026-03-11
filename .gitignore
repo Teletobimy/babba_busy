@@ -47,7 +47,12 @@ app.*.map.json
 # Environment variables (API Keys 등 민감정보)
 .env
 .env.local
-.env.*.localnul
+.env.*.local
+
+# Android signing
+*.jks
+*.keystore
+key.properties
 
 # Local agent scratch notes
 .claude/agents/user-feedback-analyst.md

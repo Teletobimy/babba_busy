@@ -94,8 +94,16 @@ final sharedAlbumsProvider = StreamProvider<List<Album>>((ref) {
 
 /// 통합 앨범 목록 (내 앨범 + 공유된 앨범, 중복 제거)
 final combinedAlbumsProvider = Provider<List<Album>>((ref) {
-  final userAlbums = ref.watch(userAlbumsProvider).value ?? [];
-  final sharedAlbums = ref.watch(sharedAlbumsProvider).value ?? [];
+  final userAlbumsAsync = ref.watch(userAlbumsProvider);
+  final sharedAlbumsAsync = ref.watch(sharedAlbumsProvider);
+  if (userAlbumsAsync.hasError) {
+    debugPrint('[combinedAlbumsProvider] userAlbums Error: ${userAlbumsAsync.error}');
+  }
+  if (sharedAlbumsAsync.hasError) {
+    debugPrint('[combinedAlbumsProvider] sharedAlbums Error: ${sharedAlbumsAsync.error}');
+  }
+  final userAlbums = userAlbumsAsync.value ?? [];
+  final sharedAlbums = sharedAlbumsAsync.value ?? [];
 
   // 중복 제거 (ID 기준)
   final albumMap = <String, Album>{};

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/color_utils.dart';
 import '../../../shared/models/calendar_group.dart';
 import '../../../shared/providers/smart_provider.dart';
 
@@ -85,7 +86,7 @@ class CalendarFilterSheet extends ConsumerWidget {
               child: Column(
                 children: calendarGroups.map((group) {
                   final isSelected = selectedGroups.contains(group.id);
-                  final groupColor = _parseColor(group.color);
+                  final groupColor = parseHexColor(group.color, fallback: AppColors.calendarColor);
                   
                   return _CalendarGroupTile(
                     group: group,
@@ -138,14 +139,6 @@ class CalendarFilterSheet extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String colorHex) {
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.calendarColor;
-    }
-  }
 }
 
 class _CalendarGroupTile extends StatelessWidget {

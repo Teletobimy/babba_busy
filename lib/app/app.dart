@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme/app_theme.dart';
+import '../shared/providers/auth_provider.dart';
 import '../shared/providers/notification_settings_provider.dart';
 import '../shared/providers/loading_provider.dart';
 import '../shared/widgets/loading_overlay.dart';
@@ -25,8 +26,17 @@ class FamilyHubApp extends ConsumerWidget {
     final tokenSaver = ref.watch(fcmTokenSaverProvider);
     tokenSaver.whenOrNull(
       error: (error, stack) {
-        debugPrint('❌ FCM 토큰 저장 에러: $error');
+        debugPrint('FCM token save error: $error');
         debugPrint('Stack trace: $stack');
+      },
+    );
+
+    // Membership 동기화 (로그인 시 한 번 실행)
+    // currentUserProvider가 변경될 때만 재실행됨
+    final membershipSync = ref.watch(membershipSyncProvider);
+    membershipSync.whenOrNull(
+      error: (error, stack) {
+        debugPrint('[MembershipSync] Error: $error');
       },
     );
 

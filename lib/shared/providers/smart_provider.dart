@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/family_member.dart';
 import '../models/family.dart';
@@ -8,6 +9,8 @@ import '../models/calendar_group.dart';
 import '../models/chat_message.dart';
 import '../models/memo.dart';
 import '../models/memo_category.dart';
+import '../models/membership.dart';
+import '../utils/date_utils.dart' as date_utils;
 import 'auth_provider.dart';
 import 'todo_provider.dart';
 import 'album_provider.dart';
@@ -72,23 +75,21 @@ final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
 
 /// 할일 목록
 final smartTodosProvider = Provider<List<TodoItem>>((ref) {
-  return ref.watch(todosProvider).value ?? [];
+  final todosAsync = ref.watch(todosProvider);
+  if (todosAsync.hasError) {
+    debugPrint('[smartTodosProvider] Error: ${todosAsync.error}');
+  }
+  return todosAsync.value ?? [];
 });
 
 /// 오늘의 할일
 final smartTodayTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(smartTodosProvider);
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(DateTime.now());
 
   return todos.where((todo) {
     if (todo.dueDate == null) return false;
-    // normalizeDate 적용: 시간 정보 제거 후 비교
-    final normalizedDueDate = DateTime(
-      todo.dueDate!.year,
-      todo.dueDate!.month,
-      todo.dueDate!.day,
-    );
+    final normalizedDueDate = date_utils.normalizeDate(todo.dueDate!);
     return normalizedDueDate.isAtSameMomentAs(today);
   }).toList();
 });
@@ -114,12 +115,11 @@ final smartCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
 /// 오늘 완료된 할일
 final smartTodayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(smartCompletedTodosProvider);
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(DateTime.now());
 
   return todos.where((todo) {
     final completedDate = todo.completedAt ?? todo.createdAt;
-    final todoDate = DateTime(completedDate.year, completedDate.month, completedDate.day);
+    final todoDate = date_utils.normalizeDate(completedDate);
     return todoDate.isAtSameMomentAs(today);
   }).toList();
 });
@@ -127,29 +127,25 @@ final smartTodayCompletedTodosProvider = Provider<List<TodoItem>>((ref) {
 /// 특정 날짜의 시간 있는 할일 (Day View용)
 final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   final todos = ref.watch(smartTodosProvider);
-  final targetDate = DateTime(date.year, date.month, date.day);
+  final targetDate = date_utils.normalizeDate(date);
 
   return todos.where((todo) {
     if (!todo.hasTime || todo.startTime == null) return false;
-    final todoDate = DateTime(
-      todo.startTime!.year,
-      todo.startTime!.month,
-      todo.startTime!.day,
-    );
+    final todoDate = date_utils.normalizeDate(todo.startTime!);
     return todoDate.isAtSameMomentAs(targetDate);
   }).toList()..sort((a, b) => a.startTime!.compareTo(b.startTime!));
 });
 
 /// 특정 날짜의 시간 미정 할일 (Day View용)
 final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
-  final targetDate = DateTime(date.year, date.month, date.day);
+  final targetDate = date_utils.normalizeDate(date);
 
   final todos = ref.watch(todosProvider).value ?? [];
   return todos.where((todo) {
     if (todo.hasTime || todo.startTime != null) return false;
     if (todo.dueDate == null) return false;
 
-    final todoDate = DateTime(todo.dueDate!.year, todo.dueDate!.month, todo.dueDate!.day);
+    final todoDate = date_utils.normalizeDate(todo.dueDate!);
     return todoDate.isAtSameMomentAs(targetDate);
   }).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 });
@@ -205,7 +201,7 @@ final filteredTodosProvider = Provider<List<TodoItem>>((ref) {
 
 /// 멤버십 맵 캐싱 (userId -> Membership)
 /// groupMembershipsProvider를 매번 맵으로 변환하지 않도록 캐싱
-final _membershipByUserIdProvider = Provider<Map<String, dynamic>>((ref) {
+final _membershipByUserIdProvider = Provider<Map<String, Membership>>((ref) {
   final groupMemberships = ref.watch(groupMembershipsProvider).value ?? [];
   return {for (final m in groupMemberships) m.userId: m};
 });
@@ -214,7 +210,7 @@ final _membershipByUserIdProvider = Provider<Map<String, dynamic>>((ref) {
 /// 최적화: 날짜 정규화 + 멤버십 맵 캐싱
 final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   // 날짜 정규화 (시간 제거) - 캐시 히트율 향상
-  final normalizedDate = DateTime(date.year, date.month, date.day);
+  final normalizedDate = date_utils.normalizeDate(date);
 
   // 실제 모드: 반복 확장된 todos 사용
   List<TodoItem> todos = ref.watch(todosForDateProvider(normalizedDate));
@@ -265,7 +261,7 @@ final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref
 final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(filteredTodosProvider);
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(now);
   final weekLater = today.add(const Duration(days: 7));
 
   return todos.where((todo) {
@@ -285,14 +281,22 @@ final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
 /// effectiveSelectedCalendarGroupsProvider 사용으로 빈 Set 처리 통일
 final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
   final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
+  final today = date_utils.normalizeDate(now);
   final weekLater = today.add(const Duration(days: 7));
 
-  // Get expanded todos for current month (includes recurring expansion)
-  final expandedTodos = ref.watch(expandedTodosForMonthProvider((
+  // Get expanded todos for current month and next month
+  // (월말 경계에서 다음 달 일정이 누락되는 문제 방지)
+  final currentMonthTodos = ref.watch(expandedTodosForMonthProvider((
     year: now.year,
     month: now.month,
   )));
+  final nextMonth = now.month == 12 ? 1 : now.month + 1;
+  final nextYear = now.month == 12 ? now.year + 1 : now.year;
+  final nextMonthTodos = ref.watch(expandedTodosForMonthProvider((
+    year: nextYear,
+    month: nextMonth,
+  )));
+  final expandedTodos = [...currentMonthTodos, ...nextMonthTodos];
 
   // Apply calendar group filter (effectiveSelectedCalendarGroupsProvider 사용)
   final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
@@ -319,7 +323,7 @@ final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
 final smartThisWeekTodosProvider = Provider<List<TodoItem>>((ref) {
   final todos = ref.watch(filteredTodosProvider);
   final now = DateTime.now();
-  final startOfWeek = DateTime(now.year, now.month, now.day).subtract(Duration(days: now.weekday - 1));
+  final startOfWeek = date_utils.normalizeDate(now).subtract(Duration(days: now.weekday - 1));
   final endOfWeek = startOfWeek.add(const Duration(days: 7));
 
   return todos.where((todo) {
@@ -349,7 +353,11 @@ final smartAlbumsByTypeProvider = Provider.family<List<Album>, AlbumType?>((ref,
 
 /// 거래 목록
 final smartTransactionsProvider = Provider<List<BudgetTransaction>>((ref) {
-  return ref.watch(transactionsProvider).value ?? [];
+  final txAsync = ref.watch(transactionsProvider);
+  if (txAsync.hasError) {
+    debugPrint('[smartTransactionsProvider] Error: ${txAsync.error}');
+  }
+  return txAsync.value ?? [];
 });
 
 /// 이번 달 거래
@@ -403,7 +411,11 @@ final smartRecurringTransactionsProvider = Provider<List<BudgetTransaction>>((re
 
 /// 채팅 메시지 목록
 final smartChatMessagesProvider = Provider<List<ChatMessage>>((ref) {
-  return ref.watch(chatMessagesProvider).value ?? [];
+  final chatAsync = ref.watch(chatMessagesProvider);
+  if (chatAsync.hasError) {
+    debugPrint('[smartChatMessagesProvider] Error: ${chatAsync.error}');
+  }
+  return chatAsync.value ?? [];
 });
 
 /// 현재 사용자 ID
@@ -432,7 +444,11 @@ final smartLastChatMessageProvider = Provider<ChatMessage?>((ref) {
 
 /// 메모 목록
 final smartMemosProvider = Provider<List<Memo>>((ref) {
-  return ref.watch(memosProvider).value ?? [];
+  final memosAsync = ref.watch(memosProvider);
+  if (memosAsync.hasError) {
+    debugPrint('[smartMemosProvider] Error: ${memosAsync.error}');
+  }
+  return memosAsync.value ?? [];
 });
 
 /// 메모 카테고리 목록

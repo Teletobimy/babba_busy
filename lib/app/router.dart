@@ -58,6 +58,7 @@ class RouterNotifier extends ChangeNotifier {
         _hasInitializedGroup = false;
         _ref.read(selectedGroupInitializedProvider.notifier).state = false;
         _ref.read(selectedGroupIdProvider.notifier).state = null;
+        _ref.read(onboardingCompletedProvider.notifier).state = false;
         _notifyCount++;
         debugPrint(
           '[RouterNotifier] 📢 notifyListeners() #$_notifyCount from authStateProvider (logout)',

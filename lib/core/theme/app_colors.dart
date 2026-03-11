@@ -142,6 +142,31 @@ class AppColors {
   static const Color chatColor = Color(0xFF9B59B6);    // 대화방
   static const Color communityColor = Color(0xFF2AA198); // 커뮤니티
 
+  // ============ People & Care 색상 ============
+
+  // 생일 카운트다운
+  static const Color birthdayCountdown = Color(0xFFFF6B6B);
+
+  // 빠른 액션 색상
+  static const Color actionCall = Color(0xFF4ECDC4);
+  static const Color actionMessage = Color(0xFF7C4DFF);
+  static const Color actionEmail = Color(0xFFFFA726);
+  static const Color actionSchedule = Color(0xFF42A5F5);
+
+  // 관계 색상
+  static const Color relationFamily = Color(0xFFFF6B6B);
+  static const Color relationFriend = Color(0xFF4ECDC4);
+  static const Color relationColleague = Color(0xFFFFA726);
+  static const Color relationSchool = Color(0xFF7C4DFF);
+  static const Color relationNeighbor = Color(0xFF66BB6A);
+  static const Color relationOther = Color(0xFF90A4AE);
+
+  // 케어 점수 색상
+  static const Color careScoreHigh = Color(0xFFFF5252);
+  static const Color careScoreMedium = Color(0xFFFF9800);
+  static const Color careScoreNormal = Color(0xFF42A5F5);
+  static const Color careScoreLow = Color(0xFF66BB6A);
+
   // ============ 심리검사 테마 색상 ============
   static const Map<String, MaterialColor> testColors = {
     'big5': coral,

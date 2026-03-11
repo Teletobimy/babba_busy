@@ -11,8 +11,7 @@ import 'widgets/add_person_sheet.dart';
 import 'widgets/person_card.dart';
 import 'widgets/person_detail_sheet.dart';
 
-/// 사람들 탭 컬러
-const Color peopleColor = Color(0xFF5B8DEF);
+/// 사람들 탭 컬러 -- AppColors.peopleColor 사용
 
 enum _ContactImportMode { single, all }
 
@@ -117,8 +116,8 @@ class PeopleScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      peopleColor.withValues(alpha: 0.15),
-                      const Color(0xFFFF6B6B).withValues(alpha: 0.1),
+                      AppColors.peopleColor.withValues(alpha: 0.15),
+                      AppColors.birthdayCountdown.withValues(alpha: 0.1),
                     ],
                   ),
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
@@ -128,16 +127,16 @@ class PeopleScreen extends ConsumerWidget {
                   children: [
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Iconsax.cake,
                           size: 18,
-                          color: Color(0xFFFF6B6B),
+                          color: AppColors.birthdayCountdown,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '다가오는 생일',
                           style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(color: const Color(0xFFFF6B6B)),
+                              ?.copyWith(color: AppColors.birthdayCountdown),
                         ),
                       ],
                     ),
@@ -170,13 +169,13 @@ class PeopleScreen extends ConsumerWidget {
                                 children: [
                                   CircleAvatar(
                                     radius: 18,
-                                    backgroundColor: peopleColor.withValues(
+                                    backgroundColor: AppColors.peopleColor.withValues(
                                       alpha: 0.2,
                                     ),
                                     child: Text(
-                                      person.name[0],
+                                      person.name.isNotEmpty ? person.name[0] : '?',
                                       style: TextStyle(
-                                        color: peopleColor,
+                                        color: AppColors.peopleColor,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
@@ -200,8 +199,8 @@ class PeopleScreen extends ConsumerWidget {
                                         daysLeft == 0 ? '오늘!' : 'D-$daysLeft',
                                         style: TextStyle(
                                           color: daysLeft <= 7
-                                              ? const Color(0xFFFF6B6B)
-                                              : peopleColor,
+                                              ? AppColors.birthdayCountdown
+                                              : AppColors.peopleColor,
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -234,17 +233,17 @@ class PeopleScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.surfaceDark : Colors.white,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                  border: Border.all(color: peopleColor.withValues(alpha: 0.2)),
+                  border: Border.all(color: AppColors.peopleColor.withValues(alpha: 0.2)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Iconsax.star_1,
                           size: 18,
-                          color: Color(0xFFFFA726),
+                          color: AppColors.actionEmail,
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -266,13 +265,13 @@ class PeopleScreen extends ConsumerWidget {
                             children: [
                               CircleAvatar(
                                 radius: 16,
-                                backgroundColor: peopleColor.withValues(
+                                backgroundColor: AppColors.peopleColor.withValues(
                                   alpha: 0.15,
                                 ),
                                 child: Text(
-                                  target.person.name[0],
+                                  target.person.name.isNotEmpty ? target.person.name[0] : '?',
                                   style: const TextStyle(
-                                    color: peopleColor,
+                                    color: AppColors.peopleColor,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -380,7 +379,7 @@ class PeopleScreen extends ConsumerWidget {
           child: FloatingActionButton(
             heroTag: 'people_fab',
             onPressed: () => _showAddPersonSheet(context),
-            backgroundColor: peopleColor,
+            backgroundColor: AppColors.peopleColor,
             child: const Icon(Iconsax.user_add),
           ).animate().scale(delay: 400.ms, duration: 300.ms),
         ),
@@ -392,7 +391,7 @@ class PeopleScreen extends ConsumerWidget {
             tooltip: '연락처 가져오기',
             onPressed: () => _importFromContacts(context, ref),
             backgroundColor: isDark ? AppColors.surfaceDark : Colors.white,
-            foregroundColor: peopleColor,
+            foregroundColor: AppColors.peopleColor,
             child: const Icon(Icons.contacts),
           ).animate().scale(delay: 350.ms, duration: 250.ms),
         ),
@@ -599,7 +598,7 @@ class PeopleScreen extends ConsumerWidget {
                         return CheckboxListTile(
                           value: isSelected,
                           controlAffinity: ListTileControlAffinity.leading,
-                          activeColor: peopleColor,
+                          activeColor: AppColors.peopleColor,
                           title: Text(
                             contact.name,
                             maxLines: 1,
@@ -640,7 +639,7 @@ class PeopleScreen extends ConsumerWidget {
                                 );
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: peopleColor,
+                          backgroundColor: AppColors.peopleColor,
                           foregroundColor: Colors.white,
                         ),
                         child: Text('선택한 $selectedCount명 가져오기'),
@@ -729,7 +728,7 @@ class PeopleScreen extends ConsumerWidget {
           ? '${toSave.length}명을 가져왔습니다'
           : '${toSave.first.name}님을 연락처에서 가져왔습니다';
       final suffix = skipped > 0 ? ' (중복/제외 $skipped명)' : '';
-      _showSnackBar(context, '$message$suffix', backgroundColor: peopleColor);
+      _showSnackBar(context, '$message$suffix', backgroundColor: AppColors.peopleColor);
     } catch (e) {
       if (!context.mounted) return;
       if (isBulk) {
@@ -817,10 +816,10 @@ class PeopleScreen extends ConsumerWidget {
   }
 
   Color _careScoreColor(int score) {
-    if (score >= 80) return const Color(0xFFE53935);
-    if (score >= 60) return const Color(0xFFFFA726);
-    if (score >= 40) return const Color(0xFF1E88E5);
-    return const Color(0xFF43A047);
+    if (score >= 80) return AppColors.careScoreHigh;
+    if (score >= 60) return AppColors.careScoreMedium;
+    if (score >= 40) return AppColors.careScoreNormal;
+    return AppColors.careScoreLow;
   }
 
   void _showAddPersonSheet(BuildContext context) {
@@ -861,13 +860,13 @@ class _RelationshipChip extends StatelessWidget {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? peopleColor : peopleColor.withValues(alpha: 0.1),
+          color: isSelected ? AppColors.peopleColor : AppColors.peopleColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppTheme.radiusFull),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : peopleColor,
+            color: isSelected ? Colors.white : AppColors.peopleColor,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             fontSize: 13,
           ),
@@ -922,7 +921,7 @@ class _EmptyState extends StatelessWidget {
                 icon: const Icon(Iconsax.user_add),
                 label: const Text('사람 추가하기'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: peopleColor,
+                  backgroundColor: AppColors.peopleColor,
                   foregroundColor: Colors.white,
                 ),
               ),

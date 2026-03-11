@@ -36,10 +36,11 @@ class HomeScreen extends ConsumerWidget {
     // Firebase Auth에서 직접 이름 가져오기 (빠른 fallback용)
     final firebaseUser = ref.watch(currentUserProvider);
 
-    // Reset member filter when group changes
+    // Reset member filter and completed section when group changes
     ref.listen(currentMembershipProvider, (previous, next) {
       if (previous?.groupId != next?.groupId) {
         ref.read(selectedMemberFilterProvider.notifier).state = null;
+        ref.read(completedSectionExpandedProvider.notifier).state = false;
       }
     });
 

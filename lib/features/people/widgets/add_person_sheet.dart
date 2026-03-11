@@ -7,8 +7,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/person.dart';
 import '../../../shared/providers/people_provider.dart';
 
-const Color peopleColor = Color(0xFF5B8DEF);
-
 class AddPersonSheet extends ConsumerStatefulWidget {
   final Person? initialPerson;
 
@@ -331,7 +329,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                       IconButton(
                         onPressed: () => _addTag(_tagController.text),
                         icon: const Icon(Iconsax.add_circle),
-                        color: peopleColor,
+                        color: AppColors.peopleColor,
                       ),
                     ],
                   ),
@@ -357,7 +355,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                   ElevatedButton(
                     onPressed: _isSaving ? null : _savePerson,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: peopleColor,
+                      backgroundColor: AppColors.peopleColor,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -477,7 +475,7 @@ class _AddPersonSheetState extends ConsumerState<AddPersonSheet> {
                 ? '${_nameController.text}님 정보가 수정되었습니다'
                 : '${_nameController.text}님이 추가되었습니다',
           ),
-          backgroundColor: peopleColor,
+          backgroundColor: AppColors.peopleColor,
         ),
       );
       Navigator.of(context).pop(true);

@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/color_utils.dart';
 import '../../../shared/models/todo_item.dart';
 import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
@@ -80,7 +81,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final memberColor = widget.assignee != null
-        ? _parseColor(widget.assignee!.color)
+        ? parseHexColor(widget.assignee!.color, fallback: AppColors.memberColors[0])
         : AppColors.memberColors[0];
 
     final hasDetails = (widget.todo.note != null && widget.todo.note!.isNotEmpty) ||
@@ -329,18 +330,6 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
         ],
       ),
     );
-  }
-
-  Color _parseColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.memberColors[0];
-    }
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.memberColors[0];
-    }
   }
 
   bool _isDueToday(DateTime date) {

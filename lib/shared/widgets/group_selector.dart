@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/utils/color_utils.dart';
 import '../../shared/providers/group_provider.dart';
 import '../../features/auth/widgets/group_setup_dialog.dart';
 
@@ -160,7 +161,7 @@ class GroupSelector extends ConsumerWidget {
                   height: 8,
                   margin: const EdgeInsets.only(right: 12),
                   decoration: BoxDecoration(
-                    color: _parseColor(membership.color),
+                    color: parseHexColor(membership.color, fallback: AppColors.memberColors[0]),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -237,15 +238,4 @@ class GroupSelector extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.memberColors[0];
-    }
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.memberColors[0];
-    }
-  }
 }

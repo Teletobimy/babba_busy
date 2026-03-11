@@ -5,7 +5,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/models/person.dart';
 
-const Color peopleColor = Color(0xFF5B8DEF);
+// peopleColor는 AppColors.peopleColor를 사용합니다.
 
 class PersonCard extends StatelessWidget {
   final Person person;
@@ -46,7 +46,7 @@ class PersonCard extends StatelessWidget {
                       : null,
                   child: person.profilePhotoUrl == null
                       ? Text(
-                          person.name[0],
+                          person.name.isNotEmpty ? person.name[0] : '?',
                           style: TextStyle(
                             color: _getRelationshipColor(person.relationship),
                             fontWeight: FontWeight.w600,
@@ -64,7 +64,7 @@ class PersonCard extends StatelessWidget {
                       width: 18,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF6B6B),
+                        color: AppColors.birthdayCountdown,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color:
@@ -103,14 +103,14 @@ class PersonCard extends StatelessWidget {
                             vertical: 1,
                           ),
                           decoration: BoxDecoration(
-                            color: peopleColor.withValues(alpha: 0.1),
+                            color: AppColors.peopleColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             person.mbti!,
                             style: TextStyle(
                               fontSize: 10,
-                              color: peopleColor,
+                              color: AppColors.peopleColor,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -180,8 +180,8 @@ class PersonCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               color: daysUntilBirthday <= 7
-                                  ? const Color(0xFFFF6B6B)
-                                  : peopleColor,
+                                  ? AppColors.birthdayCountdown
+                                  : AppColors.peopleColor,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -240,17 +240,17 @@ class PersonCard extends StatelessWidget {
   Color _getRelationshipColor(String? relationship) {
     switch (relationship) {
       case PersonRelationship.family:
-        return const Color(0xFFFF6B6B);
+        return AppColors.relationFamily;
       case PersonRelationship.friend:
-        return const Color(0xFF4ECDC4);
+        return AppColors.relationFriend;
       case PersonRelationship.colleague:
-        return const Color(0xFFFFA726);
+        return AppColors.relationColleague;
       case PersonRelationship.school:
-        return const Color(0xFF7C4DFF);
+        return AppColors.relationSchool;
       case PersonRelationship.neighbor:
-        return const Color(0xFF66BB6A);
+        return AppColors.relationNeighbor;
       default:
-        return peopleColor;
+        return AppColors.relationOther;
     }
   }
 }

@@ -15,6 +15,7 @@ import '../../shared/models/holiday.dart';
 import '../../shared/models/family_member.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/utils/date_utils.dart' as date_utils;
+import '../../shared/utils/color_utils.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/week_view.dart';
 import 'widgets/day_view.dart';
@@ -1090,7 +1091,7 @@ class _MonthView extends ConsumerWidget {
           orElse: () => null,
         );
         final memberColor = member != null
-            ? _parseColor(member.color)
+            ? parseHexColor(member.color, fallback: AppColors.calendarColor)
             : AppColors.calendarColor;
         final count = entry.value;
 
@@ -1128,22 +1129,4 @@ class _MonthView extends ConsumerWidget {
     );
   }
 
-  Color _parseColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.memberColors[0];
-    }
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      if (hex.length != 6) {
-        debugPrint(
-          '⚠️ Invalid color format: $colorHex (expected 6 hex digits)',
-        );
-        return AppColors.memberColors[0];
-      }
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      debugPrint('❌ Color parsing error for "$colorHex": $e');
-      return AppColors.memberColors[0];
-    }
-  }
 }

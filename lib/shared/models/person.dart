@@ -432,14 +432,27 @@ class Person {
   }
 
   /// 다가오는 생일까지 남은 일수
+  /// Feb 29 생일인 경우 비윤년에는 Feb 28로 처리
   int? get daysUntilBirthday {
     if (birthday == null) return null;
     final now = DateTime.now();
-    var nextBirthday = DateTime(now.year, birthday!.month, birthday!.day);
-    if (nextBirthday.isBefore(now)) {
-      nextBirthday = DateTime(now.year + 1, birthday!.month, birthday!.day);
+    final today = DateTime(now.year, now.month, now.day);
+    var nextBirthday = _birthdayInYear(now.year);
+    if (nextBirthday.isBefore(today)) {
+      nextBirthday = _birthdayInYear(now.year + 1);
     }
-    return nextBirthday.difference(now).inDays;
+    return nextBirthday.difference(today).inDays;
+  }
+
+  /// 특정 연도에서의 생일 날짜 계산
+  /// Feb 29 생일이면서 해당 연도가 윤년이 아닌 경우 Feb 28 반환
+  DateTime _birthdayInYear(int year) {
+    if (birthday!.month == 2 && birthday!.day == 29) {
+      final isLeapYear =
+          (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+      return DateTime(year, 2, isLeapYear ? 29 : 28);
+    }
+    return DateTime(year, birthday!.month, birthday!.day);
   }
 
   /// 나이 계산

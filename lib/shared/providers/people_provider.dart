@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/person.dart';
@@ -60,21 +61,33 @@ class PeopleService {
         .add(newPerson.toFirestore());
   }
 
-  /// 사람 여러 명 추가 (batch)
+  /// 사람 여러 명 추가 (Firestore WriteBatch 사용)
+  ///
+  /// Firestore WriteBatch는 최대 500개의 쓰기 작업만 허용하므로,
+  /// [people] 목록을 500개 단위로 분할하여 순차적으로 커밋합니다.
+  /// 중간 배치 실패 시 이미 커밋된 배치는 롤백되지 않으므로,
+  /// 호출부에서 부분 실패를 인지하고 적절히 안내해야 합니다.
+  ///
+  /// Throws: FirebaseException 등 Firestore 관련 예외가 발생할 수 있음.
   Future<void> addPeople(List<Person> people) async {
     if (people.isEmpty) return;
 
     final membership = _ref.read(currentMembershipProvider);
     final user = _ref.read(currentUserProvider);
     final firestore = _firestore;
-    if (membership == null || user == null || firestore == null) return;
+    if (membership == null || user == null || firestore == null) {
+      throw StateError('인증되지 않았거나 그룹이 선택되지 않았습니다.');
+    }
 
     final peopleCollection = firestore
         .collection('families')
         .doc(membership.groupId)
         .collection('people');
 
+    // Firestore WriteBatch 제한: 최대 500개 작업/배치
     const batchLimit = 500;
+    var committedCount = 0;
+
     for (var i = 0; i < people.length; i += batchLimit) {
       final end = (i + batchLimit < people.length)
           ? i + batchLimit
@@ -91,7 +104,14 @@ class PeopleService {
         batch.set(docRef, person.toFirestore());
       }
 
-      await batch.commit();
+      try {
+        await batch.commit();
+        committedCount += (end - i);
+      } catch (e) {
+        throw StateError(
+          '$committedCount/${people.length}명 저장 후 오류 발생: $e',
+        );
+      }
     }
   }
 
@@ -158,7 +178,11 @@ class PeopleService {
 
 /// 스마트 사람 목록 Provider
 final smartPeopleProvider = Provider<List<Person>>((ref) {
-  return ref.watch(peopleProvider).value ?? [];
+  final peopleAsync = ref.watch(peopleProvider);
+  if (peopleAsync.hasError) {
+    debugPrint('[smartPeopleProvider] Error: ${peopleAsync.error}');
+  }
+  return peopleAsync.value ?? [];
 });
 
 /// 관계별 사람 목록

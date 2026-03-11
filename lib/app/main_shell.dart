@@ -81,8 +81,41 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isGroupInitialized = ref.watch(selectedGroupInitializedProvider);
     final transitionState = ref.watch(groupTransitionProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 그룹 초기화 미완료 시 로딩 화면 표시
+    if (!isGroupInitialized) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    isDark ? AppColors.primaryDark : AppColors.primaryLight,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '데이터를 불러오는 중...',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Stack(

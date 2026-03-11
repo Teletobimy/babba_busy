@@ -5,6 +5,7 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/color_utils.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/providers/smart_provider.dart';
 
@@ -51,7 +52,7 @@ class UpcomingEventsCard extends ConsumerWidget {
               .map((id) {
                 try {
                   final member = members.firstWhere((m) => m.id == id);
-                  return _parseColor(member.color);
+                  return parseHexColor(member.color, fallback: AppColors.memberColors[0]);
                 } catch (e) {
                   return AppColors.memberColors[0];
                 }
@@ -216,15 +217,4 @@ class UpcomingEventsCard extends ConsumerWidget {
     return widgets;
   }
 
-  Color _parseColor(String? colorHex) {
-    if (colorHex == null || colorHex.isEmpty) {
-      return AppColors.memberColors[0];
-    }
-    try {
-      final hex = colorHex.replaceAll('#', '');
-      return Color(int.parse('FF$hex', radix: 16));
-    } catch (e) {
-      return AppColors.memberColors[0];
-    }
-  }
 }

@@ -138,32 +138,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     emailController.dispose();
 
     if (result != null && result.isNotEmpty) {
+      // 보안: 계정 존재 여부를 노출하지 않도록 성공/실패 관계없이 동일한 메시지 표시
       try {
         await FirebaseAuth.instance.sendPasswordResetEmail(email: result);
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('비밀번호 재설정 이메일을 전송했습니다. 이메일을 확인해주세요.'),
-            duration: Duration(seconds: 4),
-          ),
-        );
-      } on FirebaseAuthException catch (e) {
-        if (!context.mounted) return;
-        String message = '이메일 전송에 실패했습니다.';
-        if (e.code == 'user-not-found') {
-          message = '해당 이메일로 가입된 계정이 없습니다.';
-        } else if (e.code == 'invalid-email') {
-          message = '유효하지 않은 이메일 형식입니다.';
-        }
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
-      } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('이메일 전송 중 오류가 발생했습니다.')));
+      } catch (_) {
+        // 의도적으로 에러를 무시하여 계정 존재 여부 노출 방지
       }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('입력하신 이메일로 비밀번호 재설정 안내를 전송했습니다. 이메일을 확인해주세요.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
     }
   }
 
