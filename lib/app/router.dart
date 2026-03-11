@@ -31,6 +31,7 @@ class RouterNotifier extends ChangeNotifier {
   final Ref _ref;
   bool _isCompletingOnboarding = false;
   bool _hasInitializedGroup = false;
+  bool _hasEverHadGroups = false; // 세션 중 그룹 감지 이력 (일시적 빈 상태 방지)
   int _notifyCount = 0; // 디버깅: notifyListeners 호출 횟수
   int _redirectCount = 0; // 디버깅: redirect 호출 횟수
 
@@ -56,6 +57,7 @@ class RouterNotifier extends ChangeNotifier {
           '[RouterNotifier] 🔓 User logged out, resetting all initialization state',
         );
         _hasInitializedGroup = false;
+        _hasEverHadGroups = false;
         _ref.read(selectedGroupInitializedProvider.notifier).state = false;
         _ref.read(selectedGroupIdProvider.notifier).state = null;
         _ref.read(onboardingCompletedProvider.notifier).state = false;
@@ -93,6 +95,13 @@ class RouterNotifier extends ChangeNotifier {
       debugPrint(
         '[RouterNotifier]   _hasInitializedGroup: $_hasInitializedGroup',
       );
+      // 그룹 존재 이력 추적 (일시적 빈 상태에서 온보딩 리다이렉트 방지)
+      if (next.hasValue && (next.value?.isNotEmpty ?? false)) {
+        if (!_hasEverHadGroups) {
+          debugPrint('[RouterNotifier] 🏷️ _hasEverHadGroups = true (groups detected)');
+        }
+        _hasEverHadGroups = true;
+      }
       // 멤버십 데이터가 처음 로드되었을 때 마지막 선택 그룹 복원
       // 단, 이미 초기화 완료된 경우(onboarding에서 직접 초기화) 스킵
       final alreadyInitialized = _ref.read(selectedGroupInitializedProvider);
@@ -285,6 +294,7 @@ class RouterNotifier extends ChangeNotifier {
     debugPrint('[Router]   isGroupInitialized: $isGroupInitialized');
     debugPrint('[Router]   selectedGroupId: $selectedGroupId');
     debugPrint('[Router]   _hasInitializedGroup: $_hasInitializedGroup');
+    debugPrint('[Router]   _hasEverHadGroups: $_hasEverHadGroups');
     debugPrint('[Router]   isAuthRoute: $isAuthRoute');
     debugPrint('[Router]   isOnboarding: $isOnboarding');
     debugPrint('[Router]   isCommunityRoute: $isCommunityRoute');
@@ -326,14 +336,30 @@ class RouterNotifier extends ChangeNotifier {
       return null;
     }
 
-    // 4. 로그인했고 그룹이 없으면 온보딩으로 이동 (onboardingCompleted 값과 무관)
+    // 4. 로그인했고 그룹이 없으면 온보딩으로 이동
+    // 핵심 수정: _hasEverHadGroups 플래그로 일시적 빈 상태에서의 잘못된 리다이렉트 방지
     if (!isOnboarding && !isAuthRoute && !isCommunityRoute) {
       if (!hasGroups) {
+        // 이전에 그룹을 감지한 적 있으면 → 일시적 빈 상태이므로 대기
+        if (_hasEverHadGroups) {
+          debugPrint(
+            '[Router] ⏳ WAIT: hasGroups=false but _hasEverHadGroups=true (temporary empty state)',
+          );
+          return null;
+        }
+        // memberships가 확실히 로드 완료 + 빈 리스트인 경우에만 온보딩
+        if (memberships.hasValue && (memberships.value?.isEmpty ?? true)) {
+          debugPrint(
+            '[Router] 🎯 DECISION: Confirmed no groups, redirect to onboarding',
+          );
+          debugPrint('[Router] ➡️ REDIRECT to /onboarding');
+          return '/onboarding';
+        }
+        // 아직 확실하지 않으면 대기
         debugPrint(
-          '[Router] 🎯 DECISION: No groups ($hasGroups), redirect to onboarding',
+          '[Router] ⏳ WAIT: hasGroups=false but memberships not confirmed (hasValue=${memberships.hasValue})',
         );
-        debugPrint('[Router] ➡️ REDIRECT to /onboarding');
-        return '/onboarding';
+        return null;
       }
       // 그룹이 있는데 온보딩 상태가 아니면 온보딩 완료로 간주 (기기 이동 등)
       _markOnboardingCompleteIfNeeded(hasGroups, onboardingCompleted);
@@ -341,9 +367,10 @@ class RouterNotifier extends ChangeNotifier {
 
     // 4-1. 로그인 사용자가 인증 페이지에 있으면 그룹 보유 여부에 따라 이동
     if (isAuthRoute) {
-      if (hasGroups) {
+      // 그룹이 있거나 이전에 그룹을 감지한 적 있으면 → 홈으로
+      if (hasGroups || _hasEverHadGroups) {
         debugPrint(
-          '[Router] 🏠 DECISION: Logged in user on auth route -> /home',
+          '[Router] 🏠 DECISION: Logged in user on auth route -> /home (hasGroups=$hasGroups, _hasEverHadGroups=$_hasEverHadGroups)',
         );
         return '/home';
       }
