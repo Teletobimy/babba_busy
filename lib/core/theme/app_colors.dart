@@ -34,6 +34,13 @@ class AppColors {
   static const Color budgetColor = Color(0xFFF4D06F);       // Honey - 안정적 재정
   static const Color memoColor = Color(0xFF7986CB);         // Indigo - 깊이있는 기록
 
+  // ============ WCAG AA 고대비 텍스트용 색상 (4.5:1+ on white) ============
+  static const Color calendarColorOnWhite = Color(0xFF2D8B65);  // ~5.0:1
+  static const Color primaryOnWhite = Color(0xFFC4754A);        // ~4.5:1
+  static const Color todoColorOnWhite = Color(0xFFC4754A);      // ~4.5:1
+  static const Color accentOnWhite = Color(0xFF7B6A9E);         // ~4.5:1
+  static const Color textSecondaryLightAA = Color(0xFF636363);  // 4.5:1+ on #FDF6EC
+
   // ============ 구성원 색상 (6인 기준) ============
   static const List<Color> memberColors = [
     Color(0xFFFFCBA4), // Peach

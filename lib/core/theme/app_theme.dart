@@ -39,6 +39,11 @@ class AppTheme {
     ),
   ];
 
+  // ============ 모션 감소 지원 ============
+  static Duration animDuration(BuildContext context, Duration normal) {
+    return MediaQuery.of(context).disableAnimations ? Duration.zero : normal;
+  }
+
   // ============ 라이트 테마 ============
   static ThemeData get lightTheme => ThemeData(
     useMaterial3: true,

@@ -145,7 +145,7 @@ class TodoCard extends StatelessWidget {
                                     child: Text(
                                       '+${participants.length - 4}',
                                       style: const TextStyle(
-                                        fontSize: 10,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),

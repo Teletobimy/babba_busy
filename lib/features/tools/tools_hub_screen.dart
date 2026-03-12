@@ -140,6 +140,39 @@ class _ToolsHubScreenState extends ConsumerState<ToolsHubScreen>
                     '도구',
                     style: Theme.of(context).textTheme.headlineSmall,
                   ).animate().fadeIn(duration: 300.ms),
+                  const SizedBox(height: AppTheme.spacingS),
+                  // 빠른 바로가기
+                  SizedBox(
+                    height: 44,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        _QuickLinkChip(
+                          icon: Iconsax.chart_1,
+                          label: '리포트',
+                          onTap: () => context.push('/reports'),
+                        ),
+                        const SizedBox(width: 8),
+                        _QuickLinkChip(
+                          icon: Iconsax.people,
+                          label: '함께하는 시간',
+                          onTap: () => context.push('/together-time'),
+                        ),
+                        const SizedBox(width: 8),
+                        _QuickLinkChip(
+                          icon: Iconsax.refresh,
+                          label: '집안일 로테이션',
+                          onTap: () => context.push('/chore-rotation'),
+                        ),
+                        const SizedBox(width: 8),
+                        _QuickLinkChip(
+                          icon: Iconsax.calendar_1,
+                          label: '시간표',
+                          onTap: () => context.push('/timetable'),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(height: AppTheme.spacingM),
                   // 탭바 (2줄 배치)
                   Container(
@@ -1589,6 +1622,33 @@ class _BusinessContent extends StatelessWidget {
 }
 
 /// 심리검사 콘텐츠
+class _QuickLinkChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickLinkChip({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ActionChip(
+      avatar: Icon(icon, size: 16),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
+      onPressed: onTap,
+      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.backgroundLight,
+      side: BorderSide(
+        color: (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)
+            .withValues(alpha: 0.2),
+      ),
+    );
+  }
+}
+
 class _PsychologyContent extends StatelessWidget {
   const _PsychologyContent();
 

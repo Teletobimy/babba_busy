@@ -23,6 +23,10 @@ import '../features/tools/community/community_detail_screen.dart';
 import '../features/memo/memo_category_analysis_history_screen.dart';
 import '../features/memo/memo_category_analysis_detail_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/together_time/together_time_screen.dart';
+import '../features/reports/report_screen.dart';
+import '../features/chore/chore_rotation_screen.dart';
+import '../features/timetable/timetable_screen.dart';
 import 'main_shell.dart';
 
 /// Navigator Key for notifications
@@ -555,6 +559,30 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: SettingsScreen()),
           ),
         ],
+      ),
+      // 함께하는 시간 찾기 (독립 화면)
+      GoRoute(
+        path: '/together-time',
+        name: 'together-time',
+        builder: (context, state) => const TogetherTimeScreen(),
+      ),
+      // 가족 리포트
+      GoRoute(
+        path: '/reports',
+        name: 'reports',
+        builder: (context, state) => const ReportScreen(),
+      ),
+      // 집안일 로테이션
+      GoRoute(
+        path: '/chore-rotation',
+        name: 'chore-rotation',
+        builder: (context, state) => const ChoreRotationScreen(),
+      ),
+      // 학교 시간표
+      GoRoute(
+        path: '/timetable',
+        name: 'timetable',
+        builder: (context, state) => const TimetableScreen(),
       ),
       // AI 도구 라우트 (독립 화면)
       GoRoute(

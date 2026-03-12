@@ -270,6 +270,9 @@ Future<void> updateMembershipProfile(
   String membershipId, {
   String? name,
   String? color,
+  String? avatarType,
+  String? avatarEmoji,
+  String? statusMessage,
 }) async {
   final firestore = ref.read(firestoreProvider);
   if (firestore == null) return;
@@ -277,6 +280,12 @@ Future<void> updateMembershipProfile(
   final updates = <String, dynamic>{};
   if (name != null) updates['name'] = name;
   if (color != null) updates['color'] = color;
+  if (avatarType != null) updates['avatarType'] = avatarType;
+  if (avatarEmoji != null) updates['avatarEmoji'] = avatarEmoji;
+  if (statusMessage != null) {
+    updates['statusMessage'] = statusMessage;
+    updates['statusUpdatedAt'] = DateTime.now();
+  }
 
   if (updates.isNotEmpty) {
     await firestore

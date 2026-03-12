@@ -5,10 +5,11 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_card.dart';
 import '../../../shared/providers/smart_provider.dart';
+import '../../../services/gemini/gemini_service.dart';
 import '../home_screen.dart';
 
 /// AI 요약 상태
-final aiSummaryExpandedProvider = StateProvider<bool>((ref) => true);
+final aiSummaryExpandedProvider = StateProvider<bool>((ref) => false);
 
 /// AI 요약 카드
 class AiSummaryCard extends ConsumerWidget {
@@ -60,7 +61,7 @@ class AiSummaryCard extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                     ),
                     child: const Icon(
-                      Iconsax.magic_star5,
+                      Iconsax.chart_1,
                       color: Colors.white,
                       size: 20,
                     ),
@@ -71,7 +72,7 @@ class AiSummaryCard extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'AI 오늘의 요약',
+                          '오늘의 현황',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -118,13 +119,8 @@ class AiSummaryCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _generateSummary(pendingCount, completedToday, upcomingCount),
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.95),
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
+                    _AiSummaryText(
+                      fallback: _generateSummary(pendingCount, completedToday, upcomingCount),
                     ),
                     const SizedBox(height: 12),
                     // 통계 미니 카드
@@ -215,13 +211,52 @@ class _StatChip extends StatelessWidget {
                 '$label $value',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AI 요약 텍스트 (Gemini 연동 + 폴백)
+class _AiSummaryText extends ConsumerWidget {
+  final String fallback;
+
+  const _AiSummaryText({required this.fallback});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final aiSummary = ref.watch(aiSummaryProvider);
+
+    return aiSummary.when(
+      data: (summary) => Text(
+        summary,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.95),
+          fontSize: 13,
+          height: 1.5,
+        ),
+      ),
+      loading: () => Text(
+        fallback,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.95),
+          fontSize: 13,
+          height: 1.5,
+        ),
+      ),
+      error: (_, __) => Text(
+        fallback,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.95),
+          fontSize: 13,
+          height: 1.5,
         ),
       ),
     );

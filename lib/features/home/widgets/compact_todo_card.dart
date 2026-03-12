@@ -11,7 +11,12 @@ import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import '../../../shared/utils/date_utils.dart' as date_utils;
+import '../../../shared/utils/encouragement_messages.dart';
+import '../../../shared/providers/streak_provider.dart';
+import '../../../shared/providers/smart_provider.dart';
 import '../../todo/widgets/add_todo_sheet.dart';
+import '../../../shared/services/analytics_service.dart';
 
 /// 메인 화면용 컴팩트 할일 카드 (접고 펼 수 있음)
 class CompactTodoCard extends ConsumerStatefulWidget {
@@ -64,6 +69,33 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
         !widget.todo.isCompleted,
         ownerId: widget.todo.ownerId,
       );
+      AnalyticsService().logTodoCompleted(
+        todoId: widget.todo.id,
+        wasUndo: wasCompleted,
+      );
+      if (mounted) {
+        final streak = ref.read(streakProvider);
+        final isFirst = !wasCompleted && ref.read(smartTodayCompletedTodosProvider).length <= 1;
+        final hour = DateTime.now().hour;
+        final message = wasCompleted
+            ? '완료 취소됨'
+            : (hour >= 23 || hour < 5)
+                ? EncouragementMessages.getLateNightMessage()
+                : EncouragementMessages.getCompletionMessage(streak: streak, isFirst: isFirst);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(message),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () => ref.read(todoServiceProvider).toggleTodo(
+              widget.todo.parentTodoId ?? widget.todo.id,
+              wasCompleted,
+              ownerId: widget.todo.ownerId,
+            ),
+          ),
+        ));
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -133,7 +165,11 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                   ),
                   // 체크박스 (완료 권한이 있는 경우에만 활성화)
                   // 터치 타겟 최소 44x44px 보장
-                  GestureDetector(
+                  Semantics(
+                    label: '${widget.todo.title} ${widget.todo.isCompleted ? "완료됨" : "미완료"}',
+                    button: true,
+                    enabled: _canComplete(),
+                    child: GestureDetector(
                     onTap: _canComplete() ? _toggleComplete : null,
                     behavior: HitTestBehavior.opaque,
                     child: Padding(
@@ -170,13 +206,17 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                 Icons.check,
                                 size: 14,
                                 color: Colors.white,
-                              ).animate().scale(duration: 150.ms)
+                              ).animate().scale(duration: 150.ms).then().shimmer(duration: 400.ms)
                             : null,
                       ),
                     ),
                   ),
+                  ),
                   // 제목 (탭하면 편집 시트 열기)
                   Expanded(
+                    child: Semantics(
+                    label: '${widget.todo.title} 편집',
+                    button: true,
                     child: GestureDetector(
                       onTap: () => _openEditSheet(context),
                       behavior: HitTestBehavior.opaque,
@@ -207,6 +247,23 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
+                              if (!widget.todo.isCompleted && widget.todo.dueDate != null)
+                                Builder(builder: (context) {
+                                  final diff = date_utils.normalizeDate(widget.todo.dueDate!).difference(date_utils.normalizeDate(DateTime.now())).inDays;
+                                  if (diff > 3) return const SizedBox.shrink();
+                                  final label = diff == 0 ? 'D-Day' : diff < 0 ? 'D+${-diff}' : 'D-$diff';
+                                  final badgeColor = diff <= 0 ? AppColors.errorLight : (diff == 1 ? Colors.orange : AppColors.primaryLight);
+                                  return Container(
+                                    margin: const EdgeInsets.only(left: 4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: badgeColor.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                                    ),
+                                    child: Text(label, style: TextStyle(fontSize: 12, color: badgeColor, fontWeight: FontWeight.w600)),
+                                  );
+                                }),
                               if (widget.todo.eventType != TodoEventType.todo)
                                 Container(
                                   margin: const EdgeInsets.only(left: 4),
@@ -220,10 +277,10 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                   child: Text(
                                     widget.todo.eventType.label,
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: 12,
                                       color: widget.todo.eventType == TodoEventType.schedule
-                                          ? AppColors.primaryLight
-                                          : AppColors.calendarColor,
+                                          ? AppColors.primaryOnWhite
+                                          : AppColors.calendarColorOnWhite,
                                       fontWeight: FontWeight.w500,
                                     ),
                                   ),
@@ -233,6 +290,7 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                         ),
                       ),
                     ),
+                  ),
                   ),
                   // 담당자 아바타
                   if (widget.assignee != null)
@@ -245,23 +303,27 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                     ),
                   // 접고 펴기 버튼
                   if (hasDetails)
-                    GestureDetector(
-                      onTap: _toggleExpand,
-                      behavior: HitTestBehavior.opaque,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppTheme.spacingS,
-                          vertical: AppTheme.spacingS,
-                        ),
-                        child: AnimatedRotation(
-                          turns: _isExpanded ? 0.5 : 0,
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            Iconsax.arrow_down_1,
-                            size: 18,
-                            color: isDark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
+                    Semantics(
+                      label: _isExpanded ? '접기' : '펼치기',
+                      button: true,
+                      child: GestureDetector(
+                        onTap: _toggleExpand,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppTheme.spacingM,
+                            vertical: AppTheme.spacingM,
+                          ),
+                          child: AnimatedRotation(
+                            turns: _isExpanded ? 0.5 : 0,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              Iconsax.arrow_down_1,
+                              size: 18,
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                            ),
                           ),
                         ),
                       ),

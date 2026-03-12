@@ -22,6 +22,8 @@ import 'widgets/day_view.dart';
 import 'widgets/calendar_filter_sheet.dart';
 import '../todo/widgets/add_todo_sheet.dart';
 import '../../shared/providers/todo_provider.dart';
+import '../../shared/providers/calendar_expense_provider.dart';
+import '../../shared/providers/cross_group_provider.dart';
 
 /// 캘린더 뷰 모드
 enum CalendarViewMode {
@@ -82,6 +84,22 @@ class CalendarScreen extends ConsumerWidget {
                   ).animate().fadeIn(duration: 300.ms),
                   Row(
                     children: [
+                      // 크로스 그룹 토글
+                      IconButton(
+                        icon: Icon(
+                          ref.watch(crossGroupViewEnabledProvider)
+                              ? Iconsax.global5
+                              : Iconsax.global,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          ref.read(crossGroupViewEnabledProvider.notifier).state =
+                              !ref.read(crossGroupViewEnabledProvider);
+                        },
+                        tooltip: ref.watch(crossGroupViewEnabledProvider)
+                            ? '현재 그룹만 보기'
+                            : '전체 그룹 보기',
+                      ),
                       // 캘린더 필터 버튼
                       const CalendarFilterButton(),
                       // 완료 항목 토글 버튼
@@ -101,14 +119,6 @@ class CalendarScreen extends ConsumerWidget {
                         tooltip:
                             '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
                       ),
-                      // 뷰 모드 전환 버튼
-                      _ViewModeButton(
-                        currentMode: viewMode,
-                        onModeChanged: (mode) {
-                          ref.read(calendarViewModeProvider.notifier).state =
-                              mode;
-                        },
-                      ),
                       // 오늘로 이동
                       TextButton(
                         onPressed: () {
@@ -122,6 +132,25 @@ class CalendarScreen extends ConsumerWidget {
                 ],
               ),
             ),
+
+            // 뷰 모드 세그먼트 컨트롤
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              child: SegmentedButton<CalendarViewMode>(
+                segments: const [
+                  ButtonSegment(value: CalendarViewMode.month, label: Text('월')),
+                  ButtonSegment(value: CalendarViewMode.week, label: Text('주')),
+                  ButtonSegment(value: CalendarViewMode.day, label: Text('일')),
+                ],
+                selected: {viewMode},
+                onSelectionChanged: (s) => ref.read(calendarViewModeProvider.notifier).state = s.first,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacingS),
 
             // 뷰 모드에 따른 컨텐츠
             Expanded(
@@ -142,7 +171,7 @@ class CalendarScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTodoSheet(context, selectedDate),
-        backgroundColor: AppColors.calendarColor,
+        backgroundColor: AppColors.calendarColorOnWhite,
         child: const Icon(Iconsax.add),
       ).animate().scale(delay: 500.ms, duration: 300.ms),
     );
@@ -272,7 +301,10 @@ class _TodosPopup extends ConsumerWidget {
         date.year == now.year && date.month == now.month && date.day == now.day;
 
     // ✅ 모달 내부에서 provider watch - 실시간 업데이트!
-    final todos = ref.watch(smartTodosForDateProvider(date));
+    final allTodos = ref.watch(smartTodosForDateProvider(date));
+    final selectedMemberId = ref.watch(calendarMemberFilterProvider);
+    final todos = selectedMemberId == null ? allTodos
+        : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
 
     return Container(
       constraints: BoxConstraints(
@@ -623,116 +655,6 @@ class _TodosPopup extends ConsumerWidget {
   }
 }
 
-/// 뷰 모드 전환 버튼
-class _ViewModeButton extends StatelessWidget {
-  final CalendarViewMode currentMode;
-  final Function(CalendarViewMode) onModeChanged;
-
-  const _ViewModeButton({
-    required this.currentMode,
-    required this.onModeChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<CalendarViewMode>(
-      icon: Icon(_getIconForMode(currentMode)),
-      tooltip: '뷰 모드 변경',
-      onSelected: onModeChanged,
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: CalendarViewMode.month,
-          child: Row(
-            children: [
-              Icon(
-                Iconsax.calendar_1,
-                size: 20,
-                color: currentMode == CalendarViewMode.month
-                    ? AppColors.calendarColor
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '월간',
-                style: TextStyle(
-                  color: currentMode == CalendarViewMode.month
-                      ? AppColors.calendarColor
-                      : null,
-                  fontWeight: currentMode == CalendarViewMode.month
-                      ? FontWeight.w600
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: CalendarViewMode.week,
-          child: Row(
-            children: [
-              Icon(
-                Iconsax.calendar,
-                size: 20,
-                color: currentMode == CalendarViewMode.week
-                    ? AppColors.calendarColor
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '주간',
-                style: TextStyle(
-                  color: currentMode == CalendarViewMode.week
-                      ? AppColors.calendarColor
-                      : null,
-                  fontWeight: currentMode == CalendarViewMode.week
-                      ? FontWeight.w600
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: CalendarViewMode.day,
-          child: Row(
-            children: [
-              Icon(
-                Iconsax.calendar_2,
-                size: 20,
-                color: currentMode == CalendarViewMode.day
-                    ? AppColors.calendarColor
-                    : null,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '일간',
-                style: TextStyle(
-                  color: currentMode == CalendarViewMode.day
-                      ? AppColors.calendarColor
-                      : null,
-                  fontWeight: currentMode == CalendarViewMode.day
-                      ? FontWeight.w600
-                      : null,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  IconData _getIconForMode(CalendarViewMode mode) {
-    switch (mode) {
-      case CalendarViewMode.month:
-        return Iconsax.calendar_1;
-      case CalendarViewMode.week:
-        return Iconsax.calendar;
-      case CalendarViewMode.day:
-        return Iconsax.calendar_2;
-    }
-  }
-}
 
 /// 월간 뷰 - 달력만 표시 (일정 목록 제거)
 class _MonthView extends ConsumerWidget {
@@ -784,6 +706,8 @@ class _MonthView extends ConsumerWidget {
     final availableHeight =
         screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
     final rowHeight = (availableHeight / 6).clamp(65.0, 95.0);
+
+    final dailyExpenses = ref.watch(dailyExpenseProvider);
 
     // 반복 확장된 월간 데이터 사용 (점 표시용)
     final expandedTodos = ref.watch(
@@ -924,6 +848,7 @@ class _MonthView extends ConsumerWidget {
                       false,
                       false,
                       filteredTodos,
+                      dailyExpenses: dailyExpenses,
                     );
                   },
                   selectedBuilder: (context, day, focusedDay) {
@@ -933,6 +858,7 @@ class _MonthView extends ConsumerWidget {
                       true,
                       false,
                       filteredTodos,
+                      dailyExpenses: dailyExpenses,
                     );
                   },
                   todayBuilder: (context, day, focusedDay) {
@@ -943,6 +869,7 @@ class _MonthView extends ConsumerWidget {
                       isSelected,
                       true,
                       filteredTodos,
+                      dailyExpenses: dailyExpenses,
                     );
                   },
                 ),
@@ -980,8 +907,11 @@ class _MonthView extends ConsumerWidget {
     DateTime day,
     bool isSelected,
     bool isToday,
-    List<TodoItem> filteredTodos,
-  ) {
+    List<TodoItem> filteredTodos, {
+    Map<DateTime, int>? dailyExpenses,
+  }) {
+    final normalizedDay = date_utils.normalizeDate(day);
+    final expense = dailyExpenses?[normalizedDay];
     final dayTodos = filteredTodos
         .where((todo) => _isTodoOnDate(todo, day))
         .toList();
@@ -1049,6 +979,21 @@ class _MonthView extends ConsumerWidget {
                   child: _buildMemberDots(dayTodos, isSelected),
                 ),
               ),
+            // 지출 뱃지
+            if (expense != null && expense > 0 && !isSelected)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 1),
+                child: Text(
+                  _formatExpense(expense),
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: AppColors.budgetColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
           ],
         ),
       ),
@@ -1070,6 +1015,16 @@ class _MonthView extends ConsumerWidget {
     if (name.contains('신정')) return '신정';
     if (name.contains('삼일')) return '삼일절';
     return name.length > 4 ? name.substring(0, 4) : name;
+  }
+
+  String _formatExpense(int amount) {
+    if (amount >= 10000) {
+      return '${(amount / 10000).toStringAsFixed(amount % 10000 == 0 ? 0 : 1)}만';
+    }
+    if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}천';
+    }
+    return '$amount';
   }
 
   /// 멤버별 색상 점 + 개수 표시

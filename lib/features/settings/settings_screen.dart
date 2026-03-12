@@ -18,6 +18,9 @@ import '../../shared/widgets/app_card.dart';
 import '../../app/app.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/providers/group_provider.dart';
+import '../../shared/providers/stealth_provider.dart';
+import '../../shared/providers/home_layout_provider.dart';
+import '../../shared/providers/badge_provider.dart';
 
 String _getEventTypeDescription(TodoEventType type) {
   switch (type) {
@@ -93,11 +96,29 @@ class SettingsScreen extends ConsumerWidget {
                               child: Text(
                                 currentMember.role == 'admin' ? '관리자' : '멤버',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: 12,
                                   color: AppColors.primaryLight,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Text(
+                                  ref.watch(currentTitleProvider),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  '🏅 ${ref.watch(earnedBadgeCountProvider)}개',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -406,6 +427,26 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                     ),
                     const Divider(height: 1),
+                    // 스텔스 모드
+                    _SettingsTile(
+                      icon: Iconsax.eye_slash,
+                      title: '스텔스 모드',
+                      subtitle: '비공개 할일 숨기기',
+                      trailing: Switch(
+                        value: ref.watch(stealthModeProvider),
+                        onChanged: (v) =>
+                            ref.read(stealthModeProvider.notifier).state = v,
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    // 홈 화면 커스터마이징
+                    _SettingsTile(
+                      icon: Iconsax.element_3,
+                      title: '홈 화면 커스터마이징',
+                      subtitle: '섹션 표시/숨기기',
+                      onTap: () => _showHomeLayoutSheet(context, ref),
+                    ),
+                    const Divider(height: 1),
                     // 알림 설정
                     const _NotificationSettingsSection(),
                   ],
@@ -539,6 +580,13 @@ class SettingsScreen extends ConsumerWidget {
     final nameController = TextEditingController(text: currentName);
     String selectedColor = currentColor;
 
+    // 현재 멤버의 아바타 정보
+    final currentMember = ref.read(smartCurrentMemberProvider);
+    String avatarType = currentMember?.avatarType ?? 'color';
+    String? avatarEmoji = currentMember?.avatarEmoji;
+
+    const emojiOptions = ['😀', '😎', '🥰', '🤗', '😇', '🦊', '🐱', '🐶', '🌸', '⭐', '🎯', '🔥', '💎', '🌈', '🎨', '🎵'];
+
     // 미리 정의된 색상 목록
     const profileColors = [
       '#FFCBA4', // Peach
@@ -556,49 +604,101 @@ class SettingsScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
           title: const Text('프로필 편집'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                  labelText: '닉네임',
-                  hintText: '이 그룹에서 사용할 이름',
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '닉네임',
+                    hintText: '이 그룹에서 사용할 이름',
+                  ),
+                  autofocus: true,
                 ),
-                autofocus: true,
-              ),
-              const SizedBox(height: AppTheme.spacingM),
-              Text(
-                '프로필 색상',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              const SizedBox(height: AppTheme.spacingS),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: profileColors.map((color) {
-                  final isSelected = selectedColor.toUpperCase() == color.toUpperCase();
-                  return GestureDetector(
-                    onTap: () => setState(() => selectedColor = color),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Color(int.parse(color.replaceFirst('#', '0xFF'))),
-                        shape: BoxShape.circle,
-                        border: isSelected
-                            ? Border.all(color: AppColors.primaryLight, width: 3)
+                const SizedBox(height: AppTheme.spacingM),
+                // 아바타 타입 선택
+                Text(
+                  '아바타 스타일',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppTheme.spacingS),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'color', label: Text('색상')),
+                    ButtonSegment(value: 'emoji', label: Text('이모지')),
+                  ],
+                  selected: {avatarType},
+                  onSelectionChanged: (s) => setState(() {
+                    avatarType = s.first;
+                    if (avatarType == 'emoji' && avatarEmoji == null) {
+                      avatarEmoji = '😀';
+                    }
+                  }),
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                if (avatarType == 'emoji') ...[
+                  Text(
+                    '이모지 선택',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: AppTheme.spacingS),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: emojiOptions.map((emoji) {
+                      final isSelected = avatarEmoji == emoji;
+                      return GestureDetector(
+                        onTap: () => setState(() => avatarEmoji = emoji),
+                        child: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: isSelected
+                                ? Border.all(color: AppColors.primaryLight, width: 3)
+                                : Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: AppTheme.spacingM),
+                ],
+                Text(
+                  '프로필 색상',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: AppTheme.spacingS),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: profileColors.map((color) {
+                    final isSelected = selectedColor.toUpperCase() == color.toUpperCase();
+                    return GestureDetector(
+                      onTap: () => setState(() => selectedColor = color),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Color(int.parse(color.replaceFirst('#', '0xFF'))),
+                          shape: BoxShape.circle,
+                          border: isSelected
+                              ? Border.all(color: AppColors.primaryLight, width: 3)
+                              : null,
+                        ),
+                        child: isSelected
+                            ? const Icon(Icons.check, color: Colors.white, size: 20)
                             : null,
                       ),
-                      child: isSelected
-                          ? const Icon(Icons.check, color: Colors.white, size: 20)
-                          : null,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -609,6 +709,8 @@ class SettingsScreen extends ConsumerWidget {
               onPressed: () => Navigator.pop(context, {
                 'name': nameController.text.trim(),
                 'color': selectedColor,
+                'avatarType': avatarType,
+                'avatarEmoji': avatarEmoji ?? '',
               }),
               child: const Text('저장'),
             ),
@@ -625,8 +727,10 @@ class SettingsScreen extends ConsumerWidget {
 
       final nameChanged = result['name'] != currentName;
       final colorChanged = result['color']!.toUpperCase() != currentColor.toUpperCase();
+      final avatarTypeChanged = result['avatarType'] != (currentMember?.avatarType ?? 'color');
+      final avatarEmojiChanged = result['avatarEmoji'] != (currentMember?.avatarEmoji ?? '');
 
-      if (!nameChanged && !colorChanged) return;
+      if (!nameChanged && !colorChanged && !avatarTypeChanged && !avatarEmojiChanged) return;
 
       try {
         await updateMembershipProfile(
@@ -634,6 +738,8 @@ class SettingsScreen extends ConsumerWidget {
           membership.id,
           name: nameChanged ? result['name'] : null,
           color: colorChanged ? result['color'] : null,
+          avatarType: avatarTypeChanged ? result['avatarType'] : null,
+          avatarEmoji: avatarEmojiChanged ? result['avatarEmoji'] : null,
         );
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -648,6 +754,72 @@ class SettingsScreen extends ConsumerWidget {
         }
       }
     }
+  }
+
+  void _showHomeLayoutSheet(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => Consumer(
+          builder: (context, ref, _) {
+            final layout = ref.watch(homeLayoutProvider);
+            return Column(
+              children: [
+                // 핸들
+                const SizedBox(height: 12),
+                Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(AppTheme.spacingM),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('홈 화면 섹션', style: Theme.of(context).textTheme.titleMedium),
+                      TextButton(
+                        onPressed: () => ref.read(homeLayoutProvider.notifier).reset(),
+                        child: const Text('초기화'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ReorderableListView.builder(
+                    scrollController: scrollController,
+                    itemCount: layout.order.length,
+                    onReorder: (oldIndex, newIndex) =>
+                        ref.read(homeLayoutProvider.notifier).reorder(oldIndex, newIndex),
+                    itemBuilder: (context, index) {
+                      final section = layout.order[index];
+                      final visible = layout.isVisible(section);
+                      return ListTile(
+                        key: ValueKey(section),
+                        leading: const Icon(Iconsax.menu),
+                        title: Text(section.label),
+                        trailing: Switch(
+                          value: visible,
+                          onChanged: (_) =>
+                              ref.read(homeLayoutProvider.notifier).toggleSection(section),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _showLeaveGroupDialog(
@@ -970,6 +1142,7 @@ class SettingsScreen extends ConsumerWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final Color? titleColor;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -977,6 +1150,7 @@ class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
     required this.title,
+    this.subtitle,
     this.titleColor,
     this.trailing,
     this.onTap,
@@ -1005,12 +1179,27 @@ class _SettingsTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: titleColor,
-                  fontSize: 15,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: titleColor,
+                      fontSize: 15,
+                    ),
+                  ),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                      ),
+                    ),
+                ],
               ),
             ),
             if (trailing != null)

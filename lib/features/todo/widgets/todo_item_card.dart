@@ -11,6 +11,7 @@ import '../../../shared/models/family_member.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import '../../../shared/utils/date_utils.dart' as date_utils;
 import 'add_todo_sheet.dart';
 
 /// 할일 아이템 카드
@@ -146,7 +147,11 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                 ),
                 // 체크박스 (완료 권한이 있는 경우에만 활성화)
                 // 터치 타겟 최소 44x44px 보장
-                GestureDetector(
+                Semantics(
+                  label: '${widget.todo.title} ${widget.todo.isCompleted ? "완료됨" : "미완료"} 토글',
+                  button: true,
+                  enabled: _canComplete(),
+                  child: GestureDetector(
                   onTap: _canComplete() ? _toggleComplete : null,
                   behavior: HitTestBehavior.opaque,
                   child: Padding(
@@ -185,6 +190,7 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                     ),
                   ),
                 ),
+                ),
                 // 내용
                 Expanded(
                   child: Padding(
@@ -195,20 +201,43 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          widget.todo.title,
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            decoration: widget.todo.isCompleted
-                                ? TextDecoration.lineThrough
-                                : null,
-                            color: widget.todo.isCompleted
-                                ? (isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondaryLight)
-                                : null,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                widget.todo.title,
+                                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                  decoration: widget.todo.isCompleted
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: widget.todo.isCompleted
+                                      ? (isDark
+                                          ? AppColors.textSecondaryDark
+                                          : AppColors.textSecondaryLight)
+                                      : null,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (!widget.todo.isCompleted && widget.todo.dueDate != null)
+                              Builder(builder: (context) {
+                                final diff = date_utils.normalizeDate(widget.todo.dueDate!).difference(date_utils.normalizeDate(DateTime.now())).inDays;
+                                if (diff > 3) return const SizedBox.shrink();
+                                final label = diff == 0 ? 'D-Day' : diff < 0 ? 'D+${-diff}' : 'D-$diff';
+                                final badgeColor = diff <= 0 ? AppColors.errorLight : (diff == 1 ? Colors.orange : AppColors.primaryLight);
+                                return Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: badgeColor.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                                  ),
+                                  child: Text(label, style: TextStyle(fontSize: 12, color: badgeColor, fontWeight: FontWeight.w600)),
+                                );
+                              }),
+                          ],
                         ),
                         if (widget.todo.note != null && widget.todo.note!.isNotEmpty) ...[
                           const SizedBox(height: 4),

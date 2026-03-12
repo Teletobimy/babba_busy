@@ -20,6 +20,7 @@ import 'chat_provider.dart';
 import 'calendar_group_provider.dart';
 import 'memo_provider.dart';
 import 'calendar_filter_provider.dart';
+import 'stealth_provider.dart';
 
 /// ========================================
 /// 스마트 Provider - 실제 데이터 사용
@@ -98,6 +99,12 @@ final smartTodosProvider = Provider<List<TodoItem>>((ref) {
     }
     return true;
   }).toList();
+
+  // 스텔스 모드: 활성화 시 private 할일 숨기기
+  final stealthMode = ref.watch(stealthModeProvider);
+  if (stealthMode) {
+    todos = todos.where((todo) => todo.visibility != TodoVisibility.private).toList();
+  }
 
   return todos;
 });

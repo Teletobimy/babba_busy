@@ -115,7 +115,7 @@ class _WeekHeader extends StatelessWidget {
                     Text(
                       dayNames[index],
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
                         color: isSelected
                             ? Colors.white
                             : (isWeekend
@@ -191,7 +191,7 @@ class _TimeGrid extends ConsumerWidget {
                     child: Text(
                       '${hour.toString().padLeft(2, '0')}:00',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 12,
                         color: isDark
                             ? AppColors.textSecondaryDark
                             : AppColors.textSecondaryLight,
@@ -320,7 +320,38 @@ class _TodoBlock extends ConsumerWidget {
       left: 2,
       right: 2,
       height: height,
-      child: GestureDetector(
+      child: LongPressDraggable<TodoItem>(
+        data: todo,
+        feedback: Material(
+          elevation: 6,
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            width: 120,
+            height: 36,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: todoColor.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              todo.title,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: _buildBlock(todoColor, height, visibleStart, ref),
+        ),
+        child: _buildBlock(todoColor, height, visibleStart, ref),
+      ),
+    );
+  }
+
+  Widget _buildBlock(Color todoColor, double height, DateTime visibleStart, WidgetRef ref) {
+    return GestureDetector(
         onTap: () => _toggleComplete(ref),
         child: Container(
           decoration: BoxDecoration(
@@ -337,7 +368,7 @@ class _TodoBlock extends ConsumerWidget {
                 todo.title,
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 10,
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                   decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
                   decorationColor: Colors.white,
@@ -350,13 +381,12 @@ class _TodoBlock extends ConsumerWidget {
                   DateFormat('HH:mm').format(visibleStart),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.8),
-                    fontSize: 9,
+                    fontSize: 12,
                   ),
                 ),
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -436,7 +466,7 @@ class _UndecidedWeekSection extends ConsumerWidget {
                 Text(
                   '미정',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     color: isDark
                         ? AppColors.textSecondaryDark
                         : AppColors.textSecondaryLight,
@@ -495,7 +525,7 @@ class _UndecidedDayCell extends StatelessWidget {
                   child: Text(
                     todo.title,
                     style: TextStyle(
-                      fontSize: 8,
+                      fontSize: 12,
                       color: AppColors.coral[700],
                       fontWeight: FontWeight.w500,
                     ),

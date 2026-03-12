@@ -10,6 +10,10 @@ class FamilyMember {
   final String? avatarUrl;
   final String role; // 'admin' or 'member'
   final DateTime createdAt;
+  final String avatarType; // 'color' | 'emoji' | 'image'
+  final String? avatarEmoji;
+  final String? statusMessage;
+  final DateTime? statusUpdatedAt;
 
   FamilyMember({
     required this.id,
@@ -20,6 +24,10 @@ class FamilyMember {
     this.avatarUrl,
     required this.role,
     required this.createdAt,
+    this.avatarType = 'color',
+    this.avatarEmoji,
+    this.statusMessage,
+    this.statusUpdatedAt,
   });
 
   factory FamilyMember.fromFirestore(DocumentSnapshot doc) {
@@ -33,6 +41,10 @@ class FamilyMember {
       avatarUrl: data['avatarUrl'],
       role: data['role'] ?? 'member',
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      avatarType: data['avatarType'] ?? 'color',
+      avatarEmoji: data['avatarEmoji'],
+      statusMessage: data['statusMessage'],
+      statusUpdatedAt: (data['statusUpdatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -45,6 +57,10 @@ class FamilyMember {
       'avatarUrl': avatarUrl,
       'role': role,
       'createdAt': Timestamp.fromDate(createdAt),
+      'avatarType': avatarType,
+      'avatarEmoji': avatarEmoji,
+      'statusMessage': statusMessage,
+      'statusUpdatedAt': statusUpdatedAt != null ? Timestamp.fromDate(statusUpdatedAt!) : null,
     };
   }
 
@@ -57,6 +73,10 @@ class FamilyMember {
     String? avatarUrl,
     String? role,
     DateTime? createdAt,
+    String? avatarType,
+    String? avatarEmoji,
+    String? statusMessage,
+    DateTime? statusUpdatedAt,
   }) {
     return FamilyMember(
       id: id ?? this.id,
@@ -67,6 +87,10 @@ class FamilyMember {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
+      avatarType: avatarType ?? this.avatarType,
+      avatarEmoji: avatarEmoji ?? this.avatarEmoji,
+      statusMessage: statusMessage ?? this.statusMessage,
+      statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
     );
   }
 }

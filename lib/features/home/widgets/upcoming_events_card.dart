@@ -82,14 +82,14 @@ class UpcomingEventsCard extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.calendarColor,
+                          color: AppColors.calendarColorOnWhite,
                         ),
                       ),
                       Text(
                         DateFormat('E', 'ko_KR').format(displayDate),
                         style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.calendarColor,
+                          fontSize: 12,
+                          color: AppColors.calendarColorOnWhite,
                         ),
                       ),
                     ],
@@ -124,7 +124,7 @@ class UpcomingEventsCard extends ConsumerWidget {
                               child: Text(
                                 '개인',
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 12,
                                   color: AppColors.primaryLight,
                                 ),
                               ),

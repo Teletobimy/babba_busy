@@ -33,7 +33,10 @@ class MemberAvatar extends StatelessWidget {
     final memberColor = parseHexColor(member?.color ?? color, fallback: AppColors.memberColors[0]);
     final memberAvatar = member?.avatarUrl ?? avatarUrl;
 
-    return GestureDetector(
+    return Semantics(
+      label: '$memberName 멤버',
+      button: onTap != null,
+      child: GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -61,17 +64,7 @@ class MemberAvatar extends StatelessWidget {
                     ]
                   : null,
             ),
-            child: memberAvatar != null
-                ? ClipOval(
-                    child: CachedNetworkImage(
-                      imageUrl: memberAvatar,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => _buildInitials(memberName),
-                      errorWidget: (context, url, error) =>
-                          _buildInitials(memberName),
-                    ),
-                  )
-                : _buildInitials(memberName),
+            child: _buildAvatarContent(memberName, memberAvatar),
           ),
           if (showName) ...[
             const SizedBox(height: 4),
@@ -80,7 +73,7 @@ class MemberAvatar extends StatelessWidget {
               child: Text(
                 memberName,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                   color: Theme.of(context).textTheme.bodySmall?.color,
                 ),
@@ -89,10 +82,52 @@ class MemberAvatar extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (member?.statusMessage != null && member!.statusMessage!.isNotEmpty)
+              SizedBox(
+                width: size + 16,
+                child: Text(
+                  member!.statusMessage!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
           ],
         ],
       ),
+    ),
     );
+  }
+
+  Widget _buildAvatarContent(String memberName, String? memberAvatar) {
+    final avatarType = member?.avatarType ?? 'color';
+    final avatarEmoji = member?.avatarEmoji;
+
+    if (avatarType == 'emoji' && avatarEmoji != null && avatarEmoji.isNotEmpty) {
+      return Center(
+        child: Text(
+          avatarEmoji,
+          style: TextStyle(fontSize: size * 0.55),
+        ),
+      );
+    }
+
+    if (memberAvatar != null) {
+      return ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: memberAvatar,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => _buildInitials(memberName),
+          errorWidget: (context, url, error) => _buildInitials(memberName),
+        ),
+      );
+    }
+
+    return _buildInitials(memberName);
   }
 
   Widget _buildInitials(String name) {
@@ -213,7 +248,7 @@ class _AllMembersButton extends StatelessWidget {
             child: Text(
               '전체',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: Theme.of(context).textTheme.bodySmall?.color,
               ),

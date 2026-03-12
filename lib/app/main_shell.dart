@@ -329,7 +329,11 @@ class _NavItem extends StatelessWidget {
         ? AppColors.textSecondaryDark 
         : AppColors.textSecondaryLight;
 
-    return GestureDetector(
+    return Semantics(
+      label: '$label 탭',
+      button: true,
+      selected: isSelected,
+      child: GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
@@ -359,6 +363,7 @@ class _NavItem extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

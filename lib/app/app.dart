@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../core/theme/app_theme.dart';
 import '../shared/providers/auth_provider.dart';
 import '../shared/providers/notification_settings_provider.dart';
@@ -57,6 +58,12 @@ class FamilyHubApp extends ConsumerWidget {
 
       // 로딩 오버레이 (초기 데이터 로드 중 깜빡임 방지)
       builder: (context, child) {
+        // Reduced Motion 지원: 시스템 설정에 따라 애니메이션 비활성화
+        if (MediaQuery.of(context).disableAnimations) {
+          Animate.defaultDuration = Duration.zero;
+        } else {
+          Animate.defaultDuration = const Duration(milliseconds: 300);
+        }
         return Stack(
           children: [
             child!,

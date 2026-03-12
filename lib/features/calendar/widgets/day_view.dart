@@ -9,6 +9,7 @@ import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/todo_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../calendar_screen.dart';
+import '../../todo/widgets/add_todo_sheet.dart';
 
 /// 일간 뷰 위젯
 class DayView extends ConsumerWidget {
@@ -67,6 +68,7 @@ class DayView extends ConsumerWidget {
             isDark: isDark,
             isToday: isToday,
             currentTime: now,
+            selectedDay: selectedDay,
           ),
         ),
       ],
@@ -135,7 +137,7 @@ class _DayHeader extends StatelessWidget {
                         '오늘',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -162,12 +164,14 @@ class _TimelineGrid extends ConsumerWidget {
   final bool isDark;
   final bool isToday;
   final DateTime currentTime;
+  final DateTime selectedDay;
 
   const _TimelineGrid({
     required this.todos,
     required this.isDark,
     required this.isToday,
     required this.currentTime,
+    required this.selectedDay,
   });
 
   @override
@@ -186,6 +190,7 @@ class _TimelineGrid extends ConsumerWidget {
                 return _TimeSlot(
                   hour: hour,
                   isDark: isDark,
+                  selectedDay: selectedDay,
                 );
               }),
             ),
@@ -208,64 +213,131 @@ class _TimelineGrid extends ConsumerWidget {
   }
 }
 
-class _TimeSlot extends StatelessWidget {
+class _TimeSlot extends ConsumerWidget {
   final int hour;
   final bool isDark;
+  final DateTime selectedDay;
 
   const _TimeSlot({
     required this.hour,
     required this.isDark,
+    required this.selectedDay,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 60,
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(
-            color: (isDark 
-                ? AppColors.textSecondaryDark 
-                : AppColors.textSecondaryLight)
-                .withValues(alpha: 0.15),
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 50,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 8, top: 4),
-              child: Text(
-                '${hour.toString().padLeft(2, '0')}:00',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark 
-                      ? AppColors.textSecondaryDark 
-                      : AppColors.textSecondaryLight,
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DragTarget<TodoItem>(
+      onAcceptWithDetails: (details) async {
+        final todo = details.data;
+        final newStart = DateTime(
+          selectedDay.year, selectedDay.month, selectedDay.day,
+          hour,
+        );
+        final duration = (todo.endTime != null && todo.startTime != null)
+            ? todo.endTime!.difference(todo.startTime!)
+            : const Duration(hours: 1);
+        final newEnd = newStart.add(duration);
+        final resolvedId = todo.parentTodoId ?? todo.id;
+
+        // 반복 일정인 경우 확인 다이얼로그
+        if (todo.parentTodoId != null) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('반복 일정 변경'),
+              content: const Text('이 변경은 원본 일정에 적용됩니다.\n모든 반복 인스턴스의 시간이 변경됩니다.\n\n계속하시겠습니까?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('취소'),
                 ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('변경'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
+        }
+
+        ref.read(todoServiceProvider).updateTodo(
+          resolvedId,
+          startTime: newStart,
+          endTime: newEnd,
+          dueDate: newStart,
+          hasTime: true,
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${todo.title} → ${hour.toString().padLeft(2, '0')}:00으로 이동'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () {
+              ref.read(todoServiceProvider).updateTodo(
+                resolvedId,
+                startTime: todo.startTime,
+                endTime: todo.endTime,
+                dueDate: todo.dueDate,
+                hasTime: todo.hasTime,
+              );
+            },
+          ),
+        ));
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovered = candidateData.isNotEmpty;
+        return Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: isHovered ? AppColors.primaryLight.withValues(alpha: 0.1) : null,
+            border: Border(
+              top: BorderSide(
+                color: (isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight)
+                    .withValues(alpha: 0.15),
+                width: 0.5,
               ),
             ),
           ),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: (isDark 
-                        ? AppColors.textSecondaryDark 
-                        : AppColors.textSecondaryLight)
-                        .withValues(alpha: 0.15),
-                    width: 0.5,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 50,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 4),
+                  child: Text(
+                    '${hour.toString().padLeft(2, '0')}:00',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
                   ),
                 ),
               ),
-            ),
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      left: BorderSide(
+                        color: (isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight)
+                            .withValues(alpha: 0.15),
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -336,8 +408,44 @@ class _DayTodoBlock extends ConsumerWidget {
       left: 55,
       right: 8,
       height: height,
-      child: GestureDetector(
-        onTap: () => _toggleComplete(ref),
+      child: LongPressDraggable<TodoItem>(
+        data: todo,
+        feedback: Material(
+          elevation: 8,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 200,
+            height: 50,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: todoColor.withValues(alpha: 0.95),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              todo.title,
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+        childWhenDragging: Opacity(
+          opacity: 0.3,
+          child: _buildTodoContainer(todoColor, height, context, ref),
+        ),
+        child: _buildTodoContainer(todoColor, height, context, ref),
+      ),
+    );
+  }
+
+  Widget _buildTodoContainer(Color todoColor, double height, BuildContext context, WidgetRef ref) {
+    final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
+    return Semantics(
+        label: '${todo.title} ${todo.isCompleted ? "완료됨" : "미완료"}',
+        button: true,
+        child: GestureDetector(
+        onTap: () => _openEditSheet(context),
+        onLongPress: () => _showContextMenu(context, ref),
         child: Container(
           decoration: BoxDecoration(
             color: todo.isCompleted
@@ -428,6 +536,85 @@ class _DayTodoBlock extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showContextMenu(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(
+                todo.isCompleted ? Iconsax.close_circle : Iconsax.tick_circle,
+              ),
+              title: Text(todo.isCompleted ? '완료 취소' : '완료 처리'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _toggleComplete(ref);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Iconsax.edit),
+              title: const Text('편집'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openEditSheet(context);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Iconsax.clock),
+              title: const Text('시간 변경'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showTimePickerForTodo(context, ref);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showTimePickerForTodo(BuildContext context, WidgetRef ref) async {
+    final startTime = todo.startTime ?? DateTime.now();
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(startTime),
+    );
+    if (pickedTime == null || !context.mounted) return;
+
+    final duration = todo.endTime != null
+        ? todo.endTime!.difference(todo.startTime!)
+        : const Duration(hours: 1);
+    final newStart = DateTime(
+      startTime.year, startTime.month, startTime.day,
+      pickedTime.hour, pickedTime.minute,
+    );
+    final newEnd = newStart.add(duration);
+    final resolvedId = todo.parentTodoId ?? todo.id;
+
+    ref.read(todoServiceProvider).updateTodo(
+      resolvedId,
+      startTime: newStart,
+      endTime: newEnd,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${todo.title} → ${pickedTime.format(context)}으로 변경'),
+      duration: const Duration(seconds: 8),
+    ));
+  }
+
+  void _openEditSheet(BuildContext context) {
+    final todoId = todo.parentTodoId ?? todo.id;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AddTodoSheet(todoId: todoId),
     );
   }
 

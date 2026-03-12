@@ -16,7 +16,11 @@ import '../todo/widgets/add_todo_sheet.dart';
 import 'widgets/ai_summary_card.dart';
 import 'widgets/upcoming_events_card.dart';
 import 'widgets/compact_todo_card.dart';
+import 'widgets/activity_feed_card.dart';
+import 'widgets/couple_card.dart';
+import 'widgets/dday_card.dart';
 import '../../shared/widgets/group_selector.dart';
+import '../../shared/providers/streak_provider.dart';
 
 /// 선택된 구성원 필터
 final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
@@ -81,6 +85,7 @@ class HomeScreen extends ConsumerWidget {
 
     final now = DateTime.now();
     final greeting = _getGreeting(now.hour);
+    final streak = ref.watch(streakProvider);
 
     // Check loading state - use AsyncValue for better loading detection
     final todosAsync = ref.watch(todosProvider);
@@ -165,14 +170,40 @@ class HomeScreen extends ConsumerWidget {
                       ),
                     ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideX(begin: -0.05),
                     const SizedBox(height: 4),
-                    // 날짜
-                    Text(
-                      DateFormat('M월 d일 EEEE', 'ko_KR').format(now),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
+                    // 날짜 + 스트릭
+                    Row(
+                      children: [
+                        Text(
+                          DateFormat('M월 d일 EEEE', 'ko_KR').format(now),
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).brightness == Brightness.dark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                        if (streak > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+                              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Iconsax.flash_1, size: 12, color: Colors.orange),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '$streak일 연속',
+                                  style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ).animate().fadeIn(duration: 300.ms, delay: 250.ms),
                   ],
                 ),
@@ -189,6 +220,22 @@ class HomeScreen extends ConsumerWidget {
                     .slideY(begin: 0.1),
               ),
             ),
+
+            // 커플 카드 (2인 그룹일 때만)
+            if (members.length == 2)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    left: AppTheme.spacingL,
+                    right: AppTheme.spacingL,
+                    top: AppTheme.spacingM,
+                  ),
+                  child: const CoupleCard()
+                      .animate()
+                      .fadeIn(duration: 400.ms, delay: 350.ms)
+                      .slideY(begin: 0.1),
+                ),
+              ),
 
             // 구성원 필터
             SliverToBoxAdapter(
@@ -286,6 +333,16 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
 
+            // 최근 활동
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                child: const ActivityFeedCard()
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 650.ms),
+              ),
+            ),
+
             // 다가오는 일정
             SliverToBoxAdapter(
               child: Padding(
@@ -297,6 +354,16 @@ class HomeScreen extends ConsumerWidget {
               ),
             ),
 
+            // D-day 카운터
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                child: const DdayCard()
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 750.ms),
+              ),
+            ),
+
             // 하단 여백
             const SliverToBoxAdapter(
               child: SizedBox(height: 100),
@@ -304,14 +371,8 @@ class HomeScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: GestureDetector(
-        onLongPress: () => _showAddTodoSheet(context, isQuickMode: false),
-        child: FloatingActionButton(
-          onPressed: () => _showAddTodoSheet(context, isQuickMode: true),
-          tooltip: '탭: 빠른 추가 | 길게 누르기: 자세히',
-          child: const Icon(Iconsax.add),
-        ),
-      ).animate().scale(delay: 800.ms, duration: 300.ms),
+      bottomNavigationBar: const _QuickAddBar()
+          .animate().slideY(begin: 1, duration: 300.ms, delay: 800.ms),
     );
   }
 
@@ -345,6 +406,184 @@ class HomeScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => AddTodoSheet(isQuickMode: isQuickMode),
+    );
+  }
+}
+
+/// 하단 빠른 추가 바 (인라인 텍스트 입력)
+class _QuickAddBar extends ConsumerStatefulWidget {
+  const _QuickAddBar();
+
+  @override
+  ConsumerState<_QuickAddBar> createState() => _QuickAddBarState();
+}
+
+class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  bool _isEditing = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitQuickAdd() async {
+    final title = _controller.text.trim();
+    if (title.isEmpty) return;
+
+    await ref.read(todoServiceProvider).addTodo(title: title);
+    _controller.clear();
+    _focusNode.unfocus();
+    setState(() => _isEditing = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: EdgeInsets.only(
+        left: AppTheme.spacingM,
+        right: AppTheme.spacingM,
+        bottom: MediaQuery.of(context).padding.bottom + AppTheme.spacingS,
+        top: AppTheme.spacingS,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _isEditing
+                ? TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submitQuickAdd(),
+                    decoration: InputDecoration(
+                      hintText: '할 일을 입력하세요',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight,
+                        fontSize: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderSide: BorderSide(
+                          color: AppColors.primaryLight.withValues(alpha: 0.5),
+                        ),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                        vertical: 12,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () {
+                          _controller.clear();
+                          _focusNode.unfocus();
+                          setState(() => _isEditing = false);
+                        },
+                      ),
+                    ),
+                  )
+                : GestureDetector(
+                    onTap: () => setState(() => _isEditing = true),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppTheme.spacingM,
+                        vertical: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? AppColors.backgroundDark
+                            : AppColors.backgroundLight,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        border: Border.all(
+                          color: (isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.2),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Iconsax.add_circle,
+                            size: 20,
+                            color: isDark
+                                ? AppColors.textSecondaryDark
+                                : AppColors.textSecondaryLight,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '할 일 추가...',
+                            style: TextStyle(
+                              color: isDark
+                                  ? AppColors.textSecondaryDark
+                                  : AppColors.textSecondaryLight,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 8),
+          if (_isEditing)
+            IconButton(
+              onPressed: _submitQuickAdd,
+              icon: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+                child: const Icon(
+                  Iconsax.send_1,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (context) => const AddTodoSheet(isQuickMode: false),
+                );
+              },
+              icon: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                ),
+                child: const Icon(
+                  Iconsax.add,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
