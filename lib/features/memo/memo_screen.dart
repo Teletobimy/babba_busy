@@ -10,14 +10,19 @@ import '../../shared/models/analysis_job.dart';
 import '../../shared/models/memo.dart';
 import '../../shared/models/memo_category.dart';
 import '../../shared/providers/analysis_job_provider.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/memo_provider.dart';
+import '../../shared/services/ai_telemetry_service.dart';
 import '../tools/business/widgets/request_accepted_screen.dart';
 import 'memo_category_utils.dart';
 import 'widgets/memo_card.dart';
 import 'widgets/memo_category_chip.dart';
 import 'widgets/add_memo_sheet.dart';
+import 'widgets/ai_note_action_entry_sheet.dart';
+import 'widgets/ai_note_create_sheet.dart';
+import 'widgets/ai_note_update_sheet.dart';
 import 'widgets/create_memo_category_dialog.dart';
 import 'memo_detail_screen.dart';
 
@@ -83,6 +88,8 @@ class _MemoContent extends ConsumerWidget {
       categories,
       selectedCategoryId,
     );
+    final aiFlags = ref.watch(babbaAiFeatureFlagsProvider);
+    final noteAiEnabled = aiFlags.noteActionsAvailable;
 
     return Stack(
       children: [
@@ -251,11 +258,29 @@ class _MemoContent extends ConsumerWidget {
         Positioned(
           right: AppTheme.spacingL,
           bottom: AppTheme.spacingL,
-          child: FloatingActionButton(
-            heroTag: 'memo_fab',
-            onPressed: () => _showAddMemoSheet(context),
-            backgroundColor: AppColors.memoColor,
-            child: const Icon(Iconsax.add),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FloatingActionButton.small(
+                heroTag: 'memo_ai_fab',
+                onPressed: () => _showAiNoteSheet(context, ref),
+                backgroundColor: noteAiEnabled
+                    ? AppColors.memoColor
+                    : Theme.of(context).brightness == Brightness.dark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+                foregroundColor: Colors.white,
+                child: const Icon(Iconsax.magic_star),
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              FloatingActionButton(
+                heroTag: 'memo_fab',
+                onPressed: () => _showAddMemoSheet(context),
+                backgroundColor: AppColors.memoColor,
+                child: const Icon(Iconsax.add),
+              ),
+            ],
           ),
         ),
       ],
@@ -646,6 +671,60 @@ class _MemoContent extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       builder: (context) => const AddMemoSheet(),
     );
+  }
+
+  Future<void> _showAiNoteSheet(BuildContext context, WidgetRef ref) async {
+    final aiFlags = ref.read(babbaAiFeatureFlagsProvider);
+    final telemetry = ref.read(aiTelemetryServiceProvider);
+    telemetry.logEntryTapped(
+      toolName: BabbaAiTools.noteActions,
+      source: 'memo_ai_fab',
+      capability: BabbaAiCapability.noteActions,
+      enabled: aiFlags.noteActionsAvailable,
+    );
+    if (!aiFlags.noteActionsAvailable) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.noteActions,
+        source: 'memo_ai_fab',
+        capability: BabbaAiCapability.noteActions,
+        reason:
+            aiFlags.disabledReasonFor(BabbaAiCapability.noteActions) ??
+            'AI 개인 메모 액션을 현재 사용할 수 없습니다.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            aiFlags.disabledReasonFor(BabbaAiCapability.noteActions) ??
+                'AI 개인 메모 액션을 현재 사용할 수 없습니다.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final mode = await showAiNoteActionEntrySheet(context: context);
+    if (mode == null || !context.mounted) return;
+
+    if (mode == AiNoteActionEntryMode.create) {
+      final createResult = await showAiNoteCreateSheet(context: context);
+      if (createResult == null || !context.mounted) return;
+
+      if (createResult.created) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI가 "${createResult.title}" 메모를 추가했어요.')),
+        );
+      }
+      return;
+    }
+
+    final updateResult = await showAiNoteUpdateSheet(context: context);
+    if (updateResult == null || !context.mounted) return;
+
+    if (updateResult.updated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI가 "${updateResult.title}" 메모를 수정했어요.')),
+      );
+    }
   }
 
   void _openMemoDetail(BuildContext context, Memo memo) {

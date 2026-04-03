@@ -5,15 +5,22 @@ import 'package:iconsax/iconsax.dart';
 import 'package:intl/intl.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/group_provider.dart';
 import '../../shared/providers/auth_provider.dart';
 import '../../shared/providers/todo_provider.dart';
+import '../../shared/services/ai_telemetry_service.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/empty_state.dart';
 import '../../shared/widgets/loading_shimmer.dart';
 import '../todo/widgets/add_todo_sheet.dart';
+import 'providers/home_filters.dart';
+import 'widgets/ai_home_action_entry_sheet.dart';
+import 'widgets/ai_reminder_create_sheet.dart';
 import 'widgets/ai_summary_card.dart';
+import 'widgets/ai_todo_action_sheet.dart';
+import 'widgets/ai_todo_complete_sheet.dart';
 import 'widgets/upcoming_events_card.dart';
 import 'widgets/compact_todo_card.dart';
 import 'widgets/activity_feed_card.dart';
@@ -21,9 +28,6 @@ import 'widgets/couple_card.dart';
 import 'widgets/dday_card.dart';
 import '../../shared/widgets/group_selector.dart';
 import '../../shared/providers/streak_provider.dart';
-
-/// 선택된 구성원 필터
-final selectedMemberFilterProvider = StateProvider<String?>((ref) => null);
 
 /// 완료 섹션 펼침 상태
 final completedSectionExpandedProvider = StateProvider<bool>((ref) => false);
@@ -58,19 +62,19 @@ class HomeScreen extends ConsumerWidget {
     });
 
     final selectedMemberId = ref.watch(selectedMemberFilterProvider);
-    
+
     // 필터된 할일
     final allTodos = ref.watch(smartTodosProvider);
     final todos = selectedMemberId == null
         ? allTodos
         : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
-    
+
     final pendingTodos = todos.where((t) => !t.isCompleted).toList()
       ..sort((a, b) {
         final aDate = a.dueDate ?? a.startTime;
         final bDate = b.dueDate ?? b.startTime;
         if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;   // 날짜 없는 것 뒤로
+        if (aDate == null) return 1; // 날짜 없는 것 뒤로
         if (bDate == null) return -1;
         return aDate.compareTo(bDate); // 급한 것 먼저
       });
@@ -90,7 +94,8 @@ class HomeScreen extends ConsumerWidget {
     // Check loading state - use AsyncValue for better loading detection
     final todosAsync = ref.watch(todosProvider);
     final shimmerTimedOut = ref.watch(_shimmerTimeoutProvider).value ?? false;
-    final isLoading = todosAsync.isLoading && allTodos.isEmpty && !shimmerTimedOut;
+    final isLoading =
+        todosAsync.isLoading && allTodos.isEmpty && !shimmerTimedOut;
 
     // Show shimmer during initial load, but with error fallback
     if (isLoading) {
@@ -104,8 +109,10 @@ class HomeScreen extends ConsumerWidget {
                 children: [
                   Icon(Iconsax.warning_2, size: 48, color: Colors.orange),
                   const SizedBox(height: 16),
-                  Text('데이터를 불러오지 못했어요',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    '데이터를 불러오지 못했어요',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => ref.invalidate(todosProvider),
@@ -118,11 +125,7 @@ class HomeScreen extends ConsumerWidget {
           ),
         );
       }
-      return const Scaffold(
-        body: SafeArea(
-          child: HomeScreenShimmer(),
-        ),
-      );
+      return const Scaffold(body: SafeArea(child: HomeScreenShimmer()));
     }
 
     return Scaffold(
@@ -146,9 +149,10 @@ class HomeScreen extends ConsumerWidget {
                           ).animate().fadeIn(duration: 300.ms),
                         const Spacer(),
                         // 그룹 선택기
-                        const GroupSelector()
-                            .animate()
-                            .fadeIn(duration: 300.ms, delay: 100.ms),
+                        const GroupSelector().animate().fadeIn(
+                          duration: 300.ms,
+                          delay: 100.ms,
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppTheme.spacingM),
@@ -164,40 +168,60 @@ class HomeScreen extends ConsumerWidget {
                     const SizedBox(height: 2),
                     // 사용자 이름 (강조) - 멤버십 이름 → Firebase 이름 → 기본값 순서
                     Text(
-                      '${currentMember?.name ?? firebaseUser?.displayName ?? '사용자'}님',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideX(begin: -0.05),
+                          '${currentMember?.name ?? firebaseUser?.displayName ?? '사용자'}님',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        )
+                        .animate()
+                        .fadeIn(duration: 300.ms, delay: 200.ms)
+                        .slideX(begin: -0.05),
                     const SizedBox(height: 4),
                     // 날짜 + 스트릭
                     Row(
                       children: [
                         Text(
                           DateFormat('M월 d일 EEEE', 'ko_KR').format(now),
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).brightness == Brightness.dark
-                                ? AppColors.textSecondaryDark
-                                : AppColors.textSecondaryLight,
-                          ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? AppColors.textSecondaryDark
+                                    : AppColors.textSecondaryLight,
+                              ),
                         ),
                         if (streak > 0) ...[
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.orange.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusFull),
-                              border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                              borderRadius: BorderRadius.circular(
+                                AppTheme.radiusFull,
+                              ),
+                              border: Border.all(
+                                color: Colors.orange.withValues(alpha: 0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Iconsax.flash_1, size: 12, color: Colors.orange),
+                                const Icon(
+                                  Iconsax.flash_1,
+                                  size: 12,
+                                  color: Colors.orange,
+                                ),
                                 const SizedBox(width: 2),
                                 Text(
                                   '$streak일 연속',
-                                  style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
@@ -213,7 +237,9 @@ class HomeScreen extends ConsumerWidget {
             // AI 요약 카드
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
                 child: const AiSummaryCard()
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 300.ms)
@@ -289,16 +315,19 @@ class HomeScreen extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                         horizontal: AppTheme.spacingL,
                       ),
-                      child: CompactTodoCard(
-                        todo: todo,
-                        assignee: member,
-                      ).animate().fadeIn(
+                      child: CompactTodoCard(todo: todo, assignee: member)
+                          .animate()
+                          .fadeIn(
                             duration: 200.ms,
-                            delay: Duration(milliseconds: 50 * (index < 10 ? index : 10)),
+                            delay: Duration(
+                              milliseconds: 50 * (index < 10 ? index : 10),
+                            ),
                           ),
                     );
                   },
-                  childCount: showAllTodos ? pendingTodos.length : (pendingTodos.length > 10 ? 10 : pendingTodos.length),
+                  childCount: showAllTodos
+                      ? pendingTodos.length
+                      : (pendingTodos.length > 10 ? 10 : pendingTodos.length),
                 ),
               ),
 
@@ -306,12 +335,17 @@ class HomeScreen extends ConsumerWidget {
             if (pendingTodos.length > 10)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingL,
+                  ),
                   child: TextButton(
                     onPressed: () {
-                      ref.read(showAllTodosProvider.notifier).state = !showAllTodos;
+                      ref.read(showAllTodosProvider.notifier).state =
+                          !showAllTodos;
                     },
-                    child: Text(showAllTodos ? '접기' : '${pendingTodos.length - 10}개 더보기'),
+                    child: Text(
+                      showAllTodos ? '접기' : '${pendingTodos.length - 10}개 더보기',
+                    ),
                   ),
                 ),
               ),
@@ -320,13 +354,17 @@ class HomeScreen extends ConsumerWidget {
             if (completedTodos.isNotEmpty)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacingL,
+                  ),
                   child: _CompletedSection(
                     completedTodos: completedTodos,
                     members: members,
                     isExpanded: isCompletedExpanded,
                     onToggle: () {
-                      ref.read(completedSectionExpandedProvider.notifier).state =
+                      ref
+                              .read(completedSectionExpandedProvider.notifier)
+                              .state =
                           !isCompletedExpanded;
                     },
                   ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
@@ -336,10 +374,13 @@ class HomeScreen extends ConsumerWidget {
             // 최근 활동
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-                child: const ActivityFeedCard()
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 650.ms),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                child: const ActivityFeedCard().animate().fadeIn(
+                  duration: 400.ms,
+                  delay: 650.ms,
+                ),
               ),
             ),
 
@@ -357,22 +398,26 @@ class HomeScreen extends ConsumerWidget {
             // D-day 카운터
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
-                child: const DdayCard()
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 750.ms),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                child: const DdayCard().animate().fadeIn(
+                  duration: 400.ms,
+                  delay: 750.ms,
+                ),
               ),
             ),
 
             // 하단 여백
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 100),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         ),
       ),
-      bottomNavigationBar: const _QuickAddBar()
-          .animate().slideY(begin: 1, duration: 300.ms, delay: 800.ms),
+      bottomNavigationBar: const _QuickAddBar().animate().slideY(
+        begin: 1,
+        duration: 300.ms,
+        delay: 800.ms,
+      ),
     );
   }
 
@@ -440,9 +485,119 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
     setState(() => _isEditing = false);
   }
 
+  Future<void> _openAiActionSheet() async {
+    final aiFlags = ref.read(babbaAiFeatureFlagsProvider);
+    final telemetry = ref.read(aiTelemetryServiceProvider);
+    telemetry.logEntryTapped(
+      toolName: BabbaAiTools.homeQuickActions,
+      source: 'home_quick_add_ai',
+      enabled: aiFlags.hasAnyHomeQuickActionAvailable,
+      extra: {
+        'todo_actions_enabled': aiFlags.todoActionsAvailable,
+        'reminder_actions_enabled': aiFlags.reminderActionsAvailable,
+      },
+    );
+    if (!aiFlags.hasAnyHomeQuickActionAvailable) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.homeQuickActions,
+        source: 'home_quick_add_ai',
+        reason: aiFlags.homeQuickActionDisabledReason,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(aiFlags.homeQuickActionDisabledReason)),
+      );
+      return;
+    }
+
+    final mode = await showAiHomeActionEntrySheet(
+      context: context,
+      initialPrompt: _controller.text.trim(),
+      todoActionsEnabled: aiFlags.todoActionsAvailable,
+      todoActionsDisabledReason: aiFlags.disabledReasonFor(
+        BabbaAiCapability.todoActions,
+      ),
+      reminderActionsEnabled: aiFlags.reminderActionsAvailable,
+      reminderActionsDisabledReason: aiFlags.disabledReasonFor(
+        BabbaAiCapability.reminderActions,
+      ),
+    );
+    if (!mounted || mode == null) return;
+
+    if (mode == AiHomeActionEntryMode.todoCreate) {
+      final result = await showAiTodoActionSheet(
+        context: context,
+        initialPrompt: _controller.text.trim(),
+      );
+      if (!mounted || result == null) return;
+
+      if (result.created) {
+        _controller.clear();
+        _focusNode.unfocus();
+        setState(() => _isEditing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI가 "${result.title}" 개인 할 일을 추가했어요.')),
+        );
+      }
+      return;
+    }
+
+    if (mode == AiHomeActionEntryMode.todoComplete) {
+      final completeResult = await showAiTodoCompleteSheet(
+        context: context,
+        initialPrompt: _controller.text.trim(),
+      );
+      if (!mounted || completeResult == null) return;
+
+      if (completeResult.completed) {
+        _controller.clear();
+        _focusNode.unfocus();
+        setState(() => _isEditing = false);
+        final message = completeResult.alreadyCompleted
+            ? 'AI가 "${completeResult.title}" 할 일이 이미 완료된 상태라고 확인했어요.'
+            : 'AI가 "${completeResult.title}" 개인 할 일을 완료 처리했어요.';
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
+      }
+      return;
+    }
+
+    final reminderResult = await showAiReminderCreateSheet(
+      context: context,
+      initialPrompt: _controller.text.trim(),
+    );
+    if (!mounted || reminderResult == null) return;
+
+    if (reminderResult.created) {
+      _controller.clear();
+      _focusNode.unfocus();
+      setState(() => _isEditing = false);
+      final whenLabel =
+          (reminderResult.formattedRemindAt ?? '').trim().isNotEmpty
+          ? ' ${reminderResult.formattedRemindAt!.trim()}에'
+          : '';
+      final recurrenceLabel =
+          (reminderResult.recurrenceLabel ?? '').trim().isNotEmpty
+          ? ' (${reminderResult.recurrenceLabel!.trim()})'
+          : '';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'AI가 "${reminderResult.message}" 리마인더를$whenLabel 등록했어요$recurrenceLabel.',
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final aiFlags = ref.watch(babbaAiFeatureFlagsProvider);
+    final homeAiActionsEnabled = aiFlags.hasAnyHomeQuickActionAvailable;
+    final aiButtonColor = homeAiActionsEnabled
+        ? AppColors.primaryLight
+        : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight);
 
     return Container(
       padding: EdgeInsets.only(
@@ -480,7 +635,9 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                         fontSize: 14,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                         borderSide: BorderSide(
                           color: AppColors.primaryLight.withValues(alpha: 0.5),
                         ),
@@ -510,12 +667,15 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                         color: isDark
                             ? AppColors.backgroundDark
                             : AppColors.backgroundLight,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          AppTheme.radiusMedium,
+                        ),
                         border: Border.all(
-                          color: (isDark
-                                  ? AppColors.textSecondaryDark
-                                  : AppColors.textSecondaryLight)
-                              .withValues(alpha: 0.2),
+                          color:
+                              (isDark
+                                      ? AppColors.textSecondaryDark
+                                      : AppColors.textSecondaryLight)
+                                  .withValues(alpha: 0.2),
                         ),
                       ),
                       child: Row(
@@ -543,6 +703,20 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                   ),
           ),
           const SizedBox(width: 8),
+          IconButton(
+            onPressed: _openAiActionSheet,
+            icon: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: aiButtonColor.withValues(
+                  alpha: homeAiActionsEnabled ? 0.12 : 0.08,
+                ),
+                borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              ),
+              child: Icon(Iconsax.magic_star, color: aiButtonColor, size: 20),
+            ),
+          ),
+          const SizedBox(width: 4),
           if (_isEditing)
             IconButton(
               onPressed: _submitQuickAdd,
@@ -575,11 +749,7 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                   color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                 ),
-                child: const Icon(
-                  Iconsax.add,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: const Icon(Iconsax.add, color: Colors.white, size: 20),
               ),
             ),
         ],
@@ -640,9 +810,7 @@ class _CompletedSectionState extends State<_CompletedSection> {
           onTap: widget.onToggle,
           behavior: HitTestBehavior.opaque,
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              vertical: AppTheme.spacingS,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: AppTheme.spacingS),
             child: Row(
               children: [
                 Icon(
@@ -656,10 +824,10 @@ class _CompletedSectionState extends State<_CompletedSection> {
                 Text(
                   '완료됨 (${widget.completedTodos.length})',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
                 ),
                 const Spacer(),
                 AnimatedRotation(
@@ -687,10 +855,7 @@ class _CompletedSectionState extends State<_CompletedSection> {
                 final member = _findAssignedMember(widget.members, todo);
                 return Padding(
                   padding: const EdgeInsets.only(bottom: AppTheme.spacingXS),
-                  child: CompactTodoCard(
-                    todo: todo,
-                    assignee: member,
-                  ),
+                  child: CompactTodoCard(todo: todo, assignee: member),
                 );
               }),
               if (!_showAll && widget.completedTodos.length > 5)
@@ -700,8 +865,9 @@ class _CompletedSectionState extends State<_CompletedSection> {
                 ),
             ],
           ),
-          crossFadeState:
-              widget.isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          crossFadeState: widget.isExpanded
+              ? CrossFadeState.showSecond
+              : CrossFadeState.showFirst,
           duration: const Duration(milliseconds: 200),
         ),
       ],

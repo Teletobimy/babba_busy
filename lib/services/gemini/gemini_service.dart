@@ -2,27 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../../shared/models/todo_item.dart';
-import '../../shared/providers/todo_provider.dart';
-import '../../shared/providers/smart_provider.dart';
 
 /// Gemini AI 서비스 Provider
 final geminiServiceProvider = Provider<GeminiService>((ref) {
   return GeminiService(ref);
-});
-
-/// AI 요약 Provider
-final aiSummaryProvider = FutureProvider<String>((ref) async {
-  final geminiService = ref.read(geminiServiceProvider);
-  final todos = ref.watch(todosProvider).value ?? [];
-  final upcomingTodos = ref.watch(smartUpcomingTodosProvider);
-  final currentMember = ref.watch(smartCurrentMemberProvider);
-  final memberName = currentMember?.name ?? '사용자';
-
-  return geminiService.generateDailySummary(
-    memberName: memberName,
-    todos: todos,
-    upcomingTodosCount: upcomingTodos.length,
-  );
 });
 
 /// Gemini AI 서비스
@@ -45,10 +28,7 @@ class GeminiService {
   bool get hasApiKey => _apiKey.isNotEmpty;
 
   GenerativeModel get model {
-    _model ??= GenerativeModel(
-      model: 'gemini-1.5-flash',
-      apiKey: _apiKey,
-    );
+    _model ??= GenerativeModel(model: 'gemini-1.5-flash', apiKey: _apiKey);
     return _model!;
   }
 
@@ -74,7 +54,8 @@ class GeminiService {
             t.dueDate!.day == now.day;
       }).toList();
 
-      final prompt = '''
+      final prompt =
+          '''
 당신은 가족 일정 관리 앱의 친근한 AI 비서입니다.
 다음 정보를 바탕으로 $memberName님에게 오늘의 요약을 한두 문장으로 작성해주세요.
 따뜻하고 격려하는 톤으로 작성하세요.
@@ -88,7 +69,8 @@ class GeminiService {
 ''';
 
       final response = await model.generateContent([Content.text(prompt)]);
-      return response.text ?? _generateLocalSummary(memberName, todos, upcomingTodosCount);
+      return response.text ??
+          _generateLocalSummary(memberName, todos, upcomingTodosCount);
     } catch (e) {
       return _generateLocalSummary(memberName, todos, upcomingTodosCount);
     }
@@ -102,14 +84,19 @@ class GeminiService {
     required int totalCount,
   }) async {
     if (!hasApiKey) {
-      final rate = totalCount > 0 ? (completedCount / totalCount * 100).round() : 0;
+      final rate = totalCount > 0
+          ? (completedCount / totalCount * 100).round()
+          : 0;
       return '$memberName님, 이번 주 할일 완료율은 $rate%예요! ${rate >= 70 ? "잘하고 계세요! 🎉" : "조금만 더 힘내세요! 💪"}';
     }
 
     try {
-      final rate = totalCount > 0 ? (completedCount / totalCount * 100).round() : 0;
+      final rate = totalCount > 0
+          ? (completedCount / totalCount * 100).round()
+          : 0;
 
-      final prompt = '''
+      final prompt =
+          '''
 당신은 가족 일정 관리 앱의 친근한 AI 비서입니다.
 $memberName님의 이번 주 활동을 요약해주세요.
 
@@ -128,7 +115,11 @@ $memberName님의 이번 주 활동을 요약해주세요.
   }
 
   /// 로컬 요약 생성 (API 키 없을 때 사용)
-  String _generateLocalSummary(String memberName, List<TodoItem> todos, int upcomingTodosCount) {
+  String _generateLocalSummary(
+    String memberName,
+    List<TodoItem> todos,
+    int upcomingTodosCount,
+  ) {
     final pendingCount = todos.where((t) => !t.isCompleted).length;
     final completedCount = todos.where((t) => t.isCompleted).length;
 
@@ -154,7 +145,8 @@ $memberName님의 이번 주 활동을 요약해주세요.
     }
 
     try {
-      final prompt = '''
+      final prompt =
+          '''
 당신은 개인 메모 분석 AI입니다.
 다음 메모를 분석하여 핵심 인사이트를 2-3문장으로 요약해주세요.
 따뜻하고 도움이 되는 톤으로 작성하세요.
@@ -188,7 +180,8 @@ $content
     try {
       final recentTitles = recentTodos.take(5).map((t) => t.title).join(', ');
 
-      final prompt = '''
+      final prompt =
+          '''
 가족 일정 관리 앱입니다. $familyName 가족에게 추천할 할일 3개를 제안해주세요.
 최근 등록된 할일: $recentTitles
 
@@ -197,7 +190,11 @@ $content
 
       final response = await model.generateContent([Content.text(prompt)]);
       final text = response.text ?? '';
-      return text.split('\n').where((s) => s.trim().isNotEmpty).take(3).toList();
+      return text
+          .split('\n')
+          .where((s) => s.trim().isNotEmpty)
+          .take(3)
+          .toList();
     } catch (e) {
       return ['장보기', '청소하기', '운동하기'];
     }

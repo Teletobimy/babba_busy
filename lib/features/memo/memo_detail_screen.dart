@@ -8,7 +8,10 @@ import '../../shared/models/memo_category.dart';
 import '../../shared/providers/memo_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/auth_provider.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
+import '../../shared/services/ai_telemetry_service.dart';
 import '../../services/ai/ai_api_service.dart';
+import '../../services/ai/babba_subagent_runtime_service.dart';
 import 'memo_category_utils.dart';
 import 'widgets/create_memo_category_dialog.dart';
 
@@ -253,8 +256,22 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
   }
 
   Future<void> _analyzeWithAI() async {
+    final telemetry = ref.read(aiTelemetryServiceProvider);
+    final aiFlags = ref.read(babbaAiFeatureFlagsProvider);
+    telemetry.logEntryTapped(
+      toolName: BabbaAiTools.memoSummary,
+      source: 'memo_detail_summary',
+      capability: BabbaAiCapability.memoSummary,
+      enabled: aiFlags.memoSummaryRemoteEnabled,
+    );
     final content = _contentController.text.trim();
     if (content.length < 20) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.memoSummary,
+        source: 'memo_detail_summary',
+        capability: BabbaAiCapability.memoSummary,
+        reason: '내용이 너무 짧습니다 (최소 20자)',
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('내용이 너무 짧아 분석할 수 없습니다 (최소 20자)')),
       );
@@ -272,11 +289,13 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
     setState(() => _isAnalyzing = true);
 
     try {
-      final aiApiService = ref.read(aiApiServiceProvider);
-      final result = await aiApiService.analyzeMemo(
+      final runtimeService = ref.read(babbaSubagentRuntimeServiceProvider);
+      final result = await runtimeService.generateMemoSummary(
         userId: user.uid,
+        memoTitle: _titleController.text.trim(),
         content: content,
         categoryName: _selectedCategoryName,
+        source: 'memo_detail_summary',
       );
 
       final analysisText = result.analysis.trim();
@@ -301,7 +320,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(const SnackBar(content: Text('AI 분석을 수행할 수 없습니다')));
+          ).showSnackBar(const SnackBar(content: Text('AI 요약을 수행할 수 없습니다')));
         }
       } else {
         final categories = ref.read(smartMemoCategoriesProvider);
@@ -334,13 +353,13 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('분석 실패: $e')));
+        ).showSnackBar(SnackBar(content: Text('요약 실패: $e')));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('분석 실패: $e')));
+        ).showSnackBar(SnackBar(content: Text('요약 실패: $e')));
       }
     } finally {
       if (mounted) {
@@ -470,7 +489,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
             ),
             tooltip: _isPinned ? '고정 해제' : '상단 고정',
           ),
-          // AI 분석
+          // AI 요약
           IconButton(
             onPressed: _isAnalyzing ? null : _analyzeWithAI,
             icon: _isAnalyzing
@@ -483,7 +502,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                     ),
                   )
                 : Icon(Iconsax.magic_star, color: AppColors.primaryLight),
-            tooltip: 'AI 분석',
+            tooltip: 'AI 요약',
           ),
           // 삭제 (기존 메모만)
           if (!_isNewMemo)
@@ -584,7 +603,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                         ),
                       ),
                       child: Text(
-                        '내용이 변경되어 AI 결과가 최신이 아닙니다. 다시 분석해 주세요.',
+                        '내용이 변경되어 AI 요약 결과가 최신이 아닙니다. 다시 요약해 주세요.',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Colors.orange[800],
                         ),
@@ -616,7 +635,7 @@ class _MemoDetailScreenState extends ConsumerState<MemoDetailScreen> {
                               ),
                               const SizedBox(width: AppTheme.spacingS),
                               Text(
-                                'AI 요약/검증',
+                                'AI 메모 요약/검증',
                                 style: TextStyle(
                                   color: AppColors.primaryLight,
                                   fontWeight: FontWeight.w600,

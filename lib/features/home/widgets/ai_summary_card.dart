@@ -4,9 +4,11 @@ import 'package:iconsax/iconsax.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_card.dart';
+import '../../../shared/providers/ai_feature_flag_provider.dart';
 import '../../../shared/providers/smart_provider.dart';
-import '../../../services/gemini/gemini_service.dart';
-import '../home_screen.dart';
+import '../../../shared/services/ai_telemetry_service.dart';
+import '../providers/home_ai_summary_provider.dart';
+import '../providers/home_filters.dart';
 
 /// AI 요약 상태
 final aiSummaryExpandedProvider = StateProvider<bool>((ref) => false);
@@ -25,12 +27,19 @@ class AiSummaryCard extends ConsumerWidget {
     final allUpcomingTodos = ref.watch(smartUpcomingTodosProvider);
     final allTodayCompleted = ref.watch(smartTodayCompletedTodosProvider);
 
-    final todos = selectedMemberId == null ? allTodos
+    final todos = selectedMemberId == null
+        ? allTodos
         : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
-    final upcomingTodos = selectedMemberId == null ? allUpcomingTodos
-        : allUpcomingTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
-    final todayCompleted = selectedMemberId == null ? allTodayCompleted
-        : allTodayCompleted.where((t) => t.isAssignedTo(selectedMemberId)).toList();
+    final upcomingTodos = selectedMemberId == null
+        ? allUpcomingTodos
+        : allUpcomingTodos
+              .where((t) => t.isAssignedTo(selectedMemberId))
+              .toList();
+    final todayCompleted = selectedMemberId == null
+        ? allTodayCompleted
+        : allTodayCompleted
+              .where((t) => t.isAssignedTo(selectedMemberId))
+              .toList();
 
     final pendingCount = todos.where((t) => !t.isCompleted).length;
     final completedToday = todayCompleted.length;
@@ -48,7 +57,22 @@ class AiSummaryCard extends ConsumerWidget {
           // 헤더
           InkWell(
             onTap: () {
-              ref.read(aiSummaryExpandedProvider.notifier).state = !isExpanded;
+              final nextExpanded = !isExpanded;
+              ref.read(aiSummaryExpandedProvider.notifier).state = nextExpanded;
+              if (nextExpanded) {
+                final aiFlags = ref.read(babbaAiFeatureFlagsProvider);
+                ref
+                    .read(aiTelemetryServiceProvider)
+                    .logEntryTapped(
+                      toolName: BabbaAiTools.homeSummary,
+                      source: 'home_summary_card',
+                      capability: BabbaAiCapability.homeSummary,
+                      enabled: aiFlags.homeSummaryRemoteEnabled,
+                      extra: {
+                        'selected_member_filtered': selectedMemberId != null,
+                      },
+                    );
+              }
             },
             child: Padding(
               padding: const EdgeInsets.all(AppTheme.spacingM),
@@ -120,7 +144,11 @@ class AiSummaryCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _AiSummaryText(
-                      fallback: _generateSummary(pendingCount, completedToday, upcomingCount),
+                      fallback: _generateSummary(
+                        pendingCount,
+                        completedToday,
+                        upcomingCount,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // 통계 미니 카드
@@ -161,7 +189,7 @@ class AiSummaryCard extends ConsumerWidget {
 
   String _generateSummary(int pending, int completed, int events) {
     final List<String> messages = [];
-    
+
     if (pending == 0 && completed == 0) {
       messages.add('오늘의 할 일이 아직 없어요. 새로운 할 일을 추가해보세요! 🌟');
     } else if (pending == 0 && completed > 0) {
@@ -171,11 +199,11 @@ class AiSummaryCard extends ConsumerWidget {
     } else {
       messages.add('오늘 할 일이 $pending개 있어요. 중요한 것부터 하나씩 해결해보아요! 📝');
     }
-    
+
     if (events > 0) {
       messages.add('이번 주 $events개의 일정이 예정되어 있어요. 📅');
     }
-    
+
     return messages.join('\n');
   }
 }
@@ -224,7 +252,7 @@ class _StatChip extends StatelessWidget {
   }
 }
 
-/// AI 요약 텍스트 (Gemini 연동 + 폴백)
+/// AI 요약 텍스트 (BABBA 서브에이전트 + 폴백)
 class _AiSummaryText extends ConsumerWidget {
   final String fallback;
 

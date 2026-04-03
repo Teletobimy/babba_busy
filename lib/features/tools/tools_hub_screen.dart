@@ -11,14 +11,20 @@ import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/album_provider.dart';
 import '../../shared/providers/chat_provider.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
+import '../../shared/providers/group_provider.dart';
+import '../../shared/services/ai_telemetry_service.dart';
 import '../../shared/models/album.dart';
 import '../../shared/models/chat_message.dart';
 import '../../shared/models/transaction.dart';
 import '../../shared/utils/chat_attachment_policy.dart';
+import '../../services/ai/ai_api_service.dart';
+import '../../services/ai/babba_subagent_runtime_service.dart';
 import '../album/widgets/add_album_sheet.dart';
 import '../budget/widgets/add_transaction_sheet.dart';
 import '../people/people_screen.dart';
 import '../memo/memo_screen.dart';
+import 'widgets/family_chat_summary_card.dart';
 import 'package:go_router/go_router.dart';
 
 /// 현재 선택된 도구 탭 인덱스
@@ -804,6 +810,10 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
   final ScrollController _scrollController = ScrollController();
   bool _isUploadingAttachment = false;
   double _uploadProgress = 0;
+  bool _isGeneratingSummary = false;
+  FamilyChatSummaryResult? _chatSummaryResult;
+  String? _chatSummaryError;
+  String? _lastSummarizedMessageId;
 
   @override
   void initState() {
@@ -946,6 +956,84 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     }
   }
 
+  Future<void> _generateChatSummary() async {
+    if (_isGeneratingSummary) return;
+
+    final messages = ref.read(smartChatMessagesProvider);
+    final currentUserId = ref.read(smartCurrentUserIdProvider);
+    final currentFamily = ref.read(smartCurrentFamilyProvider);
+    final currentMembership = ref.read(currentMembershipProvider);
+    final familyId = currentFamily?.id ?? currentMembership?.groupId;
+    final familyName = currentFamily?.name ?? currentMembership?.groupName;
+    final telemetry = ref.read(aiTelemetryServiceProvider);
+    telemetry.logEntryTapped(
+      toolName: BabbaAiTools.familyChatSummary,
+      source: 'tools_family_chat',
+      capability: BabbaAiCapability.familyChatSummary,
+      enabled: true,
+      extra: {'message_count': messages.length},
+    );
+
+    if (messages.isEmpty) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.familyChatSummary,
+        source: 'tools_family_chat',
+        capability: BabbaAiCapability.familyChatSummary,
+        reason: '요약할 대화가 아직 없습니다.',
+      );
+      _showSnackBar('요약할 대화가 아직 없어요.');
+      return;
+    }
+    if (currentUserId.isEmpty || familyId == null || familyId.isEmpty) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.familyChatSummary,
+        source: 'tools_family_chat',
+        capability: BabbaAiCapability.familyChatSummary,
+        reason: '가족 채팅 정보를 아직 확인하지 못했습니다.',
+      );
+      _showSnackBar('가족 채팅 정보를 아직 확인하지 못했어요.');
+      return;
+    }
+
+    setState(() {
+      _isGeneratingSummary = true;
+      _chatSummaryError = null;
+    });
+
+    try {
+      final result = await ref
+          .read(babbaSubagentRuntimeServiceProvider)
+          .generateFamilyChatSummary(
+            userId: currentUserId,
+            familyId: familyId,
+            familyName: familyName,
+            messages: messages,
+            source: 'tools_family_chat',
+          );
+
+      if (!mounted) return;
+      setState(() {
+        _chatSummaryResult = result;
+        _chatSummaryError = null;
+        _lastSummarizedMessageId = messages.isNotEmpty
+            ? messages.last.id
+            : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _chatSummaryError = '대화 요약을 가져오지 못했어요.';
+      });
+      _showSnackBar('대화 요약 실패: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingSummary = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -955,11 +1043,19 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
     final messages = ref.watch(smartChatMessagesProvider);
     final currentUserId = ref.watch(smartCurrentUserIdProvider);
     final currentFamily = ref.watch(smartCurrentFamilyProvider);
+    final currentMembership = ref.watch(currentMembershipProvider);
+    final familyName =
+        currentFamily?.name ?? currentMembership?.groupName ?? '가족 채팅';
+    final isSummaryStale =
+        _chatSummaryResult != null &&
+        _lastSummarizedMessageId != null &&
+        messages.isNotEmpty &&
+        messages.last.id != _lastSummarizedMessageId;
 
     return Column(
       children: [
         // 그룹 정보 헤더
-        if (currentFamily != null)
+        if (currentFamily != null || currentMembership != null)
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: AppTheme.spacingM,
@@ -975,15 +1071,45 @@ class _ChatContentState extends ConsumerState<_ChatContent> {
               children: [
                 Icon(Iconsax.people, size: 16, color: chatColor),
                 const SizedBox(width: AppTheme.spacingS),
-                Text(
-                  currentFamily.name,
-                  style: TextStyle(
-                    color: chatColor,
-                    fontWeight: FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    familyName,
+                    style: TextStyle(
+                      color: chatColor,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: messages.isEmpty || _isGeneratingSummary
+                      ? null
+                      : _generateChatSummary,
+                  icon: _isGeneratingSummary
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Iconsax.magic_star, size: 16, color: chatColor),
+                  label: Text(
+                    _isGeneratingSummary ? '요약 중' : '대화 요약',
+                    style: TextStyle(color: chatColor),
                   ),
                 ),
               ],
             ),
+          ),
+        if (_isGeneratingSummary ||
+            _chatSummaryResult != null ||
+            _chatSummaryError != null)
+          FamilyChatSummaryCard(
+            isLoading: _isGeneratingSummary,
+            result: _chatSummaryResult,
+            errorText: _chatSummaryError,
+            isStale: isSummaryStale,
+            onRetry: messages.isEmpty || _isGeneratingSummary
+                ? null
+                : _generateChatSummary,
           ),
         // 메시지 목록
         Expanded(
@@ -1640,10 +1766,15 @@ class _QuickLinkChip extends StatelessWidget {
       avatar: Icon(icon, size: 16),
       label: Text(label, style: const TextStyle(fontSize: 12)),
       onPressed: onTap,
-      backgroundColor: isDark ? AppColors.surfaceDark : AppColors.backgroundLight,
+      backgroundColor: isDark
+          ? AppColors.surfaceDark
+          : AppColors.backgroundLight,
       side: BorderSide(
-        color: (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)
-            .withValues(alpha: 0.2),
+        color:
+            (isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight)
+                .withValues(alpha: 0.2),
       ),
     );
   }

@@ -17,6 +17,8 @@ class AiApiService {
   // Cloud Run API URL (--dart-define=AI_API_URL=... 로 주입)
   static const String _baseUrl = String.fromEnvironment('AI_API_URL');
 
+  bool get hasConfiguredBaseUrl => _baseUrl.isNotEmpty;
+
   /// Firebase Auth 토큰 가져오기
   Future<String?> _getAuthToken() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -68,6 +70,859 @@ class AiApiService {
       } else {
         throw AiApiException('요약 생성 실패: ${response.statusCode}');
       }
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 홈 요약 생성
+  Future<AiSummaryResult> generateHomeAgentSummary({
+    required String userId,
+    required String userName,
+    String? selectedMemberId,
+    String? selectedMemberName,
+    required int pendingTodos,
+    required int completedToday,
+    required int upcomingEvents,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/summary/home'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'user_name': userName,
+          if (selectedMemberId != null && selectedMemberId.trim().isNotEmpty)
+            'selected_member_id': selectedMemberId.trim(),
+          if (selectedMemberName != null &&
+              selectedMemberName.trim().isNotEmpty)
+            'selected_member_name': selectedMemberName.trim(),
+          'pending_todos': pendingTodos,
+          'completed_today': completedToday,
+          'upcoming_events': upcomingEvents,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AiSummaryResult(
+          summary: data['summary'],
+          cached: data['cached'] ?? false,
+        );
+      }
+
+      throw AiApiException('에이전트 홈 요약 실패: ${response.statusCode}');
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 가족 채팅 요약 생성
+  Future<FamilyChatSummaryResult> generateFamilyChatSummary({
+    required String userId,
+    required String familyId,
+    String? familyName,
+    int limitMessages = 40,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/summary/family-chat'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'family_id': familyId,
+          if (familyName != null && familyName.trim().isNotEmpty)
+            'family_name': familyName.trim(),
+          'limit_messages': limitMessages,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return FamilyChatSummaryResult.fromJson(data);
+      }
+
+      throw AiApiException('가족 채팅 요약 실패: ${response.statusCode}');
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 메모 요약 생성
+  Future<MemoAnalysisResult> generateMemoAgentSummary({
+    required String userId,
+    required String content,
+    String? memoTitle,
+    String? categoryName,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/summary/memo'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          if (memoTitle != null && memoTitle.trim().isNotEmpty)
+            'memo_title': memoTitle.trim(),
+          'content': content,
+          if (categoryName != null && categoryName.trim().isNotEmpty)
+            'category_name': categoryName.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return MemoAnalysisResult.fromJson(Map<String, dynamic>.from(data));
+      }
+
+      final errorData = jsonDecode(response.body);
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? '메모 요약 실패: ${response.statusCode}')
+            : '메모 요약 실패: ${response.statusCode}',
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 최근 AI tool audit 로그 조회
+  Future<AgentAuditLogListResult> getRecentAgentAuditLogs({
+    int limit = 12,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    final safeLimit = limit.clamp(1, 30);
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/agent/audit/recent?limit=$safeLimit'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentAuditLogListResult.fromJson(Map<String, dynamic>.from(data));
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI audit 로그 조회 실패: ${response.statusCode}')
+            : 'AI audit 로그 조회 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 메모 생성 preview
+  Future<AgentNoteCreatePreviewResult> previewPersonalNoteCreateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/notes/create/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentNoteCreatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 메모 초안 생성 실패: ${response.statusCode}')
+            : 'AI 메모 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 메모 생성 consent 결정
+  Future<AgentNoteCreateDecisionResult> submitPersonalNoteCreateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/notes/create/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentNoteCreateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 메모 생성 처리 실패: ${response.statusCode}')
+            : 'AI 메모 생성 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 메모 수정 preview
+  Future<AgentNoteUpdatePreviewResult> previewPersonalNoteUpdateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/notes/update/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentNoteUpdatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ??
+                  'AI 메모 수정 초안 생성 실패: ${response.statusCode}')
+            : 'AI 메모 수정 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 메모 수정 consent 결정
+  Future<AgentNoteUpdateDecisionResult> submitPersonalNoteUpdateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/notes/update/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentNoteUpdateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 메모 수정 처리 실패: ${response.statusCode}')
+            : 'AI 메모 수정 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 리마인더 생성 preview
+  Future<AgentReminderCreatePreviewResult> previewPersonalReminderCreateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/reminders/create/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentReminderCreatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ??
+                  'AI 리마인더 초안 생성 실패: ${response.statusCode}')
+            : 'AI 리마인더 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 리마인더 생성 consent 결정
+  Future<AgentReminderCreateDecisionResult>
+  submitPersonalReminderCreateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/reminders/create/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentReminderCreateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ??
+                  'AI 리마인더 생성 처리 실패: ${response.statusCode}')
+            : 'AI 리마인더 생성 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 todo 생성 preview
+  Future<AgentTodoCreatePreviewResult> previewPersonalTodoCreateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+    String? currentGroupId,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/todo/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+          if (currentGroupId != null && currentGroupId.trim().isNotEmpty)
+            'current_group_id': currentGroupId.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentTodoCreatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 할 일 초안 생성 실패: ${response.statusCode}')
+            : 'AI 할 일 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 todo 생성 consent 결정
+  Future<AgentTodoCreateDecisionResult> submitPersonalTodoCreateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/todo/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentTodoCreateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 할 일 생성 처리 실패: ${response.statusCode}')
+            : 'AI 할 일 생성 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 todo 완료 preview
+  Future<AgentTodoCompletePreviewResult> previewPersonalTodoCompleteAction({
+    required String userId,
+    required String prompt,
+    String? source,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/todo/complete/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentTodoCompletePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ??
+                  'AI 할 일 완료 초안 생성 실패: ${response.statusCode}')
+            : 'AI 할 일 완료 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 todo 완료 consent 결정
+  Future<AgentTodoCompleteDecisionResult> submitPersonalTodoCompleteDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/todo/complete/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentTodoCompleteDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 할 일 완료 처리 실패: ${response.statusCode}')
+            : 'AI 할 일 완료 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 일정 생성 preview
+  Future<AgentCalendarCreatePreviewResult> previewPersonalCalendarCreateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+    String? currentGroupId,
+    DateTime? selectedDate,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/calendar/create/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+          if (currentGroupId != null && currentGroupId.trim().isNotEmpty)
+            'current_group_id': currentGroupId.trim(),
+          if (selectedDate != null)
+            'selected_date': selectedDate.toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentCalendarCreatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 일정 초안 생성 실패: ${response.statusCode}')
+            : 'AI 일정 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 일정 생성 consent 결정
+  Future<AgentCalendarCreateDecisionResult>
+  submitPersonalCalendarCreateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/calendar/create/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentCalendarCreateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 일정 생성 처리 실패: ${response.statusCode}')
+            : 'AI 일정 생성 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 일정 수정 preview
+  Future<AgentCalendarUpdatePreviewResult> previewPersonalCalendarUpdateAction({
+    required String userId,
+    required String prompt,
+    String? source,
+    DateTime? selectedDate,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/calendar/update/preview'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'prompt': prompt,
+          if (source != null && source.trim().isNotEmpty)
+            'source': source.trim(),
+          if (selectedDate != null)
+            'selected_date': selectedDate.toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentCalendarUpdatePreviewResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ??
+                  'AI 일정 수정 초안 생성 실패: ${response.statusCode}')
+            : 'AI 일정 수정 초안 생성 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// BABBA 서브에이전트 개인 일정 수정 consent 결정
+  Future<AgentCalendarUpdateDecisionResult>
+  submitPersonalCalendarUpdateDecision({
+    required String userId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('$_baseUrl/api/agent/actions/calendar/update/decision'),
+        headers: headers,
+        body: jsonEncode({
+          'user_id': userId,
+          'request_id': requestId,
+          'approved': approved,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return AgentCalendarUpdateDecisionResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+
+      dynamic errorData;
+      try {
+        errorData = jsonDecode(response.body);
+      } catch (_) {
+        errorData = null;
+      }
+      throw AiApiException(
+        errorData is Map
+            ? (errorData['detail'] ?? 'AI 일정 수정 처리 실패: ${response.statusCode}')
+            : 'AI 일정 수정 처리 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
     } catch (e) {
       if (e is AiApiException) rethrow;
       throw AiApiException('네트워크 오류: $e');
@@ -786,6 +1641,252 @@ class MemoAnalysisResult {
     this.suggestedTags = const [],
     this.cached = false,
   });
+
+  factory MemoAnalysisResult.fromJson(Map<String, dynamic> json) {
+    return MemoAnalysisResult(
+      analysis: (json['analysis'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      validationPoints: _readStringList(json['validation_points']),
+      suggestedCategory: _readNullableString(json['suggested_category']),
+      suggestedTags: _readStringList(json['suggested_tags'], max: 5),
+      cached: json['cached'] == true,
+    );
+  }
+}
+
+class AgentNoteCreatePreview {
+  final String title;
+  final String content;
+  final String? categoryName;
+  final List<String> tags;
+  final bool isPinned;
+
+  AgentNoteCreatePreview({
+    required this.title,
+    required this.content,
+    this.categoryName,
+    this.tags = const [],
+    this.isPinned = false,
+  });
+
+  factory AgentNoteCreatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentNoteCreatePreview(
+      title: (json['title'] ?? '').toString(),
+      content: (json['content'] ?? '').toString(),
+      categoryName: _readNullableString(json['category_name']),
+      tags: _readStringList(json['tags'], max: 5),
+      isPinned: json['is_pinned'] == true,
+    );
+  }
+}
+
+class AgentNoteCreatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentNoteCreatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentNoteCreatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentNoteCreatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentNoteCreatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentNoteCreatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentNoteCreateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? memoId;
+  final String title;
+  final String? categoryName;
+  final List<String> tags;
+  final DateTime? executedAt;
+
+  AgentNoteCreateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.memoId,
+    required this.title,
+    this.categoryName,
+    this.tags = const [],
+    this.executedAt,
+  });
+
+  bool get created => approved && status == 'created' && memoId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentNoteCreateDecisionResult.fromJson(Map<String, dynamic> json) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentNoteCreateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      memoId: _readNullableString(resultJson['memo_id']),
+      title: (resultJson['title'] ?? '').toString(),
+      categoryName: _readNullableString(resultJson['category_name']),
+      tags: _readStringList(resultJson['tags'], max: 5),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentNoteUpdatePreview {
+  final String memoId;
+  final String originalTitle;
+  final String? originalCategoryName;
+  final String title;
+  final String content;
+  final String? categoryName;
+  final List<String> tags;
+  final bool isPinned;
+  final String? matchReason;
+
+  AgentNoteUpdatePreview({
+    required this.memoId,
+    required this.originalTitle,
+    this.originalCategoryName,
+    required this.title,
+    required this.content,
+    this.categoryName,
+    this.tags = const [],
+    this.isPinned = false,
+    this.matchReason,
+  });
+
+  factory AgentNoteUpdatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentNoteUpdatePreview(
+      memoId: (json['memo_id'] ?? '').toString(),
+      originalTitle: (json['original_title'] ?? '').toString(),
+      originalCategoryName: _readNullableString(json['original_category_name']),
+      title: (json['title'] ?? '').toString(),
+      content: (json['content'] ?? '').toString(),
+      categoryName: _readNullableString(json['category_name']),
+      tags: _readStringList(json['tags'], max: 5),
+      isPinned: json['is_pinned'] == true,
+      matchReason: _readNullableString(json['match_reason']),
+    );
+  }
+}
+
+class AgentNoteUpdatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentNoteUpdatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentNoteUpdatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentNoteUpdatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentNoteUpdatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentNoteUpdatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentNoteUpdateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? memoId;
+  final String title;
+  final String? categoryName;
+  final List<String> tags;
+  final bool isPinned;
+  final DateTime? executedAt;
+
+  AgentNoteUpdateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.memoId,
+    required this.title,
+    this.categoryName,
+    this.tags = const [],
+    this.isPinned = false,
+    this.executedAt,
+  });
+
+  bool get updated => approved && status == 'updated' && memoId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentNoteUpdateDecisionResult.fromJson(Map<String, dynamic> json) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentNoteUpdateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      memoId: _readNullableString(resultJson['memo_id']),
+      title: (resultJson['title'] ?? '').toString(),
+      categoryName: _readNullableString(resultJson['category_name']),
+      tags: _readStringList(resultJson['tags'], max: 5),
+      isPinned: resultJson['is_pinned'] == true,
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
 }
 
 /// 메모 카테고리 분석 결과
@@ -890,6 +1991,15 @@ String? _readNullableString(dynamic raw) {
   return value;
 }
 
+List<String> _readStringList(dynamic raw, {int max = 6}) {
+  if (raw is! List) return <String>[];
+  return raw
+      .map((item) => item.toString().trim())
+      .where((item) => item.isNotEmpty)
+      .take(max)
+      .toList();
+}
+
 /// AI 요약 결과
 class AiSummaryResult {
   final String summary;
@@ -901,6 +2011,854 @@ class AiSummaryResult {
     this.cached = false,
     this.completionRate,
   });
+}
+
+class FamilyChatSummaryResult {
+  final String familyId;
+  final String familyName;
+  final String summary;
+  final List<String> highlights;
+  final int messageCount;
+  final int participantCount;
+  final DateTime? latestMessageAt;
+  final bool cached;
+
+  FamilyChatSummaryResult({
+    required this.familyId,
+    required this.familyName,
+    required this.summary,
+    this.highlights = const [],
+    this.messageCount = 0,
+    this.participantCount = 0,
+    this.latestMessageAt,
+    this.cached = false,
+  });
+
+  factory FamilyChatSummaryResult.fromJson(Map<String, dynamic> json) {
+    return FamilyChatSummaryResult(
+      familyId: (json['family_id'] ?? '').toString(),
+      familyName: (json['family_name'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      highlights: _readStringList(json['highlights'], max: 3),
+      messageCount: (json['message_count'] as num?)?.toInt() ?? 0,
+      participantCount: (json['participant_count'] as num?)?.toInt() ?? 0,
+      latestMessageAt: _parseDateTime(json['latest_message_at']),
+      cached: json['cached'] == true,
+    );
+  }
+}
+
+class AgentAuditLogEntry {
+  final String auditId;
+  final String requestId;
+  final String tool;
+  final String action;
+  final String scope;
+  final String? source;
+  final String? prompt;
+  final String? paramsHash;
+  final bool consentRequired;
+  final bool consentApproved;
+  final String executionStatus;
+  final String? targetLabel;
+  final String? resultRefId;
+  final String? resultRefType;
+  final DateTime? createdAt;
+  final DateTime? executedAt;
+
+  AgentAuditLogEntry({
+    required this.auditId,
+    required this.requestId,
+    required this.tool,
+    required this.action,
+    required this.scope,
+    this.source,
+    this.prompt,
+    this.paramsHash,
+    this.consentRequired = true,
+    this.consentApproved = false,
+    required this.executionStatus,
+    this.targetLabel,
+    this.resultRefId,
+    this.resultRefType,
+    this.createdAt,
+    this.executedAt,
+  });
+
+  factory AgentAuditLogEntry.fromJson(Map<String, dynamic> json) {
+    return AgentAuditLogEntry(
+      auditId: (json['audit_id'] ?? '').toString(),
+      requestId: (json['request_id'] ?? '').toString(),
+      tool: (json['tool'] ?? '').toString(),
+      action: (json['action'] ?? '').toString(),
+      scope: (json['scope'] ?? '').toString(),
+      source: _readNullableString(json['source']),
+      prompt: _readNullableString(json['prompt']),
+      paramsHash: _readNullableString(json['params_hash']),
+      consentRequired: json['consent_required'] != false,
+      consentApproved: json['consent_approved'] == true,
+      executionStatus: (json['execution_status'] ?? '').toString(),
+      targetLabel: _readNullableString(json['target_label']),
+      resultRefId: _readNullableString(json['result_ref_id']),
+      resultRefType: _readNullableString(json['result_ref_type']),
+      createdAt: _parseDateTime(json['created_at']),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentAuditLogListResult {
+  final String userId;
+  final int limit;
+  final int totalCount;
+  final List<AgentAuditLogEntry> items;
+  final DateTime? fetchedAt;
+
+  AgentAuditLogListResult({
+    required this.userId,
+    required this.limit,
+    required this.totalCount,
+    this.items = const [],
+    this.fetchedAt,
+  });
+
+  factory AgentAuditLogListResult.fromJson(Map<String, dynamic> json) {
+    return AgentAuditLogListResult(
+      userId: (json['user_id'] ?? '').toString(),
+      limit: (json['limit'] as num?)?.toInt() ?? 0,
+      totalCount: (json['total_count'] as num?)?.toInt() ?? 0,
+      items: (json['items'] is List)
+          ? (json['items'] as List)
+                .whereType<Map>()
+                .map((item) => AgentAuditLogEntry.fromJson(
+                      Map<String, dynamic>.from(item),
+                    ))
+                .toList()
+          : const <AgentAuditLogEntry>[],
+      fetchedAt: _parseDateTime(json['fetched_at']),
+    );
+  }
+}
+
+class AgentTodoCreatePreview {
+  final String title;
+  final String? note;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final int priority;
+  final String priorityLabel;
+  final List<int> reminderMinutes;
+  final List<String> reminderLabels;
+  final String visibility;
+
+  AgentTodoCreatePreview({
+    required this.title,
+    this.note,
+    this.dueDate,
+    this.formattedDueDate,
+    this.priority = 1,
+    this.priorityLabel = '보통',
+    this.reminderMinutes = const [],
+    this.reminderLabels = const [],
+    this.visibility = 'private',
+  });
+
+  factory AgentTodoCreatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentTodoCreatePreview(
+      title: (json['title'] ?? '').toString(),
+      note: _readNullableString(json['note']),
+      dueDate: _parseDateTime(json['due_date']),
+      formattedDueDate: _readNullableString(json['formatted_due_date']),
+      priority: (json['priority'] as num?)?.toInt() ?? 1,
+      priorityLabel: (json['priority_label'] ?? '보통').toString(),
+      reminderMinutes: (json['reminder_minutes'] is List)
+          ? (json['reminder_minutes'] as List)
+                .map((item) => (item as num?)?.toInt() ?? 0)
+                .where((item) => item >= 0)
+                .toList()
+          : const <int>[],
+      reminderLabels: _readStringList(json['reminder_labels'], max: 4),
+      visibility: (json['visibility'] ?? 'private').toString(),
+    );
+  }
+}
+
+class AgentTodoCreatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentTodoCreatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentTodoCreatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentTodoCreatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentTodoCreatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentTodoCreatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentTodoCreateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? todoId;
+  final String title;
+  final String? note;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final String priorityLabel;
+  final String visibility;
+  final DateTime? executedAt;
+
+  AgentTodoCreateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.todoId,
+    required this.title,
+    this.note,
+    this.dueDate,
+    this.formattedDueDate,
+    this.priorityLabel = '보통',
+    this.visibility = 'private',
+    this.executedAt,
+  });
+
+  bool get created => approved && status == 'created' && todoId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentTodoCreateDecisionResult.fromJson(Map<String, dynamic> json) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentTodoCreateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      todoId: _readNullableString(resultJson['todo_id']),
+      title: (resultJson['title'] ?? '').toString(),
+      note: _readNullableString(resultJson['note']),
+      dueDate: _parseDateTime(resultJson['due_date']),
+      formattedDueDate: _readNullableString(resultJson['formatted_due_date']),
+      priorityLabel: (resultJson['priority_label'] ?? '보통').toString(),
+      visibility: (resultJson['visibility'] ?? 'private').toString(),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentTodoCompletePreview {
+  final String todoId;
+  final String title;
+  final String? note;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final String visibility;
+  final String? matchReason;
+
+  AgentTodoCompletePreview({
+    required this.todoId,
+    required this.title,
+    this.note,
+    this.dueDate,
+    this.formattedDueDate,
+    this.visibility = 'private',
+    this.matchReason,
+  });
+
+  factory AgentTodoCompletePreview.fromJson(Map<String, dynamic> json) {
+    return AgentTodoCompletePreview(
+      todoId: (json['todo_id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      note: _readNullableString(json['note']),
+      dueDate: _parseDateTime(json['due_date']),
+      formattedDueDate: _readNullableString(json['formatted_due_date']),
+      visibility: (json['visibility'] ?? 'private').toString(),
+      matchReason: _readNullableString(json['match_reason']),
+    );
+  }
+}
+
+class AgentTodoCompletePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentTodoCompletePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentTodoCompletePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentTodoCompletePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentTodoCompletePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentTodoCompletePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentTodoCompleteDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String todoId;
+  final String title;
+  final String? note;
+  final DateTime? completedAt;
+  final String? formattedDueDate;
+  final String visibility;
+  final DateTime? executedAt;
+
+  AgentTodoCompleteDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    required this.todoId,
+    required this.title,
+    this.note,
+    this.completedAt,
+    this.formattedDueDate,
+    this.visibility = 'private',
+    this.executedAt,
+  });
+
+  bool get completed =>
+      approved &&
+      (status == 'completed' || status == 'already_completed') &&
+      todoId.trim().isNotEmpty;
+  bool get cancelled => !approved && status == 'cancelled';
+  bool get alreadyCompleted => approved && status == 'already_completed';
+
+  factory AgentTodoCompleteDecisionResult.fromJson(Map<String, dynamic> json) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentTodoCompleteDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      todoId: (resultJson['todo_id'] ?? '').toString(),
+      title: (resultJson['title'] ?? '').toString(),
+      note: _readNullableString(resultJson['note']),
+      completedAt: _parseDateTime(resultJson['completed_at']),
+      formattedDueDate: _readNullableString(resultJson['formatted_due_date']),
+      visibility: (resultJson['visibility'] ?? 'private').toString(),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentCalendarCreatePreview {
+  final String title;
+  final String? note;
+  final String eventType;
+  final String eventTypeLabel;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final DateTime? startTime;
+  final DateTime? endTime;
+  final String? formattedTimeRange;
+  final bool hasTime;
+  final String? location;
+  final List<int> reminderMinutes;
+  final List<String> reminderLabels;
+  final String visibility;
+
+  AgentCalendarCreatePreview({
+    required this.title,
+    this.note,
+    this.eventType = 'schedule',
+    this.eventTypeLabel = '일정',
+    this.dueDate,
+    this.formattedDueDate,
+    this.startTime,
+    this.endTime,
+    this.formattedTimeRange,
+    this.hasTime = false,
+    this.location,
+    this.reminderMinutes = const [],
+    this.reminderLabels = const [],
+    this.visibility = 'private',
+  });
+
+  factory AgentCalendarCreatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentCalendarCreatePreview(
+      title: (json['title'] ?? '').toString(),
+      note: _readNullableString(json['note']),
+      eventType: (json['event_type'] ?? 'schedule').toString(),
+      eventTypeLabel: (json['event_type_label'] ?? '일정').toString(),
+      dueDate: _parseDateTime(json['due_date']),
+      formattedDueDate: _readNullableString(json['formatted_due_date']),
+      startTime: _parseDateTime(json['start_time']),
+      endTime: _parseDateTime(json['end_time']),
+      formattedTimeRange: _readNullableString(json['formatted_time_range']),
+      hasTime: json['has_time'] == true,
+      location: _readNullableString(json['location']),
+      reminderMinutes: (json['reminder_minutes'] is List)
+          ? (json['reminder_minutes'] as List)
+                .map((item) => (item as num?)?.toInt() ?? 0)
+                .where((item) => item >= 0)
+                .toList()
+          : const <int>[],
+      reminderLabels: _readStringList(json['reminder_labels'], max: 4),
+      visibility: (json['visibility'] ?? 'private').toString(),
+    );
+  }
+}
+
+class AgentCalendarCreatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentCalendarCreatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentCalendarCreatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentCalendarCreatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentCalendarCreatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentCalendarCreatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentCalendarCreateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? eventId;
+  final String title;
+  final String eventType;
+  final String eventTypeLabel;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final String? formattedTimeRange;
+  final String? location;
+  final String visibility;
+  final DateTime? executedAt;
+
+  AgentCalendarCreateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.eventId,
+    required this.title,
+    this.eventType = 'schedule',
+    this.eventTypeLabel = '일정',
+    this.dueDate,
+    this.formattedDueDate,
+    this.formattedTimeRange,
+    this.location,
+    this.visibility = 'private',
+    this.executedAt,
+  });
+
+  bool get created => approved && status == 'created' && eventId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentCalendarCreateDecisionResult.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentCalendarCreateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      eventId: _readNullableString(resultJson['event_id']),
+      title: (resultJson['title'] ?? '').toString(),
+      eventType: (resultJson['event_type'] ?? 'schedule').toString(),
+      eventTypeLabel: (resultJson['event_type_label'] ?? '일정').toString(),
+      dueDate: _parseDateTime(resultJson['due_date']),
+      formattedDueDate: _readNullableString(resultJson['formatted_due_date']),
+      formattedTimeRange: _readNullableString(
+        resultJson['formatted_time_range'],
+      ),
+      location: _readNullableString(resultJson['location']),
+      visibility: (resultJson['visibility'] ?? 'private').toString(),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentCalendarUpdatePreview {
+  final String eventId;
+  final String originalTitle;
+  final String? originalFormattedDueDate;
+  final String? originalFormattedTimeRange;
+  final String title;
+  final String? note;
+  final String eventType;
+  final String eventTypeLabel;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final DateTime? startTime;
+  final DateTime? endTime;
+  final String? formattedTimeRange;
+  final bool hasTime;
+  final String? location;
+  final List<int> reminderMinutes;
+  final List<String> reminderLabels;
+  final String visibility;
+  final String? matchReason;
+
+  AgentCalendarUpdatePreview({
+    required this.eventId,
+    required this.originalTitle,
+    this.originalFormattedDueDate,
+    this.originalFormattedTimeRange,
+    required this.title,
+    this.note,
+    this.eventType = 'schedule',
+    this.eventTypeLabel = '일정',
+    this.dueDate,
+    this.formattedDueDate,
+    this.startTime,
+    this.endTime,
+    this.formattedTimeRange,
+    this.hasTime = false,
+    this.location,
+    this.reminderMinutes = const [],
+    this.reminderLabels = const [],
+    this.visibility = 'private',
+    this.matchReason,
+  });
+
+  factory AgentCalendarUpdatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentCalendarUpdatePreview(
+      eventId: (json['event_id'] ?? '').toString(),
+      originalTitle: (json['original_title'] ?? '').toString(),
+      originalFormattedDueDate: _readNullableString(
+        json['original_formatted_due_date'],
+      ),
+      originalFormattedTimeRange: _readNullableString(
+        json['original_formatted_time_range'],
+      ),
+      title: (json['title'] ?? '').toString(),
+      note: _readNullableString(json['note']),
+      eventType: (json['event_type'] ?? 'schedule').toString(),
+      eventTypeLabel: (json['event_type_label'] ?? '일정').toString(),
+      dueDate: _parseDateTime(json['due_date']),
+      formattedDueDate: _readNullableString(json['formatted_due_date']),
+      startTime: _parseDateTime(json['start_time']),
+      endTime: _parseDateTime(json['end_time']),
+      formattedTimeRange: _readNullableString(json['formatted_time_range']),
+      hasTime: json['has_time'] == true,
+      location: _readNullableString(json['location']),
+      reminderMinutes: (json['reminder_minutes'] is List)
+          ? (json['reminder_minutes'] as List)
+                .map((item) => (item as num?)?.toInt() ?? 0)
+                .where((item) => item >= 0)
+                .toList()
+          : const <int>[],
+      reminderLabels: _readStringList(json['reminder_labels'], max: 4),
+      visibility: (json['visibility'] ?? 'private').toString(),
+      matchReason: _readNullableString(json['match_reason']),
+    );
+  }
+}
+
+class AgentCalendarUpdatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentCalendarUpdatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentCalendarUpdatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentCalendarUpdatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentCalendarUpdatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentCalendarUpdatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentCalendarUpdateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? eventId;
+  final String title;
+  final String eventType;
+  final String eventTypeLabel;
+  final DateTime? dueDate;
+  final String? formattedDueDate;
+  final String? formattedTimeRange;
+  final String? location;
+  final String visibility;
+  final DateTime? executedAt;
+
+  AgentCalendarUpdateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.eventId,
+    required this.title,
+    this.eventType = 'schedule',
+    this.eventTypeLabel = '일정',
+    this.dueDate,
+    this.formattedDueDate,
+    this.formattedTimeRange,
+    this.location,
+    this.visibility = 'private',
+    this.executedAt,
+  });
+
+  bool get updated => approved && status == 'updated' && eventId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentCalendarUpdateDecisionResult.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentCalendarUpdateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      eventId: _readNullableString(resultJson['event_id']),
+      title: (resultJson['title'] ?? '').toString(),
+      eventType: (resultJson['event_type'] ?? 'schedule').toString(),
+      eventTypeLabel: (resultJson['event_type_label'] ?? '일정').toString(),
+      dueDate: _parseDateTime(resultJson['due_date']),
+      formattedDueDate: _readNullableString(resultJson['formatted_due_date']),
+      formattedTimeRange: _readNullableString(
+        resultJson['formatted_time_range'],
+      ),
+      location: _readNullableString(resultJson['location']),
+      visibility: (resultJson['visibility'] ?? 'private').toString(),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
+}
+
+class AgentReminderCreatePreview {
+  final String message;
+  final DateTime? remindAt;
+  final String? formattedRemindAt;
+  final String? recurrence;
+  final String? recurrenceLabel;
+
+  AgentReminderCreatePreview({
+    required this.message,
+    this.remindAt,
+    this.formattedRemindAt,
+    this.recurrence,
+    this.recurrenceLabel,
+  });
+
+  factory AgentReminderCreatePreview.fromJson(Map<String, dynamic> json) {
+    return AgentReminderCreatePreview(
+      message: (json['message'] ?? '').toString(),
+      remindAt: _parseDateTime(json['remind_at']),
+      formattedRemindAt: _readNullableString(json['formatted_remind_at']),
+      recurrence: _readNullableString(json['recurrence']),
+      recurrenceLabel: _readNullableString(json['recurrence_label']),
+    );
+  }
+}
+
+class AgentReminderCreatePreviewResult {
+  final String requestId;
+  final String paramsHash;
+  final String summary;
+  final AgentReminderCreatePreview preview;
+  final bool consentRequired;
+  final DateTime? generatedAt;
+
+  AgentReminderCreatePreviewResult({
+    required this.requestId,
+    required this.paramsHash,
+    required this.summary,
+    required this.preview,
+    this.consentRequired = true,
+    this.generatedAt,
+  });
+
+  factory AgentReminderCreatePreviewResult.fromJson(Map<String, dynamic> json) {
+    final previewJson = json['preview'] is Map
+        ? Map<String, dynamic>.from(json['preview'])
+        : <String, dynamic>{};
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+
+    return AgentReminderCreatePreviewResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      paramsHash: (json['params_hash'] ?? '').toString(),
+      summary: (json['summary'] ?? '').toString(),
+      preview: AgentReminderCreatePreview.fromJson(previewJson),
+      consentRequired: consentJson['required'] != false,
+      generatedAt: _parseDateTime(json['generated_at']),
+    );
+  }
+}
+
+class AgentReminderCreateDecisionResult {
+  final String requestId;
+  final String auditId;
+  final bool approved;
+  final String status;
+  final String? reminderId;
+  final String message;
+  final DateTime? remindAt;
+  final String? formattedRemindAt;
+  final String? recurrence;
+  final String? recurrenceLabel;
+  final DateTime? executedAt;
+
+  AgentReminderCreateDecisionResult({
+    required this.requestId,
+    required this.auditId,
+    required this.approved,
+    required this.status,
+    this.reminderId,
+    required this.message,
+    this.remindAt,
+    this.formattedRemindAt,
+    this.recurrence,
+    this.recurrenceLabel,
+    this.executedAt,
+  });
+
+  bool get created => approved && status == 'created' && reminderId != null;
+  bool get cancelled => !approved && status == 'cancelled';
+
+  factory AgentReminderCreateDecisionResult.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    final consentJson = json['consent'] is Map
+        ? Map<String, dynamic>.from(json['consent'])
+        : <String, dynamic>{};
+    final resultJson = json['result'] is Map
+        ? Map<String, dynamic>.from(json['result'])
+        : <String, dynamic>{};
+
+    return AgentReminderCreateDecisionResult(
+      requestId: (json['request_id'] ?? '').toString(),
+      auditId: (json['audit_id'] ?? '').toString(),
+      approved: consentJson['approved'] == true,
+      status: (resultJson['status'] ?? '').toString(),
+      reminderId: _readNullableString(resultJson['reminder_id']),
+      message: (resultJson['message'] ?? '').toString(),
+      remindAt: _parseDateTime(resultJson['remind_at']),
+      formattedRemindAt: _readNullableString(resultJson['formatted_remind_at']),
+      recurrence: _readNullableString(resultJson['recurrence']),
+      recurrenceLabel: _readNullableString(resultJson['recurrence_label']),
+      executedAt: _parseDateTime(json['executed_at']),
+    );
+  }
 }
 
 /// 사업 분석 결과

@@ -6,7 +6,12 @@ from fastapi.responses import JSONResponse
 import time
 
 from config import get_settings
-from routers import summary_router, business_router, psychology_router, memo_router, jobs_router
+from routers.agent import router as agent_router
+from routers.business import router as business_router
+from routers.jobs import router as jobs_router
+from routers.memo import router as memo_router
+from routers.psychology import router as psychology_router
+from routers.summary import router as summary_router
 
 settings = get_settings()
 
@@ -65,6 +70,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # 라우터 등록
 app.include_router(summary_router)
+app.include_router(agent_router)
 app.include_router(business_router)
 app.include_router(psychology_router)
 app.include_router(memo_router)

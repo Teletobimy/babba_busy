@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/module_provider.dart';
 import '../../shared/providers/notification_settings_provider.dart';
 import '../../shared/providers/update_provider.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
 import '../../shared/widgets/member_avatar.dart';
 import '../../shared/widgets/update_dialog.dart';
 import '../auth/widgets/group_setup_dialog.dart';
@@ -21,6 +23,7 @@ import '../../shared/providers/group_provider.dart';
 import '../../shared/providers/stealth_provider.dart';
 import '../../shared/providers/home_layout_provider.dart';
 import '../../shared/providers/badge_provider.dart';
+import '../../shared/services/analytics_service.dart';
 
 String _getEventTypeDescription(TodoEventType type) {
   switch (type) {
@@ -42,6 +45,7 @@ class SettingsScreen extends ConsumerWidget {
     final currentGroup = ref.watch(smartCurrentFamilyProvider);
     final members = ref.watch(smartMembersProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final showAiDiagnostics = kDebugMode || currentMember?.role == 'admin';
 
     return Scaffold(
       body: SafeArea(
@@ -63,319 +67,382 @@ class SettingsScreen extends ConsumerWidget {
               // 프로필 카드
               if (currentMember != null)
                 AppCard(
-                  child: Row(
-                    children: [
-                      MemberAvatar(
-                        member: currentMember,
-                        size: 60,
-                      ),
-                      const SizedBox(width: AppTheme.spacingM),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              currentMember.name,
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              currentMember.email,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryLight.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                currentMember.role == 'admin' ? '관리자' : '멤버',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.primaryLight,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Text(
-                                  ref.watch(currentTitleProvider),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '🏅 ${ref.watch(earnedBadgeCountProvider)}개',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => _showEditProfileDialog(
-                          context,
-                          ref,
-                          currentMember.name,
-                          currentMember.color,
-                        ),
-                        icon: const Icon(Iconsax.edit_2),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideY(begin: 0.1),
-              
-              // 그룹 정보 (프로필 바로 아래에 배치)
-              if (currentGroup != null) ...[
-                const SizedBox(height: AppTheme.spacingM),
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                      child: Row(
                         children: [
-                          Icon(Iconsax.home_hashtag, size: 20, color: AppColors.primaryLight),
-                          const SizedBox(width: 8),
-                          Text(
-                            '참여 중인 그룹',
-                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppTheme.spacingM),
-                      Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                            ),
-                            child: const Icon(
-                              Iconsax.buildings,
-                              color: AppColors.primaryLight,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
+                          MemberAvatar(member: currentMember, size: 60),
+                          const SizedBox(width: AppTheme.spacingM),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                Text(
+                                  currentMember.name,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  currentMember.email,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primaryLight.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    currentMember.role == 'admin'
+                                        ? '관리자'
+                                        : '멤버',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.primaryLight,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
                                 Row(
                                   children: [
-                                    Flexible(
-                                      child: Text(
-                                        currentGroup.name,
-                                        style: Theme.of(context).textTheme.titleSmall,
-                                        overflow: TextOverflow.ellipsis,
+                                    Text(
+                                      ref.watch(currentTitleProvider),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.orange,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                    const SizedBox(width: 4),
-                                    InkWell(
-                                      onTap: () => _showEditFamilyNameDialog(
-                                        context, 
-                                        ref, 
-                                        currentGroup.id, 
-                                        currentGroup.name
-                                      ),
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(4.0),
-                                        child: Icon(
-                                          Iconsax.edit_2, 
-                                          size: 14, 
-                                          color: AppColors.textSecondaryLight,
-                                        ),
-                                      ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      '🏅 ${ref.watch(earnedBadgeCountProvider)}개',
+                                      style: const TextStyle(fontSize: 12),
                                     ),
                                   ],
-                                ),
-                                Text(
-                                  '구성원 ${members.length}명',
-                                  style: Theme.of(context).textTheme.bodySmall,
                                 ),
                               ],
                             ),
                           ),
+                          IconButton(
+                            onPressed: () => _showEditProfileDialog(
+                              context,
+                              ref,
+                              currentMember.name,
+                              currentMember.color,
+                            ),
+                            icon: const Icon(Iconsax.edit_2),
+                          ),
                         ],
                       ),
-                      const SizedBox(height: AppTheme.spacingM),
-                      const Divider(),
-                      const SizedBox(height: AppTheme.spacingM),
-                      // 초대 코드
-                      Row(
+                    )
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 100.ms)
+                    .slideY(begin: 0.1),
+
+              // 그룹 정보 (프로필 바로 아래에 배치)
+              if (currentGroup != null) ...[
+                const SizedBox(height: AppTheme.spacingM),
+                AppCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Iconsax.key, size: 18),
-                          const SizedBox(width: 8),
-                          const Text('초대 코드: '),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryLight.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              currentGroup.inviteCode,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
+                          Row(
+                            children: [
+                              Icon(
+                                Iconsax.home_hashtag,
+                                size: 20,
                                 color: AppColors.primaryLight,
-                                letterSpacing: 1.5,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '참여 중인 그룹',
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppTheme.spacingM),
+                          Row(
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(
+                                    AppTheme.radiusSmall,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Iconsax.buildings,
+                                  color: AppColors.primaryLight,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            currentGroup.name,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.titleSmall,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        InkWell(
+                                          onTap: () =>
+                                              _showEditFamilyNameDialog(
+                                                context,
+                                                ref,
+                                                currentGroup.id,
+                                                currentGroup.name,
+                                              ),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(4.0),
+                                            child: Icon(
+                                              Iconsax.edit_2,
+                                              size: 14,
+                                              color:
+                                                  AppColors.textSecondaryLight,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      '구성원 ${members.length}명',
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppTheme.spacingM),
+                          const Divider(),
+                          const SizedBox(height: AppTheme.spacingM),
+                          // 초대 코드
+                          Row(
+                            children: [
+                              const Icon(Iconsax.key, size: 18),
+                              const SizedBox(width: 8),
+                              const Text('초대 코드: '),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryLight.withValues(
+                                    alpha: 0.1,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  currentGroup.inviteCode,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.primaryLight,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: () async {
+                                  await Clipboard.setData(
+                                    ClipboardData(
+                                      text: currentGroup.inviteCode,
+                                    ),
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('초대 코드가 복사되었습니다'),
+                                      ),
+                                    );
+                                  }
+                                },
+                                icon: const Icon(Iconsax.copy, size: 16),
+                                label: const Text(
+                                  '복사',
+                                  style: TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: AppTheme.spacingS),
+                          Text(
+                            '구성원 목록',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleSmall?.copyWith(fontSize: 13),
+                          ),
+                          const SizedBox(height: AppTheme.spacingS),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: members
+                                .map(
+                                  (member) => MemberAvatar(
+                                    member: member,
+                                    size: 36,
+                                    showName: true,
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          const SizedBox(height: AppTheme.spacingL),
+                          const Divider(),
+                          const SizedBox(height: AppTheme.spacingM),
+                          // 캘린더 공유 설정
+                          Text(
+                            '캘린더 공유 설정',
+                            style: Theme.of(
+                              context,
+                            ).textTheme.titleSmall?.copyWith(fontSize: 13),
+                          ),
+                          const SizedBox(height: AppTheme.spacingS),
+                          Text(
+                            '이 그룹에 공유할 일정 타입을 선택하세요',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: AppTheme.spacingM),
+                          ...TodoEventType.values.map((type) {
+                            final currentMembership = ref.watch(
+                              currentMembershipProvider,
+                            );
+                            final isShared =
+                                currentMembership?.sharedEventTypes.contains(
+                                  type.value,
+                                ) ??
+                                false;
+
+                            return CheckboxListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              value: isShared,
+                              onChanged: (value) async {
+                                if (currentMembership == null) return;
+
+                                final updatedTypes = List<String>.from(
+                                  currentMembership.sharedEventTypes,
+                                );
+                                if (value == true) {
+                                  if (!updatedTypes.contains(type.value)) {
+                                    updatedTypes.add(type.value);
+                                  }
+                                } else {
+                                  updatedTypes.remove(type.value);
+                                }
+
+                                try {
+                                  await updateMembershipSharedEventTypes(
+                                    ref,
+                                    currentMembership.id,
+                                    updatedTypes,
+                                  );
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          '${type.label} 공유 설정이 업데이트되었습니다',
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('설정 업데이트 실패: $e'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                              title: Text(type.label),
+                              subtitle: Text(_getEventTypeDescription(type)),
+                            );
+                          }),
+                          const SizedBox(height: AppTheme.spacingM),
+                          // 다른 그룹 추가 버튼
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                showDialog(
+                                  context: context,
+                                  builder: (context) =>
+                                      const GroupSetupDialog(),
+                                );
+                              },
+                              icon: const Icon(Iconsax.add_square, size: 18),
+                              label: const Text('다른 그룹 추가하거나 참여하기'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                side: BorderSide(
+                                  color: AppColors.primaryLight.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: () async {
-                              await Clipboard.setData(
-                                ClipboardData(text: currentGroup.inviteCode),
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('초대 코드가 복사되었습니다')),
-                                );
-                              }
-                            },
-                            icon: const Icon(Iconsax.copy, size: 16),
-                            label: const Text('복사', style: TextStyle(fontSize: 12)),
+                          const SizedBox(height: AppTheme.spacingS),
+                          // 그룹 나가기 버튼
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () => _showLeaveGroupDialog(
+                                context,
+                                ref,
+                                currentGroup.id,
+                                currentGroup.name,
+                                members.length,
+                              ),
+                              icon: const Icon(Iconsax.logout, size: 18),
+                              label: const Text('이 그룹에서 나가기'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                foregroundColor: AppColors.errorLight,
+                                side: BorderSide(
+                                  color: AppColors.errorLight.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      Text(
-                        '구성원 목록',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 13),
-                      ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: members
-                            .map((member) => MemberAvatar(
-                                  member: member,
-                                  size: 36,
-                                  showName: true,
-                                ))
-                            .toList(),
-                      ),
-                      const SizedBox(height: AppTheme.spacingL),
-                      const Divider(),
-                      const SizedBox(height: AppTheme.spacingM),
-                      // 캘린더 공유 설정
-                      Text(
-                        '캘린더 공유 설정',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(fontSize: 13),
-                      ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      Text(
-                        '이 그룹에 공유할 일정 타입을 선택하세요',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: AppTheme.spacingM),
-                      ...TodoEventType.values.map((type) {
-                        final currentMembership = ref.watch(currentMembershipProvider);
-                        final isShared = currentMembership?.sharedEventTypes.contains(type.value) ?? false;
-
-                        return CheckboxListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          value: isShared,
-                          onChanged: (value) async {
-                            if (currentMembership == null) return;
-
-                            final updatedTypes = List<String>.from(currentMembership.sharedEventTypes);
-                            if (value == true) {
-                              if (!updatedTypes.contains(type.value)) {
-                                updatedTypes.add(type.value);
-                              }
-                            } else {
-                              updatedTypes.remove(type.value);
-                            }
-
-                            try {
-                              await updateMembershipSharedEventTypes(
-                                ref,
-                                currentMembership.id,
-                                updatedTypes,
-                              );
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('${type.label} 공유 설정이 업데이트되었습니다'),
-                                    duration: const Duration(seconds: 1),
-                                  ),
-                                );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('설정 업데이트 실패: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                          title: Text(type.label),
-                          subtitle: Text(_getEventTypeDescription(type)),
-                        );
-                      }),
-                      const SizedBox(height: AppTheme.spacingM),
-                      // 다른 그룹 추가 버튼
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => const GroupSetupDialog(),
-                            );
-                          },
-                          icon: const Icon(Iconsax.add_square, size: 18),
-                          label: const Text('다른 그룹 추가하거나 참여하기'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            side: BorderSide(color: AppColors.primaryLight.withValues(alpha: 0.5)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: AppTheme.spacingS),
-                      // 그룹 나가기 버튼
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _showLeaveGroupDialog(
-                            context,
-                            ref,
-                            currentGroup.id,
-                            currentGroup.name,
-                            members.length,
-                          ),
-                          icon: const Icon(Iconsax.logout, size: 18),
-                          label: const Text('이 그룹에서 나가기'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            foregroundColor: AppColors.errorLight,
-                            side: BorderSide(color: AppColors.errorLight.withValues(alpha: 0.5)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideY(begin: 0.1),
+                    )
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 200.ms)
+                    .slideY(begin: 0.1),
               ],
               const SizedBox(height: AppTheme.spacingL),
 
@@ -395,64 +462,82 @@ class SettingsScreen extends ConsumerWidget {
               ).animate().fadeIn(duration: 300.ms, delay: 300.ms),
               const SizedBox(height: AppTheme.spacingS),
               AppCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    // 테마 설정
-                    _SettingsTile(
-                      icon: Iconsax.moon,
-                      title: '테마',
-                      trailing: DropdownButton<ThemeMode>(
-                        value: themeMode,
-                        underline: const SizedBox(),
-                        items: const [
-                          DropdownMenuItem(
-                            value: ThemeMode.system,
-                            child: Text('시스템 설정'),
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        // 테마 설정
+                        _SettingsTile(
+                          icon: Iconsax.moon,
+                          title: '테마',
+                          trailing: DropdownButton<ThemeMode>(
+                            value: themeMode,
+                            underline: const SizedBox(),
+                            items: const [
+                              DropdownMenuItem(
+                                value: ThemeMode.system,
+                                child: Text('시스템 설정'),
+                              ),
+                              DropdownMenuItem(
+                                value: ThemeMode.light,
+                                child: Text('라이트'),
+                              ),
+                              DropdownMenuItem(
+                                value: ThemeMode.dark,
+                                child: Text('다크'),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              if (value != null) {
+                                ref.read(themeModeProvider.notifier).state =
+                                    value;
+                              }
+                            },
                           ),
-                          DropdownMenuItem(
-                            value: ThemeMode.light,
-                            child: Text('라이트'),
+                        ),
+                        const Divider(height: 1),
+                        // 스텔스 모드
+                        _SettingsTile(
+                          icon: Iconsax.eye_slash,
+                          title: '스텔스 모드',
+                          subtitle: '비공개 할일 숨기기',
+                          trailing: Switch(
+                            value: ref.watch(stealthModeProvider),
+                            onChanged: (v) =>
+                                ref.read(stealthModeProvider.notifier).state =
+                                    v,
                           ),
-                          DropdownMenuItem(
-                            value: ThemeMode.dark,
-                            child: Text('다크'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            ref.read(themeModeProvider.notifier).state = value;
-                          }
-                        },
-                      ),
+                        ),
+                        const Divider(height: 1),
+                        // 홈 화면 커스터마이징
+                        _SettingsTile(
+                          icon: Iconsax.element_3,
+                          title: '홈 화면 커스터마이징',
+                          subtitle: '섹션 표시/숨기기',
+                          onTap: () => _showHomeLayoutSheet(context, ref),
+                        ),
+                        const Divider(height: 1),
+                        // 알림 설정
+                        const _NotificationSettingsSection(),
+                      ],
                     ),
-                    const Divider(height: 1),
-                    // 스텔스 모드
-                    _SettingsTile(
-                      icon: Iconsax.eye_slash,
-                      title: '스텔스 모드',
-                      subtitle: '비공개 할일 숨기기',
-                      trailing: Switch(
-                        value: ref.watch(stealthModeProvider),
-                        onChanged: (v) =>
-                            ref.read(stealthModeProvider.notifier).state = v,
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    // 홈 화면 커스터마이징
-                    _SettingsTile(
-                      icon: Iconsax.element_3,
-                      title: '홈 화면 커스터마이징',
-                      subtitle: '섹션 표시/숨기기',
-                      onTap: () => _showHomeLayoutSheet(context, ref),
-                    ),
-                    const Divider(height: 1),
-                    // 알림 설정
-                    const _NotificationSettingsSection(),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 300.ms, delay: 350.ms).slideY(begin: 0.1),
+                  )
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 350.ms)
+                  .slideY(begin: 0.1),
               const SizedBox(height: AppTheme.spacingL),
+
+              if (showAiDiagnostics) ...[
+                Text(
+                  'AI 진단',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ).animate().fadeIn(duration: 300.ms, delay: 360.ms),
+                const SizedBox(height: AppTheme.spacingS),
+                const _AiRolloutDiagnosticsCard()
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 380.ms)
+                    .slideY(begin: 0.1),
+                const SizedBox(height: AppTheme.spacingL),
+              ],
 
               // 기타
               Text(
@@ -461,55 +546,60 @@ class SettingsScreen extends ConsumerWidget {
               ).animate().fadeIn(duration: 300.ms, delay: 350.ms),
               const SizedBox(height: AppTheme.spacingS),
               AppCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    // 버전 정보 및 업데이트 체크
-                    const _VersionTile(),
-                    const Divider(height: 1),
-                    _SettingsTile(
-                      icon: Iconsax.message_question,
-                      title: '도움말',
-                      onTap: () {},
-                    ),
-                    const Divider(height: 1),
-                    _SettingsTile(
-                      icon: Iconsax.logout,
-                      title: '로그아웃',
-                      titleColor: AppColors.errorLight,
-                      onTap: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: const Text('로그아웃'),
-                            content: const Text('로그아웃 하시겠습니까?'),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(false),
-                                child: const Text('취소'),
+                    padding: EdgeInsets.zero,
+                    child: Column(
+                      children: [
+                        // 버전 정보 및 업데이트 체크
+                        const _VersionTile(),
+                        const Divider(height: 1),
+                        _SettingsTile(
+                          icon: Iconsax.message_question,
+                          title: '도움말',
+                          onTap: () {},
+                        ),
+                        const Divider(height: 1),
+                        _SettingsTile(
+                          icon: Iconsax.logout,
+                          title: '로그아웃',
+                          titleColor: AppColors.errorLight,
+                          onTap: () async {
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('로그아웃'),
+                                content: const Text('로그아웃 하시겠습니까?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(false),
+                                    child: const Text('취소'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(true),
+                                    child: const Text('로그아웃'),
+                                  ),
+                                ],
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(true),
-                                child: const Text('로그아웃'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          ref.read(authServiceProvider).signOut();
-                        }
-                      },
+                            );
+                            if (confirm == true) {
+                              ref.read(authServiceProvider).signOut();
+                            }
+                          },
+                        ),
+                        const Divider(height: 1),
+                        _SettingsTile(
+                          icon: Iconsax.trash,
+                          title: '계정 삭제',
+                          titleColor: AppColors.errorLight,
+                          onTap: () => _showDeleteAccountDialog(context, ref),
+                        ),
+                      ],
                     ),
-                    const Divider(height: 1),
-                    _SettingsTile(
-                      icon: Iconsax.trash,
-                      title: '계정 삭제',
-                      titleColor: AppColors.errorLight,
-                      onTap: () => _showDeleteAccountDialog(context, ref),
-                    ),
-                  ],
-                ),
-              ).animate().fadeIn(duration: 300.ms, delay: 400.ms).slideY(begin: 0.1),
+                  )
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 400.ms)
+                  .slideY(begin: 0.1),
 
               const SizedBox(height: AppTheme.spacingXXL),
             ],
@@ -520,13 +610,13 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   Future<void> _showEditFamilyNameDialog(
-    BuildContext context, 
-    WidgetRef ref, 
-    String familyId, 
-    String currentName
+    BuildContext context,
+    WidgetRef ref,
+    String familyId,
+    String currentName,
   ) async {
     final controller = TextEditingController(text: currentName);
-    
+
     final result = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -556,15 +646,15 @@ class SettingsScreen extends ConsumerWidget {
       try {
         await ref.read(authServiceProvider).updateFamilyName(familyId, result);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('그룹 이름이 수정되었습니다')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('그룹 이름이 수정되었습니다')));
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('수정 실패: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('수정 실패: $e')));
         }
       }
     }
@@ -585,7 +675,24 @@ class SettingsScreen extends ConsumerWidget {
     String avatarType = currentMember?.avatarType ?? 'color';
     String? avatarEmoji = currentMember?.avatarEmoji;
 
-    const emojiOptions = ['😀', '😎', '🥰', '🤗', '😇', '🦊', '🐱', '🐶', '🌸', '⭐', '🎯', '🔥', '💎', '🌈', '🎨', '🎵'];
+    const emojiOptions = [
+      '😀',
+      '😎',
+      '🥰',
+      '🤗',
+      '😇',
+      '🦊',
+      '🐱',
+      '🐶',
+      '🌸',
+      '⭐',
+      '🎯',
+      '🔥',
+      '💎',
+      '🌈',
+      '🎨',
+      '🎵',
+    ];
 
     // 미리 정의된 색상 목록
     const profileColors = [
@@ -619,10 +726,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 // 아바타 타입 선택
-                Text(
-                  '아바타 스타일',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text('아바타 스타일', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: AppTheme.spacingS),
                 SegmentedButton<String>(
                   segments: const [
@@ -639,10 +743,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 if (avatarType == 'emoji') ...[
-                  Text(
-                    '이모지 선택',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
+                  Text('이모지 선택', style: Theme.of(context).textTheme.titleSmall),
                   const SizedBox(height: AppTheme.spacingS),
                   Wrap(
                     spacing: 8,
@@ -657,41 +758,56 @@ class SettingsScreen extends ConsumerWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: isSelected
-                                ? Border.all(color: AppColors.primaryLight, width: 3)
-                                : Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                                ? Border.all(
+                                    color: AppColors.primaryLight,
+                                    width: 3,
+                                  )
+                                : Border.all(
+                                    color: Colors.grey.withValues(alpha: 0.3),
+                                  ),
                           ),
                           alignment: Alignment.center,
-                          child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                          child: Text(
+                            emoji,
+                            style: const TextStyle(fontSize: 22),
+                          ),
                         ),
                       );
                     }).toList(),
                   ),
                   const SizedBox(height: AppTheme.spacingM),
                 ],
-                Text(
-                  '프로필 색상',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
+                Text('프로필 색상', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: AppTheme.spacingS),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: profileColors.map((color) {
-                    final isSelected = selectedColor.toUpperCase() == color.toUpperCase();
+                    final isSelected =
+                        selectedColor.toUpperCase() == color.toUpperCase();
                     return GestureDetector(
                       onTap: () => setState(() => selectedColor = color),
                       child: Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: Color(int.parse(color.replaceFirst('#', '0xFF'))),
+                          color: Color(
+                            int.parse(color.replaceFirst('#', '0xFF')),
+                          ),
                           shape: BoxShape.circle,
                           border: isSelected
-                              ? Border.all(color: AppColors.primaryLight, width: 3)
+                              ? Border.all(
+                                  color: AppColors.primaryLight,
+                                  width: 3,
+                                )
                               : null,
                         ),
                         child: isSelected
-                            ? const Icon(Icons.check, color: Colors.white, size: 20)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 20,
+                              )
                             : null,
                       ),
                     );
@@ -726,11 +842,19 @@ class SettingsScreen extends ConsumerWidget {
       if (membership == null) return;
 
       final nameChanged = result['name'] != currentName;
-      final colorChanged = result['color']!.toUpperCase() != currentColor.toUpperCase();
-      final avatarTypeChanged = result['avatarType'] != (currentMember?.avatarType ?? 'color');
-      final avatarEmojiChanged = result['avatarEmoji'] != (currentMember?.avatarEmoji ?? '');
+      final colorChanged =
+          result['color']!.toUpperCase() != currentColor.toUpperCase();
+      final avatarTypeChanged =
+          result['avatarType'] != (currentMember?.avatarType ?? 'color');
+      final avatarEmojiChanged =
+          result['avatarEmoji'] != (currentMember?.avatarEmoji ?? '');
 
-      if (!nameChanged && !colorChanged && !avatarTypeChanged && !avatarEmojiChanged) return;
+      if (!nameChanged &&
+          !colorChanged &&
+          !avatarTypeChanged &&
+          !avatarEmojiChanged) {
+        return;
+      }
 
       try {
         await updateMembershipProfile(
@@ -742,15 +866,15 @@ class SettingsScreen extends ConsumerWidget {
           avatarEmoji: avatarEmojiChanged ? result['avatarEmoji'] : null,
         );
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('프로필이 수정되었습니다')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('프로필이 수정되었습니다')));
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('수정 실패: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('수정 실패: $e')));
         }
       }
     }
@@ -773,7 +897,8 @@ class SettingsScreen extends ConsumerWidget {
                 // 핸들
                 const SizedBox(height: 12),
                 Container(
-                  width: 40, height: 4,
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(2),
@@ -784,9 +909,13 @@ class SettingsScreen extends ConsumerWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('홈 화면 섹션', style: Theme.of(context).textTheme.titleMedium),
+                      Text(
+                        '홈 화면 섹션',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                       TextButton(
-                        onPressed: () => ref.read(homeLayoutProvider.notifier).reset(),
+                        onPressed: () =>
+                            ref.read(homeLayoutProvider.notifier).reset(),
                         child: const Text('초기화'),
                       ),
                     ],
@@ -796,8 +925,9 @@ class SettingsScreen extends ConsumerWidget {
                   child: ReorderableListView.builder(
                     scrollController: scrollController,
                     itemCount: layout.order.length,
-                    onReorder: (oldIndex, newIndex) =>
-                        ref.read(homeLayoutProvider.notifier).reorder(oldIndex, newIndex),
+                    onReorder: (oldIndex, newIndex) => ref
+                        .read(homeLayoutProvider.notifier)
+                        .reorder(oldIndex, newIndex),
                     itemBuilder: (context, index) {
                       final section = layout.order[index];
                       final visible = layout.isVisible(section);
@@ -807,8 +937,9 @@ class SettingsScreen extends ConsumerWidget {
                         title: Text(section.label),
                         trailing: Switch(
                           value: visible,
-                          onChanged: (_) =>
-                              ref.read(homeLayoutProvider.notifier).toggleSection(section),
+                          onChanged: (_) => ref
+                              .read(homeLayoutProvider.notifier)
+                              .toggleSection(section),
                         ),
                       );
                     },
@@ -901,9 +1032,9 @@ class SettingsScreen extends ConsumerWidget {
             message = '그룹 "$groupName"에서 나왔습니다.';
           }
 
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(message)));
 
           // 남은 그룹이 없으면 온보딩으로 이동
           if (!hasRemainingGroups) {
@@ -983,7 +1114,8 @@ class SettingsScreen extends ConsumerWidget {
 
     // 2단계: 재인증 및 최종 확인
     final user = ref.read(currentUserProvider);
-    final isGoogleUser = user?.providerData.any((p) => p.providerId == 'google.com') ?? false;
+    final isGoogleUser =
+        user?.providerData.any((p) => p.providerId == 'google.com') ?? false;
 
     bool reauthenticated = false;
 
@@ -1008,7 +1140,9 @@ class SettingsScreen extends ConsumerWidget {
       );
 
       if (confirmReauth == true && context.mounted) {
-        reauthenticated = await ref.read(authServiceProvider).reauthenticateWithGoogle();
+        reauthenticated = await ref
+            .read(authServiceProvider)
+            .reauthenticateWithGoogle();
       }
     } else {
       // 이메일 사용자: 비밀번호 입력
@@ -1048,7 +1182,9 @@ class SettingsScreen extends ConsumerWidget {
       passwordController.dispose();
 
       if (password != null && password.isNotEmpty && context.mounted) {
-        reauthenticated = await ref.read(authServiceProvider).reauthenticateWithPassword(password);
+        reauthenticated = await ref
+            .read(authServiceProvider)
+            .reauthenticateWithPassword(password);
       }
     }
 
@@ -1076,9 +1212,7 @@ class SettingsScreen extends ConsumerWidget {
             const Text('최종 확인'),
           ],
         ),
-        content: const Text(
-          '계정을 영구적으로 삭제합니다.\n\n삭제 후에는 복구할 수 없습니다.',
-        ),
+        content: const Text('계정을 영구적으로 삭제합니다.\n\n삭제 후에는 복구할 수 없습니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1119,9 +1253,9 @@ class SettingsScreen extends ConsumerWidget {
       // 로딩 다이얼로그 닫기
       if (context.mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('계정이 삭제되었습니다.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('계정이 삭제되었습니다.')));
       }
       // 로그인 화면으로 이동 (GoRouter가 자동 처리)
     } catch (e) {
@@ -1172,7 +1306,8 @@ class _SettingsTile extends StatelessWidget {
             Icon(
               icon,
               size: 22,
-              color: titleColor ??
+              color:
+                  titleColor ??
                   (isDark
                       ? AppColors.textPrimaryDark
                       : AppColors.textPrimaryLight),
@@ -1184,10 +1319,7 @@ class _SettingsTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      color: titleColor,
-                      fontSize: 15,
-                    ),
+                    style: TextStyle(color: titleColor, fontSize: 15),
                   ),
                   if (subtitle != null)
                     Text(
@@ -1235,20 +1367,16 @@ class _ModuleManagementCard extends ConsumerWidget {
             padding: const EdgeInsets.all(AppTheme.spacingM),
             child: Row(
               children: [
-                Icon(
-                  Iconsax.box_1,
-                  size: 20,
-                  color: const Color(0xFF5B8DEF),
-                ),
+                Icon(Iconsax.box_1, size: 20, color: const Color(0xFF5B8DEF)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     '도구 탭에서 사용할 기능을 선택하세요',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight,
-                        ),
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
                   ),
                 ),
               ],
@@ -1258,12 +1386,14 @@ class _ModuleManagementCard extends ConsumerWidget {
           ...AppModule.values.map((module) {
             final info = modules[module];
             final isEnabled = info?.isEnabled ?? true;
-            
+
             return _ModuleTile(
               module: module,
               isEnabled: isEnabled,
               onChanged: (value) {
-                ref.read(enabledModulesProvider.notifier).setModuleEnabled(module, value);
+                ref
+                    .read(enabledModulesProvider.notifier)
+                    .setModuleEnabled(module, value);
               },
             );
           }),
@@ -1320,17 +1450,17 @@ class _ModuleTile extends StatelessWidget {
                     color: isEnabled
                         ? null
                         : (isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight),
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight),
                   ),
                 ),
                 Text(
                   _getModuleDescription(module),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: isDark
-                            ? AppColors.textSecondaryDark
-                            : AppColors.textSecondaryLight,
-                      ),
+                    color: isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight,
+                  ),
                 ),
               ],
             ),
@@ -1443,10 +1573,7 @@ class _NotificationSettingsSection extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          '알림',
-                          style: TextStyle(fontSize: 15),
-                        ),
+                        const Text('알림', style: TextStyle(fontSize: 15)),
                         Text(
                           settings.enabled ? '알림이 켜져 있습니다' : '알림이 꺼져 있습니다',
                           style: TextStyle(
@@ -1572,10 +1699,7 @@ class _NotificationSubTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                Text(title, style: const TextStyle(fontSize: 14)),
                 Text(
                   subtitle,
                   style: TextStyle(
@@ -1685,10 +1809,7 @@ class _VersionTileState extends ConsumerState<_VersionTile> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '앱 버전',
-                    style: TextStyle(fontSize: 15),
-                  ),
+                  const Text('앱 버전', style: TextStyle(fontSize: 15)),
                   Text(
                     _version.isEmpty ? '로딩 중...' : 'v$_version',
                     style: TextStyle(
@@ -1712,15 +1833,454 @@ class _VersionTileState extends ConsumerState<_VersionTile> {
                 onPressed: _checkForUpdate,
                 child: Text(
                   '업데이트 확인',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.coral,
-                  ),
+                  style: TextStyle(fontSize: 13, color: AppColors.coral),
                 ),
               ),
           ],
         ),
       ),
     );
+  }
+}
+
+enum _AiRolloutHealth { healthy, caution, blocked }
+
+class _AiRolloutDiagnosticsCard extends ConsumerWidget {
+  const _AiRolloutDiagnosticsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final flags = ref.watch(babbaAiFeatureFlagsProvider);
+    final analytics = AnalyticsService();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+
+    return ValueListenableBuilder<List<AnalyticsEventRecord>>(
+      valueListenable: analytics.recentEventsListenable,
+      builder: (context, records, _) {
+        final aiEvents = records
+            .where((record) => record.name.startsWith('ai_'))
+            .toList()
+            .reversed
+            .toList();
+        final failureCount = aiEvents.where(_isFailureEvent).length;
+        final fallbackCount = aiEvents
+            .where(
+              (record) =>
+                  record.name == 'ai_summary_rendered' &&
+                  record.parameters['fallback_used'] == true,
+            )
+            .length;
+        final deniedCount = aiEvents
+            .where(
+              (record) =>
+                  record.name == 'ai_consent_outcome' &&
+                  record.parameters['outcome'] != 'approved',
+            )
+            .length;
+        final approvedCount = aiEvents
+            .where(
+              (record) =>
+                  record.name == 'ai_consent_outcome' &&
+                  record.parameters['outcome'] == 'approved',
+            )
+            .length;
+
+        final health = !flags.hasRemoteAiApi || failureCount > 0
+            ? _AiRolloutHealth.blocked
+            : fallbackCount > 0
+            ? _AiRolloutHealth.caution
+            : _AiRolloutHealth.healthy;
+        final healthColor = switch (health) {
+          _AiRolloutHealth.healthy => AppColors.successLight,
+          _AiRolloutHealth.caution => Colors.orange,
+          _AiRolloutHealth.blocked => AppColors.errorLight,
+        };
+        final healthLabel = switch (health) {
+          _AiRolloutHealth.healthy => '정상',
+          _AiRolloutHealth.caution => '주의',
+          _AiRolloutHealth.blocked => '차단',
+        };
+        final stopReasons = <String>[
+          if (!flags.hasRemoteAiApi) 'AI API 미연결',
+          if (failureCount > 0) '실패 이벤트 $failureCount건',
+          if (flags.hasRemoteAiApi && failureCount == 0 && fallbackCount > 0)
+            'fallback 발생 $fallbackCount건',
+        ];
+
+        return AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: healthColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(
+                      health == _AiRolloutHealth.healthy
+                          ? Iconsax.shield_tick
+                          : health == _AiRolloutHealth.caution
+                          ? Iconsax.warning_2
+                          : Iconsax.close_circle,
+                      color: healthColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: AppTheme.spacingM),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Rollout Diagnostics',
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          stopReasons.isEmpty
+                              ? '현재 세션 기준 canary stop-condition이 감지되지 않았습니다.'
+                              : stopReasons.join(' • '),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: mutedColor, height: 1.4),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: analytics.clearRecentEvents,
+                    icon: const Icon(Iconsax.trash, size: 16),
+                    label: const Text('지우기'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: mutedColor,
+                      minimumSize: const Size(0, 36),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingM),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _AiDiagChip(
+                    label: '상태',
+                    value: healthLabel,
+                    color: healthColor,
+                  ),
+                  _AiDiagChip(
+                    label: 'AI API',
+                    value: flags.hasRemoteAiApi ? '연결됨' : '미연결',
+                    color: flags.hasRemoteAiApi
+                        ? AppColors.successLight
+                        : AppColors.errorLight,
+                  ),
+                  _AiDiagChip(
+                    label: '실패',
+                    value: '$failureCount',
+                    color: failureCount > 0
+                        ? AppColors.errorLight
+                        : AppColors.successLight,
+                  ),
+                  _AiDiagChip(
+                    label: 'Fallback',
+                    value: '$fallbackCount',
+                    color: fallbackCount > 0
+                        ? Colors.orange
+                        : AppColors.successLight,
+                  ),
+                  _AiDiagChip(
+                    label: '승인',
+                    value: '$approvedCount',
+                    color: AppColors.primaryLight,
+                  ),
+                  _AiDiagChip(
+                    label: '비승인',
+                    value: '$deniedCount',
+                    color: AppColors.textSecondaryLight,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingL),
+              Text(
+                'Capability 상태',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: BabbaAiCapability.values
+                    .map(
+                      (capability) => _AiCapabilityPill(
+                        label: _capabilityLabel(capability),
+                        enabled: flags.isEnabled(capability),
+                        disabledReason: flags.disabledReasonFor(capability),
+                      ),
+                    )
+                    .toList(),
+              ),
+              const SizedBox(height: AppTheme.spacingL),
+              Row(
+                children: [
+                  Text(
+                    '최근 AI 이벤트',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${aiEvents.length}개',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: mutedColor),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppTheme.spacingS),
+              if (aiEvents.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(AppTheme.spacingM),
+                  decoration: BoxDecoration(
+                    color:
+                        (isDark
+                                ? AppColors.backgroundDark
+                                : AppColors.backgroundLight)
+                            .withValues(alpha: 0.8),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
+                  child: Text(
+                    '아직 수집된 AI 이벤트가 없습니다. 요약 카드 확장이나 AI 액션을 한 번 실행해 보세요.',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: mutedColor),
+                  ),
+                )
+              else
+                ...aiEvents
+                    .take(8)
+                    .map(
+                      (record) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: _AiEventRow(record: record),
+                      ),
+                    ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isFailureEvent(AnalyticsEventRecord record) {
+    if (record.name == 'ai_preview_failed' ||
+        record.name == 'ai_summary_failed') {
+      return true;
+    }
+    if (record.name != 'ai_action_result') {
+      return false;
+    }
+    final outcome = (record.parameters['outcome'] ?? '').toString();
+    return outcome == 'failed';
+  }
+
+  String _capabilityLabel(BabbaAiCapability capability) {
+    return switch (capability) {
+      BabbaAiCapability.homeSummary => '홈 요약',
+      BabbaAiCapability.familyChatSummary => '가족 채팅 요약',
+      BabbaAiCapability.memoSummary => '메모 요약',
+      BabbaAiCapability.todoActions => '할 일 액션',
+      BabbaAiCapability.calendarActions => '일정 액션',
+      BabbaAiCapability.noteActions => '메모 액션',
+      BabbaAiCapability.reminderActions => '리마인더 액션',
+    };
+  }
+}
+
+class _AiDiagChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _AiDiagChip({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+      ),
+      child: Text(
+        '$label $value',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: color,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _AiCapabilityPill extends StatelessWidget {
+  final String label;
+  final bool enabled;
+  final String? disabledReason;
+
+  const _AiCapabilityPill({
+    required this.label,
+    required this.enabled,
+    this.disabledReason,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled
+        ? AppColors.successLight
+        : AppColors.textSecondaryLight;
+
+    return Tooltip(
+      message: enabled ? '$label 활성화' : (disabledReason ?? '$label 비활성화'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusFull),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          '$label ${enabled ? 'ON' : 'OFF'}',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: color,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiEventRow extends StatelessWidget {
+  final AnalyticsEventRecord record;
+
+  const _AiEventRow({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedColor = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final tool = (record.parameters['tool_requested'] ?? '').toString();
+    final source = (record.parameters['trigger_source'] ?? '').toString();
+    final outcome = (record.parameters['outcome'] ?? '').toString();
+    final statusColor = outcome == 'failed'
+        ? AppColors.errorLight
+        : outcome == 'approved'
+        ? AppColors.successLight
+        : outcome == 'denied' || outcome == 'dismissed'
+        ? Colors.orange
+        : AppColors.primaryLight;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppTheme.spacingM),
+      decoration: BoxDecoration(
+        color: (isDark ? AppColors.backgroundDark : AppColors.backgroundLight)
+            .withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  record.name,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Text(
+                _formatTime(record.timestamp),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: mutedColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            [
+              if (tool.isNotEmpty) 'tool=$tool',
+              if (source.isNotEmpty) 'source=$source',
+              if (outcome.isNotEmpty) 'outcome=$outcome',
+            ].join('  '),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: mutedColor),
+          ),
+          if (record.parameters.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              _summarizeParameters(record.parameters),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: mutedColor, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime timestamp) {
+    final hour = timestamp.hour.toString().padLeft(2, '0');
+    final minute = timestamp.minute.toString().padLeft(2, '0');
+    final second = timestamp.second.toString().padLeft(2, '0');
+    return '$hour:$minute:$second';
+  }
+
+  String _summarizeParameters(Map<String, dynamic> parameters) {
+    final entries = parameters.entries
+        .where(
+          (entry) => !{
+            'tool_requested',
+            'trigger_source',
+            'outcome',
+          }.contains(entry.key),
+        )
+        .take(4)
+        .map((entry) => '${entry.key}=${entry.value}')
+        .toList();
+    return entries.join('  ');
   }
 }

@@ -6,10 +6,12 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/providers/ai_feature_flag_provider.dart';
 import '../../shared/providers/smart_provider.dart';
 import '../../shared/providers/holiday_provider.dart';
 import '../../shared/providers/calendar_filter_provider.dart';
 import '../../shared/providers/group_provider.dart';
+import '../../shared/services/ai_telemetry_service.dart';
 import '../../shared/models/todo_item.dart';
 import '../../shared/models/holiday.dart';
 import '../../shared/models/family_member.dart';
@@ -19,6 +21,9 @@ import '../../shared/utils/color_utils.dart';
 import 'widgets/todo_card.dart';
 import 'widgets/week_view.dart';
 import 'widgets/day_view.dart';
+import 'widgets/ai_calendar_action_entry_sheet.dart';
+import 'widgets/ai_calendar_create_sheet.dart';
+import 'widgets/ai_calendar_update_sheet.dart';
 import 'widgets/calendar_filter_sheet.dart';
 import '../todo/widgets/add_todo_sheet.dart';
 import '../../shared/providers/todo_provider.dart';
@@ -60,6 +65,11 @@ class CalendarScreen extends ConsumerWidget {
     final selectedTodos = ref.watch(smartTodosForDateProvider(selectedDate));
     final members = ref.watch(smartMembersProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final aiFlags = ref.watch(babbaAiFeatureFlagsProvider);
+    final calendarAiEnabled = aiFlags.calendarActionsAvailable;
+    final calendarAiColor = calendarAiEnabled
+        ? AppColors.calendarColor
+        : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight);
 
     // Reset calendar member filter when group changes
     ref.listen(currentMembershipProvider, (previous, next) {
@@ -93,8 +103,11 @@ class CalendarScreen extends ConsumerWidget {
                           size: 22,
                         ),
                         onPressed: () {
-                          ref.read(crossGroupViewEnabledProvider.notifier).state =
-                              !ref.read(crossGroupViewEnabledProvider);
+                          ref
+                              .read(crossGroupViewEnabledProvider.notifier)
+                              .state = !ref.read(
+                            crossGroupViewEnabledProvider,
+                          );
                         },
                         tooltip: ref.watch(crossGroupViewEnabledProvider)
                             ? '현재 그룹만 보기'
@@ -135,15 +148,21 @@ class CalendarScreen extends ConsumerWidget {
 
             // 뷰 모드 세그먼트 컨트롤
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacingL),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppTheme.spacingL,
+              ),
               child: SegmentedButton<CalendarViewMode>(
                 segments: const [
-                  ButtonSegment(value: CalendarViewMode.month, label: Text('월')),
+                  ButtonSegment(
+                    value: CalendarViewMode.month,
+                    label: Text('월'),
+                  ),
                   ButtonSegment(value: CalendarViewMode.week, label: Text('주')),
                   ButtonSegment(value: CalendarViewMode.day, label: Text('일')),
                 ],
                 selected: {viewMode},
-                onSelectionChanged: (s) => ref.read(calendarViewModeProvider.notifier).state = s.first,
+                onSelectionChanged: (s) =>
+                    ref.read(calendarViewModeProvider.notifier).state = s.first,
                 style: ButtonStyle(
                   visualDensity: VisualDensity.compact,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -169,10 +188,25 @@ class CalendarScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddTodoSheet(context, selectedDate),
-        backgroundColor: AppColors.calendarColorOnWhite,
-        child: const Icon(Iconsax.add),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'calendar_ai_fab',
+            onPressed: () => _showAiCalendarSheet(context, ref, selectedDate),
+            backgroundColor: calendarAiColor,
+            foregroundColor: Colors.white,
+            child: const Icon(Iconsax.magic_star),
+          ),
+          const SizedBox(height: AppTheme.spacingS),
+          FloatingActionButton(
+            heroTag: 'calendar_add_fab',
+            onPressed: () => _showAddTodoSheet(context, selectedDate),
+            backgroundColor: AppColors.calendarColorOnWhite,
+            child: const Icon(Iconsax.add),
+          ),
+        ],
       ).animate().scale(delay: 500.ms, duration: 300.ms),
     );
   }
@@ -250,6 +284,70 @@ class CalendarScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _showAiCalendarSheet(
+    BuildContext context,
+    WidgetRef ref,
+    DateTime selectedDate,
+  ) async {
+    final aiFlags = ref.read(babbaAiFeatureFlagsProvider);
+    final telemetry = ref.read(aiTelemetryServiceProvider);
+    telemetry.logEntryTapped(
+      toolName: BabbaAiTools.calendarActions,
+      source: 'calendar_ai_fab',
+      capability: BabbaAiCapability.calendarActions,
+      enabled: aiFlags.calendarActionsAvailable,
+    );
+    if (!aiFlags.calendarActionsAvailable) {
+      telemetry.logPreviewBlocked(
+        toolName: BabbaAiTools.calendarActions,
+        source: 'calendar_ai_fab',
+        capability: BabbaAiCapability.calendarActions,
+        reason:
+            aiFlags.disabledReasonFor(BabbaAiCapability.calendarActions) ??
+            'AI 개인 일정 액션을 현재 사용할 수 없습니다.',
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            aiFlags.disabledReasonFor(BabbaAiCapability.calendarActions) ??
+                'AI 개인 일정 액션을 현재 사용할 수 없습니다.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final mode = await showAiCalendarActionEntrySheet(context: context);
+    if (mode == null || !context.mounted) return;
+
+    if (mode == AiCalendarActionEntryMode.create) {
+      final result = await showAiCalendarCreateSheet(
+        context: context,
+        selectedDate: selectedDate,
+      );
+      if (result == null || !context.mounted) return;
+
+      if (result.created) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI가 "${result.title}" 개인 일정을 추가했어요.')),
+        );
+      }
+      return;
+    }
+
+    final updateResult = await showAiCalendarUpdateSheet(
+      context: context,
+      selectedDate: selectedDate,
+    );
+    if (updateResult == null || !context.mounted) return;
+
+    if (updateResult.updated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI가 "${updateResult.title}" 개인 일정을 수정했어요.')),
+      );
+    }
+  }
+
   void _showTodosPopup(
     BuildContext context,
     WidgetRef ref,
@@ -303,7 +401,8 @@ class _TodosPopup extends ConsumerWidget {
     // ✅ 모달 내부에서 provider watch - 실시간 업데이트!
     final allTodos = ref.watch(smartTodosForDateProvider(date));
     final selectedMemberId = ref.watch(calendarMemberFilterProvider);
-    final todos = selectedMemberId == null ? allTodos
+    final todos = selectedMemberId == null
+        ? allTodos
         : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
 
     return Container(
@@ -654,7 +753,6 @@ class _TodosPopup extends ConsumerWidget {
     );
   }
 }
-
 
 /// 월간 뷰 - 달력만 표시 (일정 목록 제거)
 class _MonthView extends ConsumerWidget {
@@ -1090,5 +1188,4 @@ class _MonthView extends ConsumerWidget {
       }).toList(),
     );
   }
-
 }
