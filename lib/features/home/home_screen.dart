@@ -656,7 +656,10 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                       ),
                     ),
                   )
-                : GestureDetector(
+                : Semantics(
+                    label: '할 일 추가',
+                    button: true,
+                    child: GestureDetector(
                     onTap: () => setState(() => _isEditing = true),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
@@ -701,9 +704,13 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
                       ),
                     ),
                   ),
+                  ),
           ),
           const SizedBox(width: 8),
-          IconButton(
+          Semantics(
+            label: 'AI 빠른 작업',
+            button: true,
+            child: IconButton(
             onPressed: _openAiActionSheet,
             icon: Container(
               padding: const EdgeInsets.all(10),
@@ -716,40 +723,49 @@ class _QuickAddBarState extends ConsumerState<_QuickAddBar> {
               child: Icon(Iconsax.magic_star, color: aiButtonColor, size: 20),
             ),
           ),
+          ),
           const SizedBox(width: 4),
           if (_isEditing)
-            IconButton(
-              onPressed: _submitQuickAdd,
-              icon: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                ),
-                child: const Icon(
-                  Iconsax.send_1,
-                  color: Colors.white,
-                  size: 20,
+            Semantics(
+              label: '할 일 전송',
+              button: true,
+              child: IconButton(
+                onPressed: _submitQuickAdd,
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
+                  child: const Icon(
+                    Iconsax.send_1,
+                    color: Colors.white,
+                    size: 20,
+                  ),
                 ),
               ),
             )
           else
-            IconButton(
-              onPressed: () {
-                showModalBottomSheet(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (context) => const AddTodoSheet(isQuickMode: false),
-                );
-              },
-              icon: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+            Semantics(
+              label: '새 할일 추가',
+              button: true,
+              child: IconButton(
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => const AddTodoSheet(isQuickMode: false),
+                  );
+                },
+                icon: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+                  ),
+                  child: const Icon(Iconsax.add, color: Colors.white, size: 20),
                 ),
-                child: const Icon(Iconsax.add, color: Colors.white, size: 20),
               ),
             ),
         ],

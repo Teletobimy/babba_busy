@@ -40,14 +40,34 @@ class _TodoItemCardState extends ConsumerState<TodoItemCard> {
     if (currentUser == null) return;
     if (!widget.todo.canComplete(currentUser.uid)) return;
 
+    final wasCompleted = widget.todo.isCompleted;
     setState(() => _isCompleting = true);
 
     try {
+      final resolvedId = widget.todo.parentTodoId ?? widget.todo.id;
       await ref.read(todoServiceProvider).toggleTodo(
-        widget.todo.parentTodoId ?? widget.todo.id,
-        !widget.todo.isCompleted,
+        resolvedId,
+        !wasCompleted,
         ownerId: widget.todo.ownerId,
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(wasCompleted ? '완료 취소됨' : '완료!'),
+          duration: const Duration(seconds: 5),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () {
+              ref.read(todoServiceProvider).toggleTodo(
+                resolvedId,
+                wasCompleted, // revert to original state
+                ownerId: widget.todo.ownerId,
+              );
+            },
+          ),
+        ));
+      }
     } finally {
       if (mounted) {
         setState(() => _isCompleting = false);

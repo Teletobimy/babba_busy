@@ -210,52 +210,57 @@ class _AllMembersButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-              border: Border.all(
+    return Semantics(
+      label: '전체 멤버',
+      button: true,
+      selected: isSelected,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                border: Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : (isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight)
+                              .withValues(alpha: 0.3),
+                  width: isSelected ? 3 : 1,
+                ),
+              ),
+              child: Icon(
+                Icons.groups_outlined,
+                size: size * 0.5,
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
                     : (isDark
                         ? AppColors.textSecondaryDark
-                        : AppColors.textSecondaryLight)
-                            .withValues(alpha: 0.3),
-                width: isSelected ? 3 : 1,
+                        : AppColors.textSecondaryLight),
               ),
             ),
-            child: Icon(
-              Icons.groups_outlined,
-              size: size * 0.5,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : (isDark
-                      ? AppColors.textSecondaryDark
-                      : AppColors.textSecondaryLight),
-            ),
-          ),
-          const SizedBox(height: 4),
-          SizedBox(
-            width: size + 16,
-            child: Text(
-              '전체',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                color: Theme.of(context).textTheme.bodySmall?.color,
+            const SizedBox(height: 4),
+            SizedBox(
+              width: size + 16,
+              child: Text(
+                '전체',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

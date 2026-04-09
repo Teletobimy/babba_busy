@@ -62,7 +62,15 @@ class UpcomingEventsCard extends ConsumerWidget {
           // 날짜 결정
           final displayDate = todo.startTime ?? todo.dueDate ?? DateTime.now();
 
-          return AppCard(
+          final dateLabel = DateFormat('M월 d일 EEEE', 'ko_KR').format(displayDate);
+          final timeLabel = todo.hasTime
+              ? DateFormat('a h:mm', 'ko_KR').format(displayDate)
+              : '시간 미정';
+
+          return Semantics(
+            label: '${todo.title}, $dateLabel $timeLabel',
+            button: true,
+            child: AppCard(
             margin: const EdgeInsets.only(bottom: AppTheme.spacingS),
             onTap: () => context.go('/calendar'),
             child: Row(
@@ -184,6 +192,7 @@ class UpcomingEventsCard extends ConsumerWidget {
                   ),
               ],
             ),
+          ),
           );
         }),
       ],

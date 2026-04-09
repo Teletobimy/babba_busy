@@ -12,7 +12,7 @@ class AppColors {
   static const Color backgroundLight = Color(0xFFFDF6EC);   // Warm Cream
   static const Color surfaceLight = Color(0xFFFFFFFF);      // White
   static const Color textPrimaryLight = Color(0xFF3D3D3D);  // Warm Charcoal
-  static const Color textSecondaryLight = Color(0xFF7A7A7A); // Muted Gray
+  static const Color textSecondaryLight = Color(0xFF636363); // WCAG AA 4.5:1+ on #FDF6EC
   static const Color errorLight = Color(0xFFE57373);
   static const Color successLight = Color(0xFF81C784);
 

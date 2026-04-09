@@ -206,7 +206,14 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                 Icons.check,
                                 size: 14,
                                 color: Colors.white,
-                              ).animate().scale(duration: 150.ms).then().shimmer(duration: 400.ms)
+                              ).animate(target: _isCompleting ? 1 : 0).scale(
+                                begin: const Offset(1, 1),
+                                end: const Offset(1.05, 1.05),
+                                duration: 150.ms,
+                              ).then().shimmer(
+                                duration: 400.ms,
+                                color: Colors.white.withValues(alpha: 0.3),
+                              )
                             : null,
                       ),
                     ),
@@ -255,13 +262,13 @@ class _CompactTodoCardState extends ConsumerState<CompactTodoCard>
                                   final badgeColor = diff <= 0 ? AppColors.errorLight : (diff == 1 ? Colors.orange : AppColors.primaryLight);
                                   return Container(
                                     margin: const EdgeInsets.only(left: 4),
-                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                                     decoration: BoxDecoration(
                                       color: badgeColor.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
                                     ),
-                                    child: Text(label, style: TextStyle(fontSize: 12, color: badgeColor, fontWeight: FontWeight.w600)),
+                                    child: Text(label, style: TextStyle(fontSize: 9, color: badgeColor, fontWeight: FontWeight.w600)),
                                   );
                                 }),
                               if (widget.todo.eventType != TodoEventType.todo)
