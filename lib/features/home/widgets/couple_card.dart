@@ -6,9 +6,13 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/providers/smart_provider.dart';
 import '../../../shared/providers/auth_provider.dart';
 import '../../../shared/widgets/member_avatar.dart';
+import '../../../shared/utils/date_utils.dart' as date_utils;
 import '../providers/home_filters.dart';
 
 /// 커플 전용 대시보드 카드 (2인 그룹일 때만 표시)
+///
+/// 파트너의 오늘 할일 진행 상황, 함께하는 할일, 응원 메시지를 표시합니다.
+/// 탭하면 파트너 할일 필터를 토글합니다.
 class CoupleCard extends ConsumerWidget {
   const CoupleCard({super.key});
 
@@ -18,42 +22,51 @@ class CoupleCard extends ConsumerWidget {
     if (members.length != 2) return const SizedBox.shrink();
 
     final currentUser = ref.watch(currentUserProvider);
+    if (currentUser == null) return const SizedBox.shrink();
+
     final partner = members.firstWhere(
-      (m) => m.id != currentUser?.uid,
+      (m) => m.id != currentUser.uid,
       orElse: () => members.last,
     );
 
     final allTodos = ref.watch(smartTodosProvider);
-    final partnerTodos = allTodos
-        .where((t) => t.isAssignedTo(partner.id))
-        .toList();
-    final partnerPending = partnerTodos.where((t) => !t.isCompleted).length;
-    final partnerCompleted = partnerTodos.where((t) => t.isCompleted).length;
-    final partnerTotal = partnerPending + partnerCompleted;
-    final progressRatio = partnerTotal > 0
-        ? partnerCompleted / partnerTotal
-        : 0.0;
+    final today = date_utils.normalizeDate(DateTime.now());
 
-    // 함께 완료한 할일 (둘 다 participants에 포함)
-    final sharedCompleted = allTodos
+    // -- Partner's today stats --
+    final partnerTodosToday = allTodos.where((t) {
+      if (!t.isAssignedTo(partner.id)) return false;
+      final dueDate = t.dueDate;
+      if (dueDate == null) return false;
+      return date_utils.normalizeDate(dueDate).isAtSameMomentAs(today);
+    }).toList();
+    final partnerCompletedToday =
+        partnerTodosToday.where((t) => t.isCompleted).length;
+    final partnerTotalToday = partnerTodosToday.length;
+    final todayProgress =
+        partnerTotalToday > 0 ? partnerCompletedToday / partnerTotalToday : 0.0;
+
+    // -- Partner's overall pending count --
+    final partnerAllPending =
+        allTodos.where((t) => t.isAssignedTo(partner.id) && !t.isCompleted).length;
+
+    // -- Shared todos (both assigned) --
+    final sharedTodos = allTodos
         .where(
           (t) =>
-              t.isCompleted &&
               t.participants.length > 1 &&
-              currentUser != null &&
               t.isAssignedTo(currentUser.uid) &&
               t.isAssignedTo(partner.id),
         )
-        .length;
+        .toList();
+    final sharedPending = sharedTodos.where((t) => !t.isCompleted).length;
+    final sharedCompleted = sharedTodos.where((t) => t.isCompleted).length;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final isFilteredToPartner =
         ref.watch(selectedMemberFilterProvider) == partner.id;
 
     return GestureDetector(
       onTap: () {
-        // 파트너 필터 토글
         final current = ref.read(selectedMemberFilterProvider);
         if (current == partner.id) {
           ref.read(selectedMemberFilterProvider.notifier).state = null;
@@ -67,8 +80,7 @@ class CoupleCard extends ConsumerWidget {
               action: SnackBarAction(
                 label: '해제',
                 onPressed: () =>
-                    ref.read(selectedMemberFilterProvider.notifier).state =
-                        null,
+                    ref.read(selectedMemberFilterProvider.notifier).state = null,
               ),
             ),
           );
@@ -92,7 +104,7 @@ class CoupleCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 헤더
+            // -- Header: avatar + name + shared badge --
             Row(
               children: [
                 MemberAvatar(member: partner, size: 36),
@@ -109,13 +121,22 @@ class CoupleCard extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '할일 $partnerPending개 남음',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        _buildSubtitle(
+                          partnerTotalToday,
+                          partnerCompletedToday,
+                          partnerAllPending,
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                if (sharedCompleted > 0)
+                // Shared todos badge
+                if (sharedPending > 0 || sharedCompleted > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 8,
@@ -135,7 +156,7 @@ class CoupleCard extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '함께 $sharedCompleted개',
+                          '함께 ${sharedPending + sharedCompleted}개',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Colors.pink,
@@ -148,34 +169,90 @@ class CoupleCard extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
-            // 진행률 바
+
+            // -- Progress bar (today) --
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
-                value: progressRatio,
+                value: todayProgress,
                 backgroundColor: isDark
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.black.withValues(alpha: 0.05),
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  progressRatio >= 1.0
+                  todayProgress >= 1.0
                       ? AppColors.successLight
                       : AppColors.accentLight,
                 ),
                 minHeight: 6,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              partnerTotal > 0
-                  ? '${(progressRatio * 100).toInt()}% 완료'
-                  : '아직 할일이 없어요',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(fontSize: 12),
+            const SizedBox(height: 8),
+
+            // -- Stats row --
+            Row(
+              children: [
+                // Today progress text
+                Expanded(
+                  child: Text(
+                    partnerTotalToday > 0
+                        ? '$partnerCompletedToday/$partnerTotalToday 완료 (${(todayProgress * 100).toInt()}%)'
+                        : '오늘 할일 없음',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.textSecondaryDark
+                          : AppColors.textSecondaryLight,
+                    ),
+                  ),
+                ),
+                // Motivational message
+                Text(
+                  _motivationalMessage(
+                    todayProgress,
+                    partnerTotalToday,
+                    sharedCompleted,
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: todayProgress >= 1.0
+                        ? AppColors.successLight
+                        : (isDark
+                            ? AppColors.textSecondaryDark
+                            : AppColors.textSecondaryLight),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// Build a subtitle showing today's count plus overall pending.
+  String _buildSubtitle(int totalToday, int completedToday, int allPending) {
+    if (totalToday == 0 && allPending == 0) {
+      return '할일이 비어있어요';
+    }
+    if (totalToday == 0) {
+      return '전체 $allPending개 남음';
+    }
+    final pendingToday = totalToday - completedToday;
+    return '오늘 $pendingToday개 남음';
+  }
+
+  /// A short motivational message based on partner's progress.
+  String _motivationalMessage(
+    double progress,
+    int totalToday,
+    int sharedCompleted,
+  ) {
+    if (totalToday == 0) return '';
+    if (progress >= 1.0) return '모두 완료!';
+    if (progress >= 0.7) return '거의 다 했어요';
+    if (sharedCompleted > 0) return '함께 잘하고 있어요';
+    if (progress >= 0.3) return '열심히 하는 중';
+    return '화이팅!';
   }
 }

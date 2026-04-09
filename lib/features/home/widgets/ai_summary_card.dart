@@ -262,31 +262,67 @@ class _AiSummaryText extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final aiSummary = ref.watch(aiSummaryProvider);
 
+    final textStyle = TextStyle(
+      color: Colors.white.withValues(alpha: 0.95),
+      fontSize: 13,
+      height: 1.5,
+    );
+
     return aiSummary.when(
-      data: (summary) => Text(
-        summary,
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.95),
-          fontSize: 13,
-          height: 1.5,
-        ),
-      ),
-      loading: () => Text(
-        fallback,
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.95),
-          fontSize: 13,
-          height: 1.5,
-        ),
-      ),
-      error: (_, __) => Text(
-        fallback,
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.95),
-          fontSize: 13,
-          height: 1.5,
-        ),
-      ),
+      data: (summary) => Text(summary, style: textStyle),
+      loading: () => _ShimmerText(fallbackText: fallback, textStyle: textStyle),
+      error: (_, __) => Text(fallback, style: textStyle),
+    );
+  }
+}
+
+/// 로딩 중 shimmer 효과
+class _ShimmerText extends StatefulWidget {
+  final String fallbackText;
+  final TextStyle textStyle;
+
+  const _ShimmerText({required this.fallbackText, required this.textStyle});
+
+  @override
+  State<_ShimmerText> createState() => _ShimmerTextState();
+}
+
+class _ShimmerTextState extends State<_ShimmerText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.4, end: 0.9).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _animation.value,
+          child: Text(
+            '${widget.fallbackText}\n✨ AI가 분석 중...',
+            style: widget.textStyle,
+          ),
+        );
+      },
     );
   }
 }

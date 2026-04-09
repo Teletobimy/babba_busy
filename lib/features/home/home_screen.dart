@@ -350,6 +350,30 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
 
+            // 다가오는 일정
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(AppTheme.spacingL),
+                child: const UpcomingEventsCard()
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 600.ms)
+                    .slideY(begin: 0.1),
+              ),
+            ),
+
+            // 최근 활동
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                child: const ActivityFeedCard().animate().fadeIn(
+                  duration: 400.ms,
+                  delay: 650.ms,
+                ),
+              ),
+            ),
+
             // 완료된 할일 섹션 (접기/펼치기)
             if (completedTodos.isNotEmpty)
               SliverToBoxAdapter(
@@ -367,33 +391,9 @@ class HomeScreen extends ConsumerWidget {
                               .state =
                           !isCompletedExpanded;
                     },
-                  ).animate().fadeIn(duration: 400.ms, delay: 600.ms),
+                  ).animate().fadeIn(duration: 400.ms, delay: 700.ms),
                 ),
               ),
-
-            // 최근 활동
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacingL,
-                ),
-                child: const ActivityFeedCard().animate().fadeIn(
-                  duration: 400.ms,
-                  delay: 650.ms,
-                ),
-              ),
-            ),
-
-            // 다가오는 일정
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(AppTheme.spacingL),
-                child: const UpcomingEventsCard()
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 700.ms)
-                    .slideY(begin: 0.1),
-              ),
-            ),
 
             // D-day 카운터
             SliverToBoxAdapter(
