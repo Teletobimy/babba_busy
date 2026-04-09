@@ -86,6 +86,21 @@ class SettingsScreen extends ConsumerWidget {
                                   currentMember.email,
                                   style: Theme.of(context).textTheme.bodySmall,
                                 ),
+                                if (currentMember.statusMessage != null &&
+                                    currentMember.statusMessage!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '"${currentMember.statusMessage!}"',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontStyle: FontStyle.italic,
+                                      color: Theme.of(context).brightness == Brightness.dark
+                                          ? AppColors.textSecondaryDark
+                                          : AppColors.textSecondaryLight,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
                                 const SizedBox(height: 4),
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -668,10 +683,13 @@ class SettingsScreen extends ConsumerWidget {
     String currentColor,
   ) async {
     final nameController = TextEditingController(text: currentName);
+    final currentMember = ref.read(smartCurrentMemberProvider);
+    final statusController = TextEditingController(
+      text: currentMember?.statusMessage ?? '',
+    );
     String selectedColor = currentColor;
 
     // 현재 멤버의 아바타 정보
-    final currentMember = ref.read(smartCurrentMemberProvider);
     String avatarType = currentMember?.avatarType ?? 'color';
     String? avatarEmoji = currentMember?.avatarEmoji;
 
@@ -723,6 +741,17 @@ class SettingsScreen extends ConsumerWidget {
                     hintText: '이 그룹에서 사용할 이름',
                   ),
                   autofocus: true,
+                ),
+                const SizedBox(height: AppTheme.spacingM),
+                TextField(
+                  controller: statusController,
+                  decoration: const InputDecoration(
+                    labelText: '상태 메시지',
+                    hintText: '지금 기분이나 하고 있는 일',
+                    counterText: '',
+                  ),
+                  maxLength: 30,
+                  maxLines: 1,
                 ),
                 const SizedBox(height: AppTheme.spacingM),
                 // 아바타 타입 선택
@@ -827,6 +856,7 @@ class SettingsScreen extends ConsumerWidget {
                 'color': selectedColor,
                 'avatarType': avatarType,
                 'avatarEmoji': avatarEmoji ?? '',
+                'statusMessage': statusController.text.trim(),
               }),
               child: const Text('저장'),
             ),
@@ -836,6 +866,7 @@ class SettingsScreen extends ConsumerWidget {
     );
 
     nameController.dispose();
+    statusController.dispose();
 
     if (result != null && result['name']!.isNotEmpty) {
       final membership = ref.read(currentMembershipProvider);
@@ -848,11 +879,14 @@ class SettingsScreen extends ConsumerWidget {
           result['avatarType'] != (currentMember?.avatarType ?? 'color');
       final avatarEmojiChanged =
           result['avatarEmoji'] != (currentMember?.avatarEmoji ?? '');
+      final statusChanged =
+          result['statusMessage'] != (currentMember?.statusMessage ?? '');
 
       if (!nameChanged &&
           !colorChanged &&
           !avatarTypeChanged &&
-          !avatarEmojiChanged) {
+          !avatarEmojiChanged &&
+          !statusChanged) {
         return;
       }
 
@@ -864,6 +898,7 @@ class SettingsScreen extends ConsumerWidget {
           color: colorChanged ? result['color'] : null,
           avatarType: avatarTypeChanged ? result['avatarType'] : null,
           avatarEmoji: avatarEmojiChanged ? result['avatarEmoji'] : null,
+          statusMessage: statusChanged ? result['statusMessage'] : null,
         );
         if (context.mounted) {
           ScaffoldMessenger.of(

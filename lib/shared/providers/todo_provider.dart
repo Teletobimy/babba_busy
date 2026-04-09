@@ -11,6 +11,7 @@ import 'auth_provider.dart';
 import 'group_provider.dart';
 import 'holiday_provider.dart';
 import 'calendar_filter_provider.dart';
+import 'cross_group_provider.dart';
 
 // ============================================================================
 // Phase 2: 사용자 중심 Todo Provider 계층
@@ -197,7 +198,7 @@ typedef MonthKey = ({int year, int month});
 /// 특정 월의 확장된 todos (반복 인스턴스 포함)
 /// 메모리 최적화: 최대 31개 인스턴스만 생성 (월 범위)
 final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>((ref, params) {
-  var todos = ref.watch(todosProvider).value ?? [];
+  var todos = ref.watch(crossGroupAwareTodosProvider).value ?? [];
   final holidays = ref.watch(allHolidaysForYearProvider(params.year));
 
   final startOfMonth = DateTime(params.year, params.month, 1);
@@ -206,16 +207,20 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>(
   // 월 범위에 맞게 반복 인스턴스 생성 제한
   todos = _expandRecurringTodos(todos, startOfMonth, endOfMonth, holidays, maxInstancesPerTodo: 31);
 
-  // Apply shared event types filter
-  final memberships = ref.watch(groupMembershipsProvider).valueOrNull ?? [];
-  final membershipByUserId = {for (var m in memberships) m.userId: m};
+  final isCrossGroup = ref.watch(crossGroupViewEnabledProvider);
 
-  todos = todos.where((todo) {
-    if (todo.createdBy.isEmpty) return true;
-    final creatorMembership = membershipByUserId[todo.createdBy];
-    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
-    return sharedTypes.contains(todo.eventType.value);
-  }).toList();
+  // Apply shared event types filter (그룹별 필터 - 크로스 그룹 모드에서는 생략)
+  if (!isCrossGroup) {
+    final memberships = ref.watch(groupMembershipsProvider).valueOrNull ?? [];
+    final membershipByUserId = {for (var m in memberships) m.userId: m};
+
+    todos = todos.where((todo) {
+      if (todo.createdBy.isEmpty) return true;
+      final creatorMembership = membershipByUserId[todo.createdBy];
+      final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
+      return sharedTypes.contains(todo.eventType.value);
+    }).toList();
+  }
 
   // Apply visibility filter: private 일정은 본인만 볼 수 있음
   final currentUserId = ref.watch(currentUserProvider)?.uid;
@@ -226,12 +231,14 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>(
     return true;
   }).toList();
 
-  // Apply calendar group filter
-  final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
-  todos = todos.where((todo) {
-    final groupId = todo.calendarGroupId ?? 'cal_family';
-    return selectedGroups.contains(groupId);
-  }).toList();
+  // Apply calendar group filter (크로스 그룹 모드에서는 생략 - 다른 그룹 todos도 표시)
+  if (!isCrossGroup) {
+    final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
+    todos = todos.where((todo) {
+      final groupId = todo.calendarGroupId ?? 'cal_family';
+      return selectedGroups.contains(groupId);
+    }).toList();
+  }
 
   // Apply completed filter
   final showCompleted = ref.watch(showCompletedInCalendarProvider);
@@ -253,7 +260,7 @@ final normalizedDateKeyProvider = Provider.family<DateTime, DateTime>((ref, date
 final todosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   // 날짜 정규화 (시간 제거)
   final normalizedDate = date_utils.normalizeDate(date);
-  final todos = ref.watch(todosProvider).value ?? [];
+  final todos = ref.watch(crossGroupAwareTodosProvider).value ?? [];
   final holidays = ref.watch(allHolidaysForYearProvider(normalizedDate.year));
   final startOfDay = normalizedDate;
   final endOfDay = startOfDay.add(const Duration(days: 1));

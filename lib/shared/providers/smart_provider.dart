@@ -20,6 +20,7 @@ import 'chat_provider.dart';
 import 'calendar_group_provider.dart';
 import 'memo_provider.dart';
 import 'calendar_filter_provider.dart';
+import 'cross_group_provider.dart';
 import 'stealth_provider.dart';
 
 /// ========================================
@@ -49,6 +50,8 @@ final smartCurrentMemberProvider = Provider<FamilyMember?>((ref) {
     role: membership.role,
     createdAt: membership.joinedAt,
     avatarUrl: userData?.avatarUrl ?? user?.photoURL,
+    statusMessage: membership.statusMessage,
+    statusUpdatedAt: membership.statusUpdatedAt,
   );
 });
 
@@ -71,6 +74,8 @@ final smartMembersProvider = Provider<List<FamilyMember>>((ref) {
     avatarUrl: m.avatarUrl, // Google 프로필 사진 등
     role: m.role,
     createdAt: m.joinedAt,
+    statusMessage: m.statusMessage,
+    statusUpdatedAt: m.statusUpdatedAt,
   )).toList();
 });
 
@@ -167,7 +172,7 @@ final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>
 final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   final targetDate = date_utils.normalizeDate(date);
 
-  var todos = (ref.watch(todosProvider).value ?? []).where((todo) {
+  var todos = (ref.watch(crossGroupAwareTodosProvider).value ?? []).where((todo) {
     if (todo.hasTime || todo.startTime != null) return false;
     if (todo.dueDate == null) return false;
 
@@ -175,14 +180,18 @@ final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateT
     return todoDate.isAtSameMomentAs(targetDate);
   }).toList();
 
-  // sharedEventTypes 필터: 작성자가 해당 타입을 공유하도록 설정했는지 확인
-  final membershipByUserId = ref.watch(_membershipByUserIdProvider);
-  todos = todos.where((todo) {
-    if (todo.createdBy.isEmpty) return true;
-    final creatorMembership = membershipByUserId[todo.createdBy];
-    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
-    return sharedTypes.contains(todo.eventType.value);
-  }).toList();
+  final isCrossGroup = ref.watch(crossGroupViewEnabledProvider);
+
+  // sharedEventTypes 필터 (크로스 그룹 모드에서는 그룹별 공유 타입 필터 생략)
+  if (!isCrossGroup) {
+    final membershipByUserId = ref.watch(_membershipByUserIdProvider);
+    todos = todos.where((todo) {
+      if (todo.createdBy.isEmpty) return true;
+      final creatorMembership = membershipByUserId[todo.createdBy];
+      final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
+      return sharedTypes.contains(todo.eventType.value);
+    }).toList();
+  }
 
   // visibility 필터: private 일정은 본인만 볼 수 있음
   final currentUserId = ref.watch(currentUserProvider)?.uid;

@@ -162,6 +162,57 @@ class CalendarScreen extends ConsumerWidget {
               ),
             ),
 
+            // 크로스 그룹 모드 배너
+            if (ref.watch(crossGroupViewEnabledProvider))
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingL,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacingM,
+                  vertical: AppTheme.spacingXS,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.calendarColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  border: Border.all(
+                    color: AppColors.calendarColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Iconsax.global5,
+                      size: 16,
+                      color: AppColors.calendarColor,
+                    ),
+                    const SizedBox(width: AppTheme.spacingXS),
+                    Expanded(
+                      child: Text(
+                        '전체 그룹의 일정을 표시하고 있습니다',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.calendarColor,
+                              fontWeight: FontWeight.w500,
+                            ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => ref
+                          .read(crossGroupViewEnabledProvider.notifier)
+                          .state = false,
+                      child: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: AppColors.calendarColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (ref.watch(crossGroupViewEnabledProvider))
+              const SizedBox(height: AppTheme.spacingS),
+
             // 뷰 모드 세그먼트 컨트롤
             Padding(
               padding: const EdgeInsets.symmetric(

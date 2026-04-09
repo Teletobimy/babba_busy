@@ -17,9 +17,19 @@ class DdayCard extends ConsumerWidget {
     final upcomingTodos = ref.watch(smartUpcomingExpandedTodosProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 이벤트 타입만 필터 + 7일 이내
+    // 이벤트 타입만 필터 + 30일 이내
     final now = date_utils.normalizeDate(DateTime.now());
-    final events = upcomingTodos.where((t) {
+    final allTodos = ref.watch(smartTodosProvider);
+    // ID 기반 중복 제거: upcomingTodos 우선, allTodos 보완
+    final todoMap = <String, TodoItem>{};
+    for (final t in allTodos) {
+      todoMap[t.id] = t;
+    }
+    for (final t in upcomingTodos) {
+      todoMap[t.id] = t;
+    }
+    final combinedEvents = todoMap.values;
+    final events = combinedEvents.where((t) {
       if (t.eventType != TodoEventType.event) return false;
       final date = t.dueDate ?? t.startTime;
       if (date == null) return false;
@@ -49,6 +59,7 @@ class DdayCard extends ConsumerWidget {
           final date = event.dueDate ?? event.startTime!;
           final diff = date_utils.normalizeDate(date).difference(now).inDays;
           final ddayText = diff == 0 ? 'D-Day' : 'D-$diff';
+          final ddaySubText = diff == 0 ? '오늘!' : '$diff일 남음';
           final ddayColor = diff == 0
               ? AppColors.errorLight
               : diff <= 3
@@ -82,6 +93,14 @@ class DdayCard extends ConsumerWidget {
                           color: ddayColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        ddaySubText,
+                        style: TextStyle(
+                          color: ddayColor.withValues(alpha: 0.7),
+                          fontSize: 9,
                         ),
                       ),
                     ],

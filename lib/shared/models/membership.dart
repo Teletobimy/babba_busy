@@ -12,6 +12,8 @@ class Membership {
   final String? avatarUrl; // 사용자 프로필 사진 URL (Google 등)
   final DateTime joinedAt;
   final List<String> sharedEventTypes; // 공유할 일정 타입 ['todo', 'schedule', 'event']
+  final String? statusMessage; // 상태 메시지
+  final DateTime? statusUpdatedAt; // 상태 메시지 업데이트 시각
 
   Membership({
     required this.id,
@@ -24,6 +26,8 @@ class Membership {
     this.avatarUrl,
     required this.joinedAt,
     this.sharedEventTypes = const ['todo', 'schedule', 'event'], // 기본값: 모든 타입 공유
+    this.statusMessage,
+    this.statusUpdatedAt,
   });
 
   factory Membership.fromFirestore(DocumentSnapshot doc) {
@@ -39,6 +43,8 @@ class Membership {
       avatarUrl: data['avatarUrl'],
       joinedAt: (data['joinedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       sharedEventTypes: _normalizeSharedEventTypes(data['sharedEventTypes']),
+      statusMessage: data['statusMessage'],
+      statusUpdatedAt: (data['statusUpdatedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -62,6 +68,8 @@ class Membership {
       'avatarUrl': avatarUrl,
       'joinedAt': Timestamp.fromDate(joinedAt),
       'sharedEventTypes': sharedEventTypes,
+      'statusMessage': statusMessage,
+      'statusUpdatedAt': statusUpdatedAt != null ? Timestamp.fromDate(statusUpdatedAt!) : null,
     };
   }
 
@@ -76,6 +84,8 @@ class Membership {
     String? avatarUrl,
     DateTime? joinedAt,
     List<String>? sharedEventTypes,
+    String? statusMessage,
+    DateTime? statusUpdatedAt,
   }) {
     return Membership(
       id: id ?? this.id,
@@ -88,6 +98,8 @@ class Membership {
       avatarUrl: avatarUrl ?? this.avatarUrl,
       joinedAt: joinedAt ?? this.joinedAt,
       sharedEventTypes: sharedEventTypes ?? this.sharedEventTypes,
+      statusMessage: statusMessage ?? this.statusMessage,
+      statusUpdatedAt: statusUpdatedAt ?? this.statusUpdatedAt,
     );
   }
 }
