@@ -226,6 +226,13 @@ final expandedTodosForMonthProvider = Provider.family<List<TodoItem>, MonthKey>(
     return true;
   }).toList();
 
+  // Apply calendar group filter
+  final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
+  todos = todos.where((todo) {
+    final groupId = todo.calendarGroupId ?? 'cal_family';
+    return selectedGroups.contains(groupId);
+  }).toList();
+
   // Apply completed filter
   final showCompleted = ref.watch(showCompletedInCalendarProvider);
   if (!showCompleted) {
@@ -390,8 +397,12 @@ List<TodoItem> _generateRecurringInstances(
 DateTime _adjustStartDateForTodo(TodoItem todo, DateTime originalStart, DateTime rangeStart) {
   var current = originalStart;
 
-  while (current.isBefore(rangeStart)) {
-    current = _getNextOccurrenceForTodo(todo, current);
+  int guard = 0;
+  while (current.isBefore(rangeStart) && guard < 1000) {
+    guard++;
+    final next = _getNextOccurrenceForTodo(todo, current);
+    if (!next.isAfter(current)) break; // RecurrenceType.none 등 진행 불가 시 탈출
+    current = next;
   }
 
   return current;

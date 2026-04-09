@@ -38,7 +38,7 @@ enum CalendarViewMode {
 }
 
 /// 선택된 날짜 Provider
-final selectedDateProvider = StateProvider<DateTime>((ref) => DateTime.now());
+final selectedDateProvider = StateProvider<DateTime>((ref) => date_utils.normalizeDate(DateTime.now()));
 
 /// 캘린더 뷰 모드 Provider
 final calendarViewModeProvider = StateProvider<CalendarViewMode>(
@@ -136,7 +136,7 @@ class CalendarScreen extends ConsumerWidget {
                       TextButton(
                         onPressed: () {
                           ref.read(selectedDateProvider.notifier).state =
-                              DateTime.now();
+                              date_utils.normalizeDate(DateTime.now());
                         },
                         child: const Text('오늘'),
                       ),
@@ -1134,11 +1134,15 @@ class _MonthView extends ConsumerWidget {
       uniqueTodos[key] = todo;
     }
 
-    // 멤버별 Todo 개수 집계
+    // 멤버별 Todo 개수 집계 (assigneeId + participants 모두 확인)
     final memberCounts = <String, int>{};
     for (final todo in uniqueTodos.values) {
-      final assignee = todo.assigneeId ?? 'unknown';
-      memberCounts[assignee] = (memberCounts[assignee] ?? 0) + 1;
+      final memberIds = <String>{};
+      if (todo.assigneeId != null) memberIds.add(todo.assigneeId!);
+      memberIds.addAll(todo.participants);
+      if (memberIds.isEmpty) memberIds.add('unknown');
+      final primaryMemberId = memberIds.first;
+      memberCounts[primaryMemberId] = (memberCounts[primaryMemberId] ?? 0) + 1;
     }
 
     return Wrap(

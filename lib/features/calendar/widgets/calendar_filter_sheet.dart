@@ -6,6 +6,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/color_utils.dart';
 import '../../../shared/models/calendar_group.dart';
 import '../../../shared/providers/smart_provider.dart';
+import '../../../shared/providers/calendar_filter_provider.dart';
 
 /// 캘린더 필터 Bottom Sheet
 class CalendarFilterSheet extends ConsumerWidget {

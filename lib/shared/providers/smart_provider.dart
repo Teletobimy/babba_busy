@@ -167,14 +167,45 @@ final smartTimedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>
 final smartUndecidedTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref, date) {
   final targetDate = date_utils.normalizeDate(date);
 
-  final todos = ref.watch(todosProvider).value ?? [];
-  return todos.where((todo) {
+  var todos = (ref.watch(todosProvider).value ?? []).where((todo) {
     if (todo.hasTime || todo.startTime != null) return false;
     if (todo.dueDate == null) return false;
 
     final todoDate = date_utils.normalizeDate(todo.dueDate!);
     return todoDate.isAtSameMomentAs(targetDate);
-  }).toList()..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+  }).toList();
+
+  // sharedEventTypes 필터: 작성자가 해당 타입을 공유하도록 설정했는지 확인
+  final membershipByUserId = ref.watch(_membershipByUserIdProvider);
+  todos = todos.where((todo) {
+    if (todo.createdBy.isEmpty) return true;
+    final creatorMembership = membershipByUserId[todo.createdBy];
+    final sharedTypes = creatorMembership?.sharedEventTypes ?? ['todo', 'schedule', 'event'];
+    return sharedTypes.contains(todo.eventType.value);
+  }).toList();
+
+  // visibility 필터: private 일정은 본인만 볼 수 있음
+  final currentUserId = ref.watch(currentUserProvider)?.uid;
+  todos = todos.where((todo) {
+    if (todo.visibility == TodoVisibility.private) {
+      return todo.ownerId == currentUserId || todo.createdBy == currentUserId;
+    }
+    return true;
+  }).toList();
+
+  // 스텔스 모드: 활성화 시 private 할일 숨기기
+  final stealthMode = ref.watch(stealthModeProvider);
+  if (stealthMode) {
+    todos = todos.where((todo) => todo.visibility != TodoVisibility.private).toList();
+  }
+
+  // 완료 항목 필터 적용
+  final showCompleted = ref.watch(showCompletedInCalendarProvider);
+  if (!showCompleted) {
+    todos = todos.where((t) => !t.isCompleted).toList();
+  }
+
+  return todos..sort((a, b) => a.createdAt.compareTo(b.createdAt));
 });
 
 /// 특정 구성원의 할일
@@ -187,30 +218,6 @@ final smartMemberTodosProvider = Provider.family<List<TodoItem>, String?>((ref, 
 /// 캘린더 그룹 목록
 final smartCalendarGroupsProvider = Provider<List<CalendarGroup>>((ref) {
   return ref.watch(calendarGroupsProvider).value ?? [];
-});
-
-/// 모든 캘린더 그룹 ID (computed provider)
-/// selectedCalendarGroupsProvider의 기본값으로 사용
-final _allCalendarGroupIdsProvider = Provider<Set<String>>((ref) {
-  final groups = ref.watch(smartCalendarGroupsProvider);
-  return groups.map((g) => g.id).toSet();
-});
-
-/// 선택된 캘린더 그룹 ID 목록
-/// 주의: StateProvider에서 다른 provider를 watch하면 무한 루프 위험
-/// 빈 Set으로 초기화하고, 빈 경우 전체 선택으로 처리
-final selectedCalendarGroupsProvider = StateProvider<Set<String>>((ref) {
-  // 빈 Set = 전체 선택 (filteredTodosProvider에서 처리)
-  return <String>{};
-});
-
-/// 실제 선택된 그룹 ID (빈 경우 전체 반환)
-final effectiveSelectedCalendarGroupsProvider = Provider<Set<String>>((ref) {
-  final selected = ref.watch(selectedCalendarGroupsProvider);
-  if (selected.isEmpty) {
-    return ref.watch(_allCalendarGroupIdsProvider);
-  }
-  return selected;
 });
 
 /// 필터링된 Todo (선택된 캘린더 그룹 기반)
@@ -266,6 +273,13 @@ final smartTodosForDateProvider = Provider.family<List<TodoItem>, DateTime>((ref
       return todo.ownerId == currentUserId || todo.createdBy == currentUserId;
     }
     return true;
+  }).toList();
+
+  // Apply calendar group filter
+  final selectedGroups = ref.watch(effectiveSelectedCalendarGroupsProvider);
+  todos = todos.where((todo) {
+    final groupId = todo.calendarGroupId ?? 'cal_family';
+    return selectedGroups.contains(groupId);
   }).toList();
 
   // 정렬

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:iconsax/iconsax.dart';
@@ -12,7 +14,7 @@ import '../calendar_screen.dart';
 import '../../todo/widgets/add_todo_sheet.dart';
 
 /// 일간 뷰 위젯
-class DayView extends ConsumerWidget {
+class DayView extends ConsumerStatefulWidget {
   final DateTime selectedDay;
   final Function(DateTime)? onPreviousDay;
   final Function(DateTime)? onNextDay;
@@ -25,9 +27,33 @@ class DayView extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DayView> createState() => _DayViewState();
+}
+
+class _DayViewState extends ConsumerState<DayView> {
+  Timer? _timer;
+  DateTime _currentTime = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 60), (_) {
+      setState(() {
+        _currentTime = DateTime.now();
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final allTodos = ref.watch(smartTodosForDateProvider(selectedDay));
+    final allTodos = ref.watch(smartTodosForDateProvider(widget.selectedDay));
     final selectedMemberId = ref.watch(calendarMemberFilterProvider);
     final todos = selectedMemberId == null ? allTodos
         : allTodos.where((t) => t.isAssignedTo(selectedMemberId)).toList();
@@ -35,19 +61,18 @@ class DayView extends ConsumerWidget {
     final timedTodos = todos.where((t) => t.hasTime && t.startTime != null).toList();
     // 시간 미정 Todo
     final undecidedTodos = todos.where((t) => !t.hasTime).toList();
-    final now = DateTime.now();
-    final isToday = selectedDay.year == now.year &&
-                    selectedDay.month == now.month &&
-                    selectedDay.day == now.day;
+    final isToday = widget.selectedDay.year == _currentTime.year &&
+                    widget.selectedDay.month == _currentTime.month &&
+                    widget.selectedDay.day == _currentTime.day;
 
     return Column(
       children: [
         // 날짜 네비게이션 헤더
         _DayHeader(
-          selectedDay: selectedDay,
+          selectedDay: widget.selectedDay,
           isToday: isToday,
-          onPreviousDay: onPreviousDay,
-          onNextDay: onNextDay,
+          onPreviousDay: widget.onPreviousDay,
+          onNextDay: widget.onNextDay,
           isDark: isDark,
         ),
         const SizedBox(height: AppTheme.spacingS),
@@ -67,8 +92,8 @@ class DayView extends ConsumerWidget {
             todos: timedTodos,
             isDark: isDark,
             isToday: isToday,
-            currentTime: now,
-            selectedDay: selectedDay,
+            currentTime: _currentTime,
+            selectedDay: widget.selectedDay,
           ),
         ),
       ],
@@ -204,6 +229,7 @@ class _TimelineGrid extends ConsumerWidget {
               return _DayTodoBlock(
                 todo: todo,
                 isDark: isDark,
+                day: selectedDay,
               );
             }),
           ],
@@ -382,24 +408,40 @@ class _CurrentTimeLine extends StatelessWidget {
 class _DayTodoBlock extends ConsumerWidget {
   final TodoItem todo;
   final bool isDark;
+  final DateTime day;
 
   const _DayTodoBlock({
     required this.todo,
     required this.isDark,
+    required this.day,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (todo.startTime == null) return const SizedBox.shrink();
 
-    final startHour = todo.startTime!.hour + todo.startTime!.minute / 60;
-    final endTime = todo.endTime ?? todo.startTime!.add(const Duration(hours: 1));
-    final endHour = endTime.hour + endTime.minute / 60;
-    final duration = endHour - startHour;
+    final startTime = todo.startTime!;
+    final rawEndTime = todo.endTime ?? startTime.add(const Duration(hours: 1));
+    final endTime = rawEndTime.isAfter(startTime)
+        ? rawEndTime
+        : startTime.add(const Duration(minutes: 30));
+
+    final dayStart = DateTime(day.year, day.month, day.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    // 이 날에 보이지 않으면 렌더링하지 않음
+    if (!endTime.isAfter(dayStart) || !startTime.isBefore(dayEnd)) {
+      return const SizedBox.shrink();
+    }
+
+    // 현재 날짜 경계에 맞게 클램프
+    final visibleStart = startTime.isBefore(dayStart) ? dayStart : startTime;
+    final visibleEnd = endTime.isAfter(dayEnd) ? dayEnd : endTime;
+    final durationMinutes = visibleEnd.difference(visibleStart).inMinutes;
 
     // 최소 30분 높이 보장
-    final height = (duration < 0.5 ? 0.5 : duration) * 60;
-    final top = startHour * 60;
+    final height = (durationMinutes < 30 ? 30 : durationMinutes).toDouble();
+    final top = visibleStart.difference(dayStart).inMinutes.toDouble();
 
     final todoColor = _getEventTypeColor(todo.eventType);
 
