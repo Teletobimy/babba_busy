@@ -130,11 +130,15 @@ class _DayHeader extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            onPressed: () => onPreviousDay?.call(
-              selectedDay.subtract(const Duration(days: 1)),
+          Semantics(
+            label: '이전 날짜로 이동',
+            button: true,
+            child: IconButton(
+              onPressed: () => onPreviousDay?.call(
+                selectedDay.subtract(const Duration(days: 1)),
+              ),
+              icon: const Icon(Iconsax.arrow_left_2, size: 20),
             ),
-            icon: const Icon(Iconsax.arrow_left_2, size: 20),
           ),
           Column(
             children: [
@@ -172,11 +176,15 @@ class _DayHeader extends StatelessWidget {
               ),
             ],
           ),
-          IconButton(
-            onPressed: () => onNextDay?.call(
-              selectedDay.add(const Duration(days: 1)),
+          Semantics(
+            label: '다음 날짜로 이동',
+            button: true,
+            child: IconButton(
+              onPressed: () => onNextDay?.call(
+                selectedDay.add(const Duration(days: 1)),
+              ),
+              icon: const Icon(Iconsax.arrow_right_3, size: 20),
             ),
-            icon: const Icon(Iconsax.arrow_right_3, size: 20),
           ),
         ],
       ),
@@ -199,41 +207,152 @@ class _TimelineGrid extends ConsumerWidget {
     required this.selectedDay,
   });
 
+  /// Calculate column assignments for overlapping events.
+  /// Returns a map from todo.id to (column index, total columns in group).
+  static Map<String, ({int column, int totalColumns})> _calculateEventColumns(
+    List<TodoItem> timedTodos,
+    DateTime day,
+  ) {
+    if (timedTodos.isEmpty) return {};
+
+    final dayStart = DateTime(day.year, day.month, day.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    // Build a list of (id, visibleStartMinutes, visibleEndMinutes)
+    final events = <({String id, double start, double end})>[];
+    for (final todo in timedTodos) {
+      if (todo.startTime == null) continue;
+      final startTime = todo.startTime!;
+      final rawEnd = todo.endTime ?? startTime.add(const Duration(hours: 1));
+      final endTime = rawEnd.isAfter(startTime)
+          ? rawEnd
+          : startTime.add(const Duration(minutes: 30));
+      if (!endTime.isAfter(dayStart) || !startTime.isBefore(dayEnd)) continue;
+
+      final visibleStart = startTime.isBefore(dayStart) ? dayStart : startTime;
+      final visibleEnd = endTime.isAfter(dayEnd) ? dayEnd : endTime;
+      final startMin = visibleStart.difference(dayStart).inMinutes.toDouble();
+      final endMin = visibleEnd.difference(dayStart).inMinutes.toDouble();
+      // Ensure minimum 30min for overlap detection (matching render logic)
+      final effectiveEnd = (endMin - startMin) < 30 ? startMin + 30 : endMin;
+      events.add((id: todo.id, start: startMin, end: effectiveEnd));
+    }
+
+    // Sort by start time, then by longer duration first
+    events.sort((a, b) {
+      final cmp = a.start.compareTo(b.start);
+      if (cmp != 0) return cmp;
+      return (b.end - b.start).compareTo(a.end - a.start);
+    });
+
+    // Greedy column assignment
+    final columnMap = <String, int>{};
+    // Track end times per column
+    final columnEnds = <double>[];
+
+    for (final event in events) {
+      // Find the lowest column where this event doesn't overlap
+      int assignedColumn = -1;
+      for (int c = 0; c < columnEnds.length; c++) {
+        if (columnEnds[c] <= event.start) {
+          assignedColumn = c;
+          break;
+        }
+      }
+      if (assignedColumn == -1) {
+        assignedColumn = columnEnds.length;
+        columnEnds.add(0);
+      }
+      columnEnds[assignedColumn] = event.end;
+      columnMap[event.id] = assignedColumn;
+    }
+
+    // Determine total columns per overlap group using a sweep approach.
+    // For each event, totalColumns = max columns used by any event it overlaps with (including itself).
+    final result = <String, ({int column, int totalColumns})>{};
+
+    for (final event in events) {
+      // Find all events that overlap with this one
+      int maxCol = columnMap[event.id]!;
+      for (final other in events) {
+        if (other.start < event.end && event.start < other.end) {
+          final otherCol = columnMap[other.id]!;
+          if (otherCol > maxCol) maxCol = otherCol;
+        }
+      }
+      result[event.id] = (column: columnMap[event.id]!, totalColumns: maxCol + 1);
+    }
+
+    // Normalize: for each overlap cluster, all members should share the same totalColumns
+    // (the max totalColumns among overlapping events)
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (final event in events) {
+        final current = result[event.id]!;
+        for (final other in events) {
+          if (other.start < event.end && event.start < other.end) {
+            final otherInfo = result[other.id]!;
+            if (otherInfo.totalColumns > current.totalColumns) {
+              result[event.id] = (column: current.column, totalColumns: otherInfo.totalColumns);
+              changed = true;
+              break;
+            }
+          }
+        }
+        if (changed) break;
+      }
+    }
+
+    return result;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final columnInfo = _calculateEventColumns(todos, selectedDay);
+
     return Container(
       decoration: BoxDecoration(
         color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       ),
-      child: SingleChildScrollView(
-        child: Stack(
-          children: [
-            // 시간 그리드
-            Column(
-              children: List.generate(24, (hour) {
-                return _TimeSlot(
-                  hour: hour,
-                  isDark: isDark,
-                  selectedDay: selectedDay,
-                );
-              }),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final totalWidth = constraints.maxWidth;
+          return SingleChildScrollView(
+            child: Stack(
+              children: [
+                // 시간 그리드
+                Column(
+                  children: List.generate(24, (hour) {
+                    return _TimeSlot(
+                      hour: hour,
+                      isDark: isDark,
+                      selectedDay: selectedDay,
+                    );
+                  }),
+                ),
+                // 현재 시간 표시 (오늘인 경우)
+                if (isToday)
+                  _CurrentTimeLine(
+                    currentTime: currentTime,
+                  ),
+                // 할일 블록들
+                ...todos.map((todo) {
+                  final info = columnInfo[todo.id];
+                  return _DayTodoBlock(
+                    todo: todo,
+                    isDark: isDark,
+                    day: selectedDay,
+                    column: info?.column ?? 0,
+                    totalColumns: info?.totalColumns ?? 1,
+                    totalWidth: totalWidth,
+                  );
+                }),
+              ],
             ),
-            // 현재 시간 표시 (오늘인 경우)
-            if (isToday)
-              _CurrentTimeLine(
-                currentTime: currentTime,
-              ),
-            // 할일 블록들
-            ...todos.map((todo) {
-              return _DayTodoBlock(
-                todo: todo,
-                isDark: isDark,
-                day: selectedDay,
-              );
-            }),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -409,11 +528,17 @@ class _DayTodoBlock extends ConsumerWidget {
   final TodoItem todo;
   final bool isDark;
   final DateTime day;
+  final int column;
+  final int totalColumns;
+  final double totalWidth;
 
   const _DayTodoBlock({
     required this.todo,
     required this.isDark,
     required this.day,
+    this.column = 0,
+    this.totalColumns = 1,
+    this.totalWidth = 0,
   });
 
   @override
@@ -445,10 +570,18 @@ class _DayTodoBlock extends ConsumerWidget {
 
     final todoColor = _getEventTypeColor(todo.eventType);
 
+    // Calculate horizontal position based on column assignment
+    const double hourLabelWidth = 55;
+    const double rightMargin = 8;
+    final double availableWidth = totalWidth - hourLabelWidth - rightMargin;
+    final double columnWidth = availableWidth / totalColumns;
+    final double left = hourLabelWidth + (column * columnWidth);
+    final double width = columnWidth - (totalColumns > 1 ? 2 : 0); // 2px gap between columns
+
     return Positioned(
       top: top,
-      left: 55,
-      right: 8,
+      left: left,
+      width: width,
       height: height,
       child: LongPressDraggable<TodoItem>(
         data: todo,
@@ -778,68 +911,76 @@ class _UndecidedTodoItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final canComplete = _canComplete(ref);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.coral[100]?.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-        border: Border.all(
-          color: AppColors.coral[300]!.withValues(alpha: 0.5),
+    return Semantics(
+      label: '${todo.title}, 시간 미정, ${todo.isCompleted ? "완료됨" : "미완료"}',
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.coral[100]?.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+          border: Border.all(
+            color: AppColors.coral[300]!.withValues(alpha: 0.5),
+          ),
         ),
-      ),
-      child: Row(
-        children: [
-          // 체크박스 (완료 권한이 있는 경우에만 활성화)
-          // 터치 타겟 최소 44x44px 보장
-          GestureDetector(
-            onTap: canComplete
-                ? () async {
-                    final resolvedId = todo.parentTodoId ?? todo.id;
-                    await ref.read(todoServiceProvider).toggleTodo(
-                      resolvedId,
-                      !todo.isCompleted,
-                      ownerId: todo.ownerId,
-                    );
-                  }
-                : null,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Container(
-                width: 20,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(
-                    color: canComplete
-                        ? AppColors.coral[500]!
-                        : AppColors.coral[500]!.withValues(alpha: 0.3),
-                    width: 2,
+        child: Row(
+          children: [
+            // 체크박스 (완료 권한이 있는 경우에만 활성화)
+            // 터치 타겟 최소 44x44px 보장
+            Semantics(
+              label: todo.isCompleted ? '완료 취소' : '완료 처리',
+              button: true,
+              enabled: canComplete,
+              child: GestureDetector(
+                onTap: canComplete
+                    ? () async {
+                        final resolvedId = todo.parentTodoId ?? todo.id;
+                        await ref.read(todoServiceProvider).toggleTodo(
+                          resolvedId,
+                          !todo.isCompleted,
+                          ownerId: todo.ownerId,
+                        );
+                      }
+                    : null,
+                behavior: HitTestBehavior.opaque,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      color: todo.isCompleted ? AppColors.coral[500] : Colors.transparent,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(
+                        color: canComplete
+                            ? AppColors.coral[500]!
+                            : AppColors.coral[500]!.withValues(alpha: 0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: todo.isCompleted
+                        ? const Icon(Icons.check, size: 12, color: Colors.white)
+                        : null,
                   ),
                 ),
-                child: todo.isCompleted
-                    ? const Icon(Icons.check, size: 12, color: Colors.white)
-                    : null,
               ),
             ),
-          ),
 
-          // 제목
-          Expanded(
-            child: Text(
-              todo.title,
-              style: TextStyle(
-                fontSize: 13,
-                color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+            // 제목
+            Expanded(
+              child: Text(
+                todo.title,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                  decoration: todo.isCompleted ? TextDecoration.lineThrough : null,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

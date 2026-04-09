@@ -48,7 +48,7 @@ class WeekView extends ConsumerWidget {
         ),
         const SizedBox(height: AppTheme.spacingS),
         // 시간 미정 섹션
-        _UndecidedWeekSection(days: days, isDark: isDark),
+        _UndecidedWeekSection(days: days, isDark: isDark, onDaySelected: onDaySelected),
         // 시간대별 이벤트
         Expanded(
           child: _TimeGrid(days: days, isDark: isDark),
@@ -98,51 +98,58 @@ class _WeekHeader extends StatelessWidget {
           final isWeekend = index >= 5;
 
           return Expanded(
-            child: GestureDetector(
-              onTap: () => onDaySelected(day),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.calendarColor
-                      : (isToday
-                            ? AppColors.calendarColor.withValues(alpha: 0.2)
-                            : Colors.transparent),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      dayNames[index],
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected
-                            ? Colors.white
-                            : (isWeekend
-                                  ? AppColors.errorLight.withValues(alpha: 0.8)
-                                  : (isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight)),
+            child: Semantics(
+              label: '${DateFormat('M월 d일 EEEE', 'ko_KR').format(day)}'
+                  '${isToday ? ', 오늘' : ''}'
+                  '${isSelected ? ', 선택됨' : ''}',
+              button: true,
+              selected: isSelected,
+              child: GestureDetector(
+                onTap: () => onDaySelected(day),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.calendarColor
+                        : (isToday
+                              ? AppColors.calendarColor.withValues(alpha: 0.2)
+                              : Colors.transparent),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        dayNames[index],
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isSelected
+                              ? Colors.white
+                              : (isWeekend
+                                    ? AppColors.errorLight.withValues(alpha: 0.8)
+                                    : (isDark
+                                          ? AppColors.textSecondaryDark
+                                          : AppColors.textSecondaryLight)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${day.day}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: isToday || isSelected
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                        color: isSelected
-                            ? Colors.white
-                            : (isWeekend
-                                  ? AppColors.errorLight.withValues(alpha: 0.8)
-                                  : (isDark
-                                        ? AppColors.textPrimaryDark
-                                        : AppColors.textPrimaryLight)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${day.day}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: isToday || isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? Colors.white
+                              : (isWeekend
+                                    ? AppColors.errorLight.withValues(alpha: 0.8)
+                                    : (isDark
+                                          ? AppColors.textPrimaryDark
+                                          : AppColors.textPrimaryLight)),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -225,23 +232,13 @@ class _TimeGrid extends ConsumerWidget {
                   ),
                   child: Stack(
                     children: [
-                      // 시간 그리드 라인
+                      // 시간 그리드 라인 with DragTarget
                       Column(
                         children: List.generate(24, (hour) {
-                          return Container(
-                            height: 60,
-                            decoration: BoxDecoration(
-                              border: Border(
-                                top: BorderSide(
-                                  color:
-                                      (isDark
-                                              ? AppColors.textSecondaryDark
-                                              : AppColors.textSecondaryLight)
-                                          .withValues(alpha: 0.1),
-                                  width: 0.5,
-                                ),
-                              ),
-                            ),
+                          return _WeekTimeSlot(
+                            hour: hour,
+                            day: day,
+                            isDark: isDark,
                           );
                         }),
                       ),
@@ -257,6 +254,99 @@ class _TimeGrid extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// DragTarget time slot for each hour cell in the week view grid
+class _WeekTimeSlot extends ConsumerWidget {
+  final int hour;
+  final DateTime day;
+  final bool isDark;
+
+  const _WeekTimeSlot({
+    required this.hour,
+    required this.day,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return DragTarget<TodoItem>(
+      onAcceptWithDetails: (details) async {
+        final todo = details.data;
+        final newStart = DateTime(day.year, day.month, day.day, hour);
+        final duration = (todo.endTime != null && todo.startTime != null)
+            ? todo.endTime!.difference(todo.startTime!)
+            : const Duration(hours: 1);
+        final newEnd = newStart.add(duration);
+        final resolvedId = todo.parentTodoId ?? todo.id;
+
+        // 반복 일정인 경우 확인 다이얼로그
+        if (todo.parentTodoId != null) {
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('반복 일정 변경'),
+              content: const Text('이 변경은 원본 일정에 적용됩니다.\n모든 반복 인스턴스의 시간이 변경됩니다.\n\n계속하시겠습니까?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('취소'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('변경'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed != true) return;
+        }
+
+        ref.read(todoServiceProvider).updateTodo(
+          resolvedId,
+          startTime: newStart,
+          endTime: newEnd,
+          dueDate: newStart,
+          hasTime: true,
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${todo.title} → ${DateFormat('M/d').format(day)} ${hour.toString().padLeft(2, '0')}:00으로 이동'),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: '되돌리기',
+            onPressed: () {
+              ref.read(todoServiceProvider).updateTodo(
+                resolvedId,
+                startTime: todo.startTime,
+                endTime: todo.endTime,
+                dueDate: todo.dueDate,
+                hasTime: todo.hasTime,
+              );
+            },
+          ),
+        ));
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovered = candidateData.isNotEmpty;
+        return Container(
+          height: 60,
+          decoration: BoxDecoration(
+            color: isHovered ? AppColors.primaryLight.withValues(alpha: 0.15) : null,
+            border: Border(
+              top: BorderSide(
+                color: (isDark
+                        ? AppColors.textSecondaryDark
+                        : AppColors.textSecondaryLight)
+                    .withValues(alpha: 0.1),
+                width: 0.5,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -351,7 +441,10 @@ class _TodoBlock extends ConsumerWidget {
   }
 
   Widget _buildBlock(Color todoColor, double height, DateTime visibleStart, WidgetRef ref) {
-    return GestureDetector(
+    return Semantics(
+      label: '${todo.title}, ${DateFormat('HH:mm').format(visibleStart)}, ${todo.isCompleted ? "완료됨" : "미완료"}',
+      button: true,
+      child: GestureDetector(
         onTap: () => _toggleComplete(ref),
         child: Container(
           decoration: BoxDecoration(
@@ -387,6 +480,7 @@ class _TodoBlock extends ConsumerWidget {
             ],
           ),
         ),
+      ),
     );
   }
 
@@ -406,8 +500,9 @@ class _TodoBlock extends ConsumerWidget {
 class _UndecidedWeekSection extends ConsumerWidget {
   final List<DateTime> days;
   final bool isDark;
+  final Function(DateTime) onDaySelected;
 
-  const _UndecidedWeekSection({required this.days, required this.isDark});
+  const _UndecidedWeekSection({required this.days, required this.isDark, required this.onDaySelected});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -480,7 +575,11 @@ class _UndecidedWeekSection extends ConsumerWidget {
           ...days.map((day) {
             final todos = undecidedMap[day] ?? [];
             return Expanded(
-              child: _UndecidedDayCell(todos: todos, isDark: isDark),
+              child: _UndecidedDayCell(
+                todos: todos,
+                isDark: isDark,
+                onTap: () => onDaySelected(day),
+              ),
             );
           }),
         ],
@@ -493,50 +592,72 @@ class _UndecidedWeekSection extends ConsumerWidget {
 class _UndecidedDayCell extends StatelessWidget {
   final List<TodoItem> todos;
   final bool isDark;
+  final VoidCallback? onTap;
 
-  const _UndecidedDayCell({required this.todos, required this.isDark});
+  const _UndecidedDayCell({required this.todos, required this.isDark, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     if (todos.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: todos.take(2).map((todo) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(
-              color: AppColors.coral[100]?.withValues(alpha: 0.4),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(
-                color: AppColors.coral[300]!.withValues(alpha: 0.6),
-                width: 0.5,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Iconsax.tick_square, size: 8, color: AppColors.coral[600]),
-                const SizedBox(width: 2),
-                Flexible(
-                  child: Text(
-                    todo.title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.coral[700],
-                      fontWeight: FontWeight.w500,
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...todos.take(2).map((todo) {
+              return Semantics(
+                label: '${todo.title}, 시간 미정, ${todo.isCompleted ? "완료됨" : "미완료"}',
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.coral[100]?.withValues(alpha: 0.4),
+                    borderRadius: BorderRadius.circular(3),
+                    border: Border.all(
+                      color: AppColors.coral[300]!.withValues(alpha: 0.6),
+                      width: 0.5,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Iconsax.tick_square, size: 8, color: AppColors.coral[600]),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          todo.title,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.coral[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          );
-        }).toList(),
+              );
+            }),
+            if (todos.length > 2)
+              Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  '+${todos.length - 2}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

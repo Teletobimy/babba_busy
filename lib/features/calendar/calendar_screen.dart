@@ -69,7 +69,7 @@ class CalendarScreen extends ConsumerWidget {
     final calendarAiEnabled = aiFlags.calendarActionsAvailable;
     final calendarAiColor = calendarAiEnabled
         ? AppColors.calendarColor
-        : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight);
+        : (isDark ? AppColors.grayScale[600]! : AppColors.grayScale[500]!);
 
     // Reset calendar member filter when group changes
     ref.listen(currentMembershipProvider, (previous, next) {
@@ -95,50 +95,66 @@ class CalendarScreen extends ConsumerWidget {
                   Row(
                     children: [
                       // 크로스 그룹 토글
-                      IconButton(
-                        icon: Icon(
-                          ref.watch(crossGroupViewEnabledProvider)
-                              ? Iconsax.global5
-                              : Iconsax.global,
-                          size: 22,
-                        ),
-                        onPressed: () {
-                          ref
-                              .read(crossGroupViewEnabledProvider.notifier)
-                              .state = !ref.read(
-                            crossGroupViewEnabledProvider,
-                          );
-                        },
-                        tooltip: ref.watch(crossGroupViewEnabledProvider)
+                      Semantics(
+                        label: ref.watch(crossGroupViewEnabledProvider)
                             ? '현재 그룹만 보기'
                             : '전체 그룹 보기',
+                        button: true,
+                        toggled: ref.watch(crossGroupViewEnabledProvider),
+                        child: IconButton(
+                          icon: Icon(
+                            ref.watch(crossGroupViewEnabledProvider)
+                                ? Iconsax.global5
+                                : Iconsax.global,
+                            size: 22,
+                          ),
+                          onPressed: () {
+                            ref
+                                .read(crossGroupViewEnabledProvider.notifier)
+                                .state = !ref.read(
+                              crossGroupViewEnabledProvider,
+                            );
+                          },
+                          tooltip: ref.watch(crossGroupViewEnabledProvider)
+                              ? '현재 그룹만 보기'
+                              : '전체 그룹 보기',
+                        ),
                       ),
                       // 캘린더 필터 버튼
                       const CalendarFilterButton(),
                       // 완료 항목 토글 버튼
-                      IconButton(
-                        icon: Icon(
-                          ref.watch(showCompletedInCalendarProvider)
-                              ? Iconsax.tick_circle
-                              : Iconsax.tick_circle5,
+                      Semantics(
+                        label: '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
+                        button: true,
+                        toggled: ref.watch(showCompletedInCalendarProvider),
+                        child: IconButton(
+                          icon: Icon(
+                            ref.watch(showCompletedInCalendarProvider)
+                                ? Iconsax.tick_circle
+                                : Iconsax.tick_circle5,
+                          ),
+                          onPressed: () {
+                            ref
+                                .read(showCompletedInCalendarProvider.notifier)
+                                .state = !ref.read(
+                              showCompletedInCalendarProvider,
+                            );
+                          },
+                          tooltip:
+                              '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
                         ),
-                        onPressed: () {
-                          ref
-                              .read(showCompletedInCalendarProvider.notifier)
-                              .state = !ref.read(
-                            showCompletedInCalendarProvider,
-                          );
-                        },
-                        tooltip:
-                            '완료 항목 ${ref.watch(showCompletedInCalendarProvider) ? "숨기기" : "표시"}',
                       ),
                       // 오늘로 이동
-                      TextButton(
-                        onPressed: () {
-                          ref.read(selectedDateProvider.notifier).state =
-                              date_utils.normalizeDate(DateTime.now());
-                        },
-                        child: const Text('오늘'),
+                      Semantics(
+                        label: '오늘 날짜로 이동',
+                        button: true,
+                        child: TextButton(
+                          onPressed: () {
+                            ref.read(selectedDateProvider.notifier).state =
+                                date_utils.normalizeDate(DateTime.now());
+                          },
+                          child: const Text('오늘'),
+                        ),
                       ),
                     ],
                   ),
@@ -151,21 +167,24 @@ class CalendarScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTheme.spacingL,
               ),
-              child: SegmentedButton<CalendarViewMode>(
-                segments: const [
-                  ButtonSegment(
-                    value: CalendarViewMode.month,
-                    label: Text('월'),
+              child: Semantics(
+                label: '캘린더 보기 모드 선택',
+                child: SegmentedButton<CalendarViewMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: CalendarViewMode.month,
+                      label: Text('월'),
+                    ),
+                    ButtonSegment(value: CalendarViewMode.week, label: Text('주')),
+                    ButtonSegment(value: CalendarViewMode.day, label: Text('일')),
+                  ],
+                  selected: {viewMode},
+                  onSelectionChanged: (s) =>
+                      ref.read(calendarViewModeProvider.notifier).state = s.first,
+                  style: ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  ButtonSegment(value: CalendarViewMode.week, label: Text('주')),
-                  ButtonSegment(value: CalendarViewMode.day, label: Text('일')),
-                ],
-                selected: {viewMode},
-                onSelectionChanged: (s) =>
-                    ref.read(calendarViewModeProvider.notifier).state = s.first,
-                style: ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
             ),
@@ -192,19 +211,27 @@ class CalendarScreen extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          FloatingActionButton.small(
-            heroTag: 'calendar_ai_fab',
-            onPressed: () => _showAiCalendarSheet(context, ref, selectedDate),
-            backgroundColor: calendarAiColor,
-            foregroundColor: Colors.white,
-            child: const Icon(Iconsax.magic_star),
+          Semantics(
+            label: 'AI 일정 도우미',
+            button: true,
+            child: FloatingActionButton.small(
+              heroTag: 'calendar_ai_fab',
+              onPressed: () => _showAiCalendarSheet(context, ref, selectedDate),
+              backgroundColor: calendarAiColor,
+              foregroundColor: Colors.white,
+              child: const Icon(Iconsax.magic_star),
+            ),
           ),
           const SizedBox(height: AppTheme.spacingS),
-          FloatingActionButton(
-            heroTag: 'calendar_add_fab',
-            onPressed: () => _showAddTodoSheet(context, selectedDate),
-            backgroundColor: AppColors.calendarColorOnWhite,
-            child: const Icon(Iconsax.add),
+          Semantics(
+            label: '새 일정 추가',
+            button: true,
+            child: FloatingActionButton(
+              heroTag: 'calendar_add_fab',
+              onPressed: () => _showAddTodoSheet(context, selectedDate),
+              backgroundColor: AppColors.calendarColorOnWhite,
+              child: const Icon(Iconsax.add),
+            ),
           ),
         ],
       ).animate().scale(delay: 500.ms, duration: 300.ms),
@@ -756,6 +783,13 @@ class _TodosPopup extends ConsumerWidget {
 
 /// 월간 뷰 - 달력만 표시 (일정 목록 제거)
 class _MonthView extends ConsumerWidget {
+  // Layout height constants for month view height calculation
+  static const double _headerHeight = 80;
+  static const double _segmentedButtonHeight = 50;
+  static const double _calendarHeaderHeight = 60;
+  static const double _memberFilterHeight = 60;
+  static const double _bottomMargin = 100;
+
   final DateTime selectedDate;
   final CalendarFormat calendarFormat;
   final List<TodoItem> todos;
@@ -800,9 +834,9 @@ class _MonthView extends ConsumerWidget {
     final screenHeight = MediaQuery.of(context).size.height;
     final safeAreaTop = MediaQuery.of(context).padding.top;
     final safeAreaBottom = MediaQuery.of(context).padding.bottom;
-    // 헤더(약 80) + 요일행(50) + 달력헤더(60) + 멤버필터(60) + 하단 여백 계산
-    final availableHeight =
-        screenHeight - safeAreaTop - safeAreaBottom - 80 - 50 - 60 - 60 - 100;
+    final availableHeight = screenHeight - safeAreaTop - safeAreaBottom
+        - _headerHeight - _segmentedButtonHeight - _calendarHeaderHeight
+        - _memberFilterHeight - _bottomMargin;
     final rowHeight = (availableHeight / 6).clamp(65.0, 95.0);
 
     final dailyExpenses = ref.watch(dailyExpenseProvider);
@@ -1018,9 +1052,17 @@ class _MonthView extends ConsumerWidget {
     final holiday = _getHolidayForDay(day);
     final isHoliday = holiday != null;
 
-    return SizedBox.expand(
-      child: Container(
-        margin: const EdgeInsets.all(2),
+    return Semantics(
+      label: '${DateFormat('M월 d일 EEEE', 'ko_KR').format(day)}'
+          '${isHoliday ? ', ${holiday.name}' : ''}'
+          '${dayTodos.isNotEmpty ? ', 일정 ${dayTodos.length}개' : ', 일정 없음'}'
+          '${isToday ? ', 오늘' : ''}'
+          '${isSelected ? ', 선택됨' : ''}',
+      button: true,
+      selected: isSelected,
+      child: SizedBox.expand(
+        child: Container(
+          margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.calendarColor
@@ -1094,6 +1136,7 @@ class _MonthView extends ConsumerWidget {
               ),
           ],
         ),
+      ),
       ),
     );
   }
