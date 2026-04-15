@@ -8,6 +8,11 @@ import asyncio
 from functools import partial
 
 from config import get_settings
+from reminder_utils import (
+    build_personal_reminder_document,
+    normalize_datetime_for_firestore,
+)
+from time_utils import sortable_datetime_or, utcnow_naive
 
 settings = get_settings()
 
@@ -46,7 +51,7 @@ class FirestoreCache:
 
         if doc.exists:
             data = doc.to_dict()
-            if data.get("expires_at") and data["expires_at"].replace(tzinfo=None) > datetime.utcnow():
+            if data.get("expires_at") and normalize_datetime_for_firestore(data["expires_at"]) > utcnow_naive():
                 return data
         return None
 
@@ -67,7 +72,7 @@ class FirestoreCache:
     ) -> None:
         """일일 요약 캐시 저장 (동기)"""
         doc_ref = db.collection(FirestoreCache.COLLECTION_AI_CACHE).document(user_id).collection("daily_summary").document(date)
-        now = datetime.utcnow()
+        now = utcnow_naive()
         payload = {
             "content": content,
             "created_at": now,
@@ -103,7 +108,7 @@ class FirestoreCache:
 
         if doc.exists:
             data = doc.to_dict()
-            if data.get("expires_at") and data["expires_at"].replace(tzinfo=None) > datetime.utcnow():
+            if data.get("expires_at") and normalize_datetime_for_firestore(data["expires_at"]) > utcnow_naive():
                 return data
         return None
 
@@ -118,7 +123,7 @@ class FirestoreCache:
     def _set_weekly_summary_sync(user_id: str, week_key: str, content: str, completion_rate: float, ttl_seconds: int) -> None:
         """주간 요약 캐시 저장 (동기)"""
         doc_ref = db.collection(FirestoreCache.COLLECTION_AI_CACHE).document(user_id).collection("weekly_summary").document(week_key)
-        now = datetime.utcnow()
+        now = utcnow_naive()
         doc_ref.set({
             "content": content,
             "completion_rate": completion_rate,
@@ -151,7 +156,7 @@ class FirestoreCache:
     def _set_psychology_session_sync(user_id: str, session_id: str, data: dict) -> None:
         """심리검사 세션 저장 (동기)"""
         doc_ref = db.collection(FirestoreCache.COLLECTION_AI_CACHE).document(user_id).collection("psychology_sessions").document(session_id)
-        data["updated_at"] = datetime.utcnow()
+        data["updated_at"] = utcnow_naive()
         doc_ref.set(data, merge=True)
 
     @staticmethod
@@ -179,7 +184,7 @@ class FirestoreCache:
     def _set_business_session_sync(user_id: str, session_id: str, data: dict) -> None:
         """사업 검토 세션 저장 (동기)"""
         doc_ref = db.collection(FirestoreCache.COLLECTION_AI_CACHE).document(user_id).collection("business_sessions").document(session_id)
-        data["updated_at"] = datetime.utcnow()
+        data["updated_at"] = utcnow_naive()
         doc_ref.set(data, merge=True)
 
     @staticmethod
@@ -391,16 +396,6 @@ class FirestoreCache:
 
         docs = query.stream()
 
-        def _as_sort_datetime(raw: Any) -> datetime:
-            if isinstance(raw, datetime):
-                return raw
-            if isinstance(raw, str):
-                try:
-                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
-                except Exception:
-                    return datetime.min
-            return datetime.min
-
         items: list[dict] = []
         for doc in docs:
             data = doc.to_dict() or {}
@@ -410,10 +405,10 @@ class FirestoreCache:
                 break
 
         def _sort_key(item: dict) -> datetime:
-            updated_at = _as_sort_datetime(item.get("updatedAt"))
+            updated_at = sortable_datetime_or(item.get("updatedAt"), datetime.min)
             if updated_at != datetime.min:
                 return updated_at
-            return _as_sort_datetime(item.get("createdAt"))
+            return sortable_datetime_or(item.get("createdAt"), datetime.min)
 
         items.sort(key=_sort_key, reverse=True)
         return items[:limit]
@@ -511,16 +506,6 @@ class FirestoreCache:
 
         docs = query.stream()
 
-        def _as_sort_datetime(raw: Any) -> datetime:
-            if isinstance(raw, datetime):
-                return raw
-            if isinstance(raw, str):
-                try:
-                    return datetime.fromisoformat(raw.replace("Z", "+00:00")).replace(tzinfo=None)
-                except Exception:
-                    return datetime.min
-            return datetime.min
-
         items: list[dict] = []
         for doc in docs:
             data = doc.to_dict() or {}
@@ -528,10 +513,10 @@ class FirestoreCache:
             items.append(data)
 
         def _sort_key(item: dict) -> datetime:
-            completed_at = _as_sort_datetime(item.get("completedAt"))
+            completed_at = sortable_datetime_or(item.get("completedAt"), datetime.min)
             if completed_at != datetime.min:
                 return completed_at
-            return _as_sort_datetime(item.get("createdAt"))
+            return sortable_datetime_or(item.get("createdAt"), datetime.min)
 
         items.sort(key=_sort_key, reverse=True)
         return items[:limit]
@@ -961,7 +946,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -993,7 +978,7 @@ class FirestoreCache:
             request_data.get("current_group_id"),
         )
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         todo_id = str(request_data.get("todo_id") or f"ai_{request_id}")
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         reminders_sent: list[int] = []
@@ -1143,7 +1128,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1169,7 +1154,7 @@ class FirestoreCache:
             due_date = None
         formatted_due_date = str(preview.get("formatted_due_date") or "").strip() or None
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         already_completed = bool(todo_data.get("isCompleted"))
         completed_at = todo_data.get("completedAt") if already_completed else None
@@ -1292,7 +1277,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1344,7 +1329,7 @@ class FirestoreCache:
             request_data.get("current_group_id"),
         )
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         event_id = str(request_data.get("event_id") or f"ai_{request_id}")
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
 
@@ -1492,7 +1477,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1560,7 +1545,7 @@ class FirestoreCache:
             reminders_sent,
         )
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         source = str(request_data.get("source") or "").strip() or "calendar_ai_fab"
 
@@ -1688,7 +1673,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1709,7 +1694,7 @@ class FirestoreCache:
         tags = FirestoreCache._normalize_note_tags(preview.get("tags"))
         is_pinned = bool(preview.get("is_pinned"))
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         memo_id = str(request_data.get("memo_id") or f"ai_{request_id}")
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         source = str(request_data.get("source") or "").strip() or "memo_ai_fab"
@@ -1834,7 +1819,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1860,7 +1845,7 @@ class FirestoreCache:
         tags = FirestoreCache._normalize_note_tags(preview.get("tags"))
         is_pinned = bool(preview.get("is_pinned"))
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         source = str(request_data.get("source") or "").strip() or "memo_ai_fab"
 
@@ -1982,7 +1967,7 @@ class FirestoreCache:
                 "executed_at": request_data.get("executed_at")
                 or request_data.get("updated_at")
                 or request_data.get("created_at")
-                or datetime.utcnow(),
+                or utcnow_naive(),
                 "result": request_data.get("result") or {},
             }
 
@@ -1991,6 +1976,7 @@ class FirestoreCache:
         remind_at = preview.get("remind_at")
         if not message or not isinstance(remind_at, datetime):
             raise ValueError("리마인더 정보가 올바르지 않습니다.")
+        remind_at = normalize_datetime_for_firestore(remind_at)
 
         recurrence = str(preview.get("recurrence") or "").strip() or None
         recurrence_label = str(preview.get("recurrence_label") or "").strip() or None
@@ -1998,7 +1984,7 @@ class FirestoreCache:
             str(preview.get("formatted_remind_at") or "").strip() or None
         )
 
-        executed_at = datetime.utcnow()
+        executed_at = utcnow_naive()
         reminder_id = str(request_data.get("reminder_id") or f"reminder_{request_id}")
         audit_id = str(request_data.get("audit_id") or f"audit_{request_id}")
         source = str(request_data.get("source") or "").strip() or "home_quick_add_ai_reminder"
@@ -2036,23 +2022,18 @@ class FirestoreCache:
         if approved:
             batch.set(
                 db.collection("reminders").document(reminder_id),
-                {
-                    "userId": user_id,
-                    "message": message,
-                    "remindAt": remind_at.isoformat(),
-                    "status": "pending",
-                    "scope": "personal",
-                    "source": source,
-                    "requestId": request_id,
-                    "paramsHash": request_data.get("params_hash"),
-                    "createdAt": executed_at,
-                    "updatedAt": executed_at,
-                    "processedAt": None,
-                    "completedAt": None,
-                    "retryCount": 0,
-                    "lastError": None,
-                    "recurrence": recurrence,
-                },
+                build_personal_reminder_document(
+                    user_id=user_id,
+                    message=message,
+                    remind_at=remind_at,
+                    source=source,
+                    request_id=request_id,
+                    params_hash=request_data.get("params_hash"),
+                    created_at=executed_at,
+                    recurrence=recurrence,
+                    recurrence_label=recurrence_label,
+                    formatted_remind_at=formatted_remind_at,
+                ),
                 merge=True,
             )
 

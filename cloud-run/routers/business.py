@@ -1,6 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
-from datetime import datetime
 import uuid
 import json
 import asyncio
@@ -15,6 +14,7 @@ from models import (
 from services import FirestoreCache
 from agents import BusinessPMAgent
 from dependencies import get_current_user
+from time_utils import utcnow_naive
 
 router = APIRouter(prefix="/api/business", tags=["Business"])
 
@@ -51,7 +51,7 @@ async def analyze_business_idea(
             analysis=result.get("analysis", {}),
             summary=report.get("executive_summary", ""),
             score=report.get("overall_score", 0),
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow_naive(),
         )
 
     except HTTPException:
@@ -136,7 +136,7 @@ async def chat_business(
                 "history": [],
                 "turn": 0,
                 "context": None,
-                "created_at": datetime.utcnow(),
+                "created_at": utcnow_naive(),
             }
 
         # 대화 히스토리

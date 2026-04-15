@@ -1,5 +1,4 @@
 from fastapi import APIRouter, HTTPException, Depends
-from datetime import datetime
 
 from models import (
     DailySummaryRequest,
@@ -10,6 +9,7 @@ from models import (
 )
 from services import FirestoreCache, gemini_service
 from dependencies import get_current_user
+from time_utils import utcnow_naive
 
 router = APIRouter(prefix="/api/summary", tags=["Summary"])
 
@@ -29,7 +29,7 @@ async def generate_daily_summary(
         if current_user["uid"] != request.user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = utcnow_naive().strftime("%Y-%m-%d")
 
         # 캐시 확인
         cached = await FirestoreCache.get_daily_summary(request.user_id, today)
@@ -56,7 +56,7 @@ async def generate_daily_summary(
         return DailySummaryResponse(
             summary=summary,
             cached=False,
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow_naive(),
         )
 
     except HTTPException:
@@ -82,7 +82,7 @@ async def generate_weekly_summary(
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
         # 주간 키 생성 (ISO week)
-        now = datetime.utcnow()
+        now = utcnow_naive()
         week_key = f"{now.year}-W{now.isocalendar()[1]:02d}"
 
         # 캐시 확인
@@ -120,7 +120,7 @@ async def generate_weekly_summary(
             summary=summary,
             completion_rate=completion_rate,
             cached=False,
-            generated_at=datetime.utcnow(),
+            generated_at=utcnow_naive(),
         )
 
     except HTTPException:

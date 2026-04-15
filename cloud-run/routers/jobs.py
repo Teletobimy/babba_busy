@@ -20,6 +20,7 @@ from services import FirestoreCache
 from agents import BusinessPMAgent, MemoCategoryPMAgent
 from agents.psychology_agents import PsychologyPMAgent, TestType
 from dependencies import get_current_user
+from time_utils import utcnow_naive as _utcnow
 
 router = APIRouter(prefix="/api/jobs", tags=["Analysis Jobs"])
 
@@ -38,7 +39,7 @@ def _build_job_data(
     input_data: dict,
 ) -> dict:
     """작업 데이터 구조 생성"""
-    now = datetime.utcnow()
+    now = _utcnow()
     return {
         "userId": user_id,
         "jobType": job_type.value,
@@ -93,8 +94,8 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
         # 상태를 processing으로 변경
         await FirestoreCache.update_analysis_job(job_id, {
             "status": AnalysisJobStatus.PROCESSING.value,
-            "startedAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "startedAt": _utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         step_names = [
@@ -116,7 +117,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
                         "percentage": (step_index / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
             elif status == "completed":
                 step_index = step_names.index(step) if step in step_names else 0
@@ -127,7 +128,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
                         "percentage": ((step_index + 1) / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
 
         # PM 에이전트 실행
@@ -190,7 +191,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
             "threats": swot.get("threats", []),
             "nextSteps": next_steps,
             "marketResearch": market_research,
-            "createdAt": datetime.utcnow(),
+            "createdAt": _utcnow(),
             "status": "completed",
             "jobId": job_id,
         }
@@ -207,8 +208,8 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
                 "percentage": 100.0,
                 "currentStepName": "completed",
             },
-            "completedAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "completedAt": _utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         print(f"Business analysis completed for job {job_id}")
@@ -224,7 +225,7 @@ async def _process_business_analysis(job_id: str, user_id: str, input_data: dict
                 "message": str(e),
                 "retryable": True,
             },
-            "updatedAt": datetime.utcnow(),
+            "updatedAt": _utcnow(),
         })
 
 
@@ -324,7 +325,7 @@ async def get_job_status(
             ),
             result_id=job.get("resultId"),
             error=job.get("error"),
-            created_at=job.get("createdAt", datetime.utcnow()),
+            created_at=job.get("createdAt", _utcnow()),
             started_at=job.get("startedAt"),
             completed_at=job.get("completedAt"),
         )
@@ -363,7 +364,7 @@ async def cancel_job(
         # 취소 상태로 업데이트
         await FirestoreCache.update_analysis_job(job_id, {
             "status": AnalysisJobStatus.CANCELLED.value,
-            "updatedAt": datetime.utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         return CancelJobResponse(
@@ -405,7 +406,7 @@ async def get_user_pending_jobs(
                 ),
                 result_id=job.get("resultId"),
                 error=job.get("error"),
-                created_at=job.get("createdAt", datetime.utcnow()),
+                created_at=job.get("createdAt", _utcnow()),
                 started_at=job.get("startedAt"),
                 completed_at=job.get("completedAt"),
             ))
@@ -423,8 +424,8 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
         # 상태를 processing으로 변경
         await FirestoreCache.update_analysis_job(job_id, {
             "status": AnalysisJobStatus.PROCESSING.value,
-            "startedAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "startedAt": _utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         session_id = input_data.get("sessionId", "")
@@ -458,7 +459,7 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
                         "percentage": (step_index / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
             elif status == "completed":
                 step_index = step_names.index(step) if step in step_names else 0
@@ -469,7 +470,7 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
                         "percentage": ((step_index + 1) / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
 
         # PM 에이전트 실행
@@ -483,7 +484,7 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
         session["scores"] = scores
         session["analysis_result"] = result["final_report"]
         session["agent_reports"] = result.get("agent_reports", {})
-        session["completed_at"] = datetime.utcnow()
+        session["completed_at"] = _utcnow()
         session["status"] = "completed"
         session["jobId"] = job_id
 
@@ -523,7 +524,7 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
                 "testType": test_type_str,
                 "answers": answer_indexes,
                 "result": result_payload,
-                "completedAt": datetime.utcnow(),
+                "completedAt": _utcnow(),
                 "isShared": False,
                 "jobId": job_id,
                 "sessionId": session_id,
@@ -541,8 +542,8 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
                 "percentage": 100.0,
                 "currentStepName": "completed",
             },
-            "completedAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "completedAt": _utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         print(f"Psychology analysis completed for job {job_id}")
@@ -558,7 +559,7 @@ async def _process_psychology_analysis(job_id: str, user_id: str, input_data: di
                 "message": str(e),
                 "retryable": True,
             },
-            "updatedAt": datetime.utcnow(),
+            "updatedAt": _utcnow(),
         })
 
 
@@ -636,8 +637,8 @@ async def _process_memo_category_analysis(job_id: str, user_id: str, input_data:
     try:
         await FirestoreCache.update_analysis_job(job_id, {
             "status": AnalysisJobStatus.PROCESSING.value,
-            "startedAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "startedAt": _utcnow(),
+            "updatedAt": _utcnow(),
         })
 
         category_id = str(input_data.get("categoryId", "")).strip() or None
@@ -698,7 +699,7 @@ async def _process_memo_category_analysis(job_id: str, user_id: str, input_data:
                         "percentage": (step_index / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
             elif status == "completed":
                 step_index = step_names.index(step) if step in step_names else 0
@@ -709,7 +710,7 @@ async def _process_memo_category_analysis(job_id: str, user_id: str, input_data:
                         "percentage": ((step_index + 1) / 5) * 100,
                         "currentStepName": step,
                     },
-                    "updatedAt": datetime.utcnow(),
+                    "updatedAt": _utcnow(),
                 })
 
         result = await memo_category_pm.run(
@@ -719,7 +720,7 @@ async def _process_memo_category_analysis(job_id: str, user_id: str, input_data:
             on_progress=on_progress,
         )
 
-        now = datetime.utcnow()
+        now = _utcnow()
         analysis_data = {
             "userId": user_id,
             "jobId": job_id,
@@ -762,7 +763,7 @@ async def _process_memo_category_analysis(job_id: str, user_id: str, input_data:
                 "message": str(e),
                 "retryable": True,
             },
-            "updatedAt": datetime.utcnow(),
+            "updatedAt": _utcnow(),
         })
 
 

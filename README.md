@@ -1,135 +1,116 @@
 # BABBA (바빠)
 
-바쁜 일상 관리 및 공유 앱 - Todolist, 공유 일정, 추억 지도, 가계부
+가족과 소규모 그룹이 함께 쓰는 생활 운영 앱입니다. 현재 배포된 제품은 `홈`, `캘린더`, `도구`, `설정`을 중심으로, 메모/앨범/가계부/사람들/대화방/커뮤니티/사업검토/심리검사 모듈과 리포트, 함께 시간, 집안일 로테이션, 시간표 화면을 제공합니다.
 
-## 기능
+## 현재 기능
 
-### 1. TodoList (메인)
-- 원클릭 체크로 간편하게 완료 표시
-- 각 할일에 간단 노트 첨부 가능
-- 그룹 멤버에게 할일 할당 (가족, 친구, 동료)
-- 반복 할일 설정 (매일/매주/매월)
-- **Gemini AI 요약**: 오늘의 할일 요약
+- `홈`: 빠른 할 일 추가, AI 요약, 다가오는 일정, 활동 피드, D-day
+- `캘린더`: 월/주/일 보기, 그룹 일정 조회, 필터, AI 일정 처리
+- `도구`: `메모`, `앨범`, `가계부`, `사람들`, `대화방`, `커뮤니티`, `사업검토`, `심리검사`
+- `설정`: 그룹/초대, 모듈 on/off, 테마, 알림, 업데이트, AI 진단
+- 보조 화면: `리포트`, `함께 시간`, `집안일 로테이션`, `시간표`, 로그인/회원가입/온보딩
 
-### 2. 스케줄러 (캘린더)
-- 월간/주간 뷰 전환
-- 일정 생성 시 참여자 선택
-- 구성원별 색상으로 일정 표시
-- 일정 상세에서 댓글/메모 가능
+## 기술 구성
 
-### 3. 추억 지도
-- 네이버 지도 기반 추억 장소 마킹
-- 각 장소에 사진 여러 장 업로드
-- 가족 댓글 쓰레드 (대화형)
-- 날짜/장소별 타임라인 뷰
-- 장소 카테고리 (여행, 맛집, 일상 등)
+- Flutter + Riverpod + GoRouter
+- Firebase Auth, Firestore, Storage, Messaging, Hosting, Cloud Functions
+- Cloud Run FastAPI AI 백엔드 + Gemini
+- 모바일, 웹, iOS, Android 지원
 
-### 4. 공유 가계부
-- 수입/지출 기록 (금액, 날짜, 메모)
-- 카테고리별 분류 (식비, 교통, 쇼핑 등)
-- 고정 지출 등록 (월세, 구독 등)
-- 월간/연간 통계 차트
+## 백엔드 분리
 
-## 기술 스택
+이 프로젝트는 AI 기능을 두 계층으로 분리합니다.
 
-- **프레임워크**: Flutter 3.x (Dart)
-- **상태관리**: Riverpod 2.x
-- **인증**: Firebase Auth
-- **데이터베이스**: Cloud Firestore
-- **파일 저장**: Firebase Storage
-- **AI**: Google Gemini
-- **지도**: 네이버 지도 SDK (연동 필요)
-- **알림**: Firebase Cloud Messaging
-- **차트**: fl_chart
+- `Firebase`: 인증, 데이터 저장, 푸시 알림, 트리거, 호스팅
+- `Cloud Run`: 일일/주간 요약, 홈/가족 채팅/메모 요약, 사업 검토, 심리검사, AI 작업 처리
+
+앱은 `AI_API_URL`을 `--dart-define`으로 받아 Cloud Run API를 호출합니다.
 
 ## 시작하기
 
-### 1. Firebase 설정
+### 1. 준비물
 
-1. [Firebase Console](https://console.firebase.google.com/)에서 새 프로젝트 생성
-2. FlutterFire CLI로 설정 파일 자동 생성:
-   ```bash
-   dart pub global activate flutterfire_cli
-   flutterfire configure
-   ```
-3. 또는 `.example` 파일을 복사하여 수동 설정:
-   ```bash
-   cp android/app/google-services.json.example android/app/google-services.json
-   cp lib/firebase_options.dart.example lib/firebase_options.dart
-   cp web/firebase-messaging-sw.js.example web/firebase-messaging-sw.js
-   cp .firebaserc.example .firebaserc
-   ```
-   복사한 파일의 `YOUR_*` placeholder를 실제 Firebase 프로젝트 값으로 교체하세요.
+- Flutter SDK
+- Firebase CLI
+- FlutterFire CLI
+- Python 3.11+
+- Node.js 20+
 
-### 2. 환경 변수
+### 2. Firebase 설정
 
-프로젝트 루트에 `.env` 파일을 생성합니다 (git에 커밋되지 않음):
 ```bash
-# .env (이 파일은 .gitignore에 포함됨)
-GEMINI_API_KEY=your_gemini_api_key
+dart pub global activate flutterfire_cli
+flutterfire configure
 ```
 
-앱 빌드 시 `--dart-define`으로 설정을 주입합니다:
+생성된 `lib/firebase_options.dart`와 플랫폼별 Firebase 설정 파일을 준비합니다.
+
+- Android: `android/app/google-services.json`
+- iOS: `ios/Runner/GoogleService-Info.plist`
+
+### 3. 환경 변수
+
+앱 실행 시 필요한 값은 `--dart-define`으로 주입합니다.
+
 ```bash
 flutter run \
-  --dart-define=AI_API_URL=https://your-cloud-run-url \
+  --dart-define=GEMINI_API_KEY=your_gemini_api_key \
+  --dart-define=AI_API_URL=http://localhost:8080 \
   --dart-define=VERSION_JSON_URL=https://your-project.web.app/version.json \
   --dart-define=APP_WEB_URL=https://your-project.web.app \
-  --dart-define=FCM_VAPID_KEY=your-fcm-vapid-key
+  --dart-define=FCM_VAPID_KEY=your_fcm_vapid_key
 ```
 
-### 3. 네이버 지도 설정 (선택)
+Cloud Run AI 서버는 `cloud-run/.env.example`을 복사해 `.env`를 만들고 다음 값을 채웁니다.
 
-추억 지도 기능을 사용하려면 네이버 지도 SDK를 연동해야 합니다.
-현재는 플레이스홀더로 구현되어 있습니다.
+- `GEMINI_API_KEY`
+- `GCP_PROJECT_ID`
+- `CORS_ORIGINS`
 
-### 4. 실행
+### 4. 로컬 실행
 
 ```bash
 flutter pub get
 flutter run
 ```
 
+Cloud Run AI 서버를 별도로 실행하려면:
+
+```bash
+cd cloud-run
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8080
+```
+
+Functions 에뮬레이터를 돌리려면:
+
+```bash
+cd functions
+npm install
+npm run serve
+```
+
+## 배포
+
+- Cloud Run: `cd cloud-run && gcloud builds submit --config cloudbuild.yaml`
+- Firebase Functions: `cd functions && npm run deploy`
+- Web Hosting: `flutter build web` 후 `firebase deploy --only hosting`
+
 ## 프로젝트 구조
 
-```
+```text
 lib/
-├── main.dart
-├── app/
-│   ├── app.dart
-│   ├── router.dart
-│   └── main_shell.dart
-├── core/
-│   └── theme/
-│       ├── app_colors.dart
-│       ├── app_typography.dart
-│       └── app_theme.dart
-├── features/
-│   ├── auth/
-│   ├── home/
-│   ├── todo/
-│   ├── calendar/
-│   ├── memory/
-│   ├── budget/
-│   └── settings/
-├── shared/
-│   ├── widgets/
-│   ├── models/
-│   └── providers/
-└── services/
-    ├── firebase/
-    └── gemini/
+  app/                # 라우팅, shell, 앱 진입점
+  features/           # 홈, 캘린더, 도구, 메모, 앨범, 가계부, 사람들, 리포트 등
+  services/           # AI, Firebase, 업데이트, 알림
+  shared/             # 모델, provider, 유틸, 공용 위젯
+cloud-run/            # FastAPI 기반 AI 백엔드
+functions/            # Firestore 트리거, 알림, 스케줄 작업
+docs/                 # 아키텍처/마이그레이션/QA 문서
 ```
-
-## 디자인
-
-- **테마**: 따뜻하고 포근한 파스텔톤
-- **Primary Color**: Coral (#E8A87C)
-- **Secondary Color**: Sage (#85DCBA)
-- **Accent Color**: Lavender (#C3B1E1)
-- **다크 모드 지원**: 시스템 설정 자동 감지
 
 ## 라이선스
 
 MIT License
-# babba_busy

@@ -5,6 +5,8 @@ import re
 from datetime import datetime
 from typing import Any, Callable, Optional
 
+from time_utils import utcnow_naive
+
 from .base_agent import BaseAgent
 
 
@@ -516,7 +518,7 @@ class MemoCategoryPMAgent(BaseAgent):
             "confidence": synthesis.get("confidence", 0.55),
             "quality": quality,
             "compacted_contexts": compacted,
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": utcnow_naive().isoformat(),
         }
         if on_progress:
             await on_progress("finalization", "completed")

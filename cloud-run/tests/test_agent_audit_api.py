@@ -77,6 +77,9 @@ fake_services = types.ModuleType("services")
 fake_services.FirebaseAuth = _FakeFirebaseAuth
 fake_services.FirestoreCache = _FakeFirestoreCache
 fake_services.gemini_service = _FakeGeminiService()
+sys.modules.pop("services", None)
+sys.modules.pop("dependencies", None)
+sys.modules.pop("routers.agent", None)
 sys.modules["services"] = fake_services
 
 from dependencies import get_current_user  # noqa: E402

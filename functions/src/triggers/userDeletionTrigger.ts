@@ -131,10 +131,12 @@ async function deleteStorageFolder(prefix: string): Promise<number> {
  *
  * 삭제 대상:
  * - Firestore:
- *   - users/{userId} (+ notificationHistory, todos, albums, business_reviews 하위 컬렉션)
+ *   - users/{userId} (+ notificationHistory, todos, albums, business_reviews, psychology_results,
+ *     memo_category_analyses, memos, memo_categories, ai_action_requests, tool_audit_log 하위 컬렉션)
  *   - memberships (userId == currentUser인 모든 문서)
- *   - ai_cache/{userId} (+ 하위 컬렉션)
+ *   - ai_cache/{userId} (+ daily_summary, weekly_summary, psychology_sessions, business_sessions 하위 컬렉션)
  *   - analysis_jobs (userId == currentUser)
+ *   - reminders (userId == currentUser)
  * - Storage:
  *   - users/{userId}/*
  * - Auth:
@@ -165,6 +167,7 @@ export const deleteUserAccount = functions
         memberships: 0,
         aiCache: 0,
         analysisJobs: 0,
+        reminders: 0,
         subcollections: 0,
       },
       storage: 0,
@@ -179,7 +182,17 @@ export const deleteUserAccount = functions
       deletionStats.firestore.subcollections += albumsDeleted;
       console.log(`[deleteUserAccount] Deleted ${albumsDeleted} docs from users/${userId}/albums(+comments)`);
 
-      const subcollections = ["notificationHistory", "todos", "business_reviews"];
+      const subcollections = [
+        "notificationHistory",
+        "todos",
+        "business_reviews",
+        "psychology_results",
+        "memo_category_analyses",
+        "memos",
+        "memo_categories",
+        "ai_action_requests",
+        "tool_audit_log",
+      ];
 
       for (const subcol of subcollections) {
         const deleted = await deleteSubcollection(userRef, subcol);
@@ -199,7 +212,12 @@ export const deleteUserAccount = functions
 
       // 2.4 ai_cache/{userId} 삭제 (서브컬렉션 포함)
       const aiCacheRef = db.collection("ai_cache").doc(userId);
-      const aiSubcollections = ["summaries", "insights"];
+      const aiSubcollections = [
+        "daily_summary",
+        "weekly_summary",
+        "psychology_sessions",
+        "business_sessions",
+      ];
       for (const subcol of aiSubcollections) {
         const deleted = await deleteSubcollection(aiCacheRef, subcol);
         deletionStats.firestore.aiCache += deleted;
@@ -211,6 +229,11 @@ export const deleteUserAccount = functions
       const analysisJobsQuery = db.collection("analysis_jobs").where("userId", "==", userId);
       deletionStats.firestore.analysisJobs = await deleteQueryResults(analysisJobsQuery);
       console.log(`[deleteUserAccount] Deleted ${deletionStats.firestore.analysisJobs} analysis_jobs`);
+
+      // 2.6 reminders 삭제 (userId 기준)
+      const remindersQuery = db.collection("reminders").where("userId", "==", userId);
+      deletionStats.firestore.reminders = await deleteQueryResults(remindersQuery);
+      console.log(`[deleteUserAccount] Deleted ${deletionStats.firestore.reminders} reminders`);
 
       // 3. Storage 삭제
       deletionStats.storage = await deleteStorageFolder(`users/${userId}/`);

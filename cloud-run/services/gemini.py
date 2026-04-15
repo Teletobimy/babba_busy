@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 from typing import Optional, List
 from config import get_settings
+from time_utils import parse_datetime_or_none, utcnow_naive
 
 settings = get_settings()
 
@@ -1047,7 +1048,7 @@ class GeminiService:
     ) -> dict:
         """자연어 입력을 개인 리마인더 생성 preview로 구조화"""
         normalized_prompt = prompt.strip()
-        current_time = self._parse_optional_datetime(current_time_iso) or datetime.utcnow()
+        current_time = self._parse_optional_datetime(current_time_iso) or utcnow_naive()
         if not normalized_prompt:
             return self._fallback_personal_reminder_create_plan(
                 normalized_prompt,
@@ -1378,31 +1379,8 @@ score는 0-100 사이의 정수로, 사업성 점수입니다."""
         }
 
     def _parse_optional_datetime(self, raw: Optional[str]) -> Optional[datetime]:
-        """ISO 문자열을 datetime으로 파싱"""
-        if raw is None:
-            return None
-
-        value = str(raw).strip()
-        if not value:
-            return None
-
-        candidates = [value]
-        if value.endswith("Z"):
-            candidates.append(f"{value[:-1]}+00:00")
-
-        for candidate in candidates:
-            try:
-                return datetime.fromisoformat(candidate)
-            except ValueError:
-                continue
-
-        for date_format in ("%Y-%m-%d", "%Y/%m/%d"):
-            try:
-                return datetime.strptime(value, date_format)
-            except ValueError:
-                continue
-
-        return None
+        """공용 datetime 파서를 사용해 naive UTC 기준으로 파싱"""
+        return parse_datetime_or_none(raw)
 
     def _normalize_reminder_minutes(
         self,
@@ -1845,7 +1823,7 @@ score는 0-100 사이의 정수로, 사업성 점수입니다."""
     ) -> dict:
         """개인 리마인더 생성 preview 폴백"""
         normalized_prompt = prompt.strip()
-        base_time = (current_time or datetime.utcnow()).replace(
+        base_time = (current_time or utcnow_naive()).replace(
             second=0,
             microsecond=0,
         ) + timedelta(hours=1)

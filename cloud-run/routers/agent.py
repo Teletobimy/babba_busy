@@ -61,6 +61,7 @@ from models import (
     ErrorResponse,
 )
 from services import FirestoreCache, gemini_service
+from time_utils import normalize_utc_naive, utcnow_naive as _utcnow
 
 router = APIRouter(prefix="/api/agent", tags=["Agent"])
 
@@ -366,7 +367,7 @@ async def generate_home_summary(
         if current_user["uid"] != request.user_id:
             raise HTTPException(status_code=403, detail="권한이 없습니다.")
 
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today = _utcnow().strftime("%Y-%m-%d")
         cache_key = _build_cache_key(today, request.selected_member_id)
         subject_name = _resolve_subject_name(request)
 
@@ -394,7 +395,7 @@ async def generate_home_summary(
             summary=summary,
             cached=False,
             trace_id=f"home-summary-{uuid4().hex[:12]}",
-            generated_at=datetime.utcnow(),
+            generated_at=_utcnow(),
         )
     except HTTPException:
         raise
@@ -443,7 +444,7 @@ async def generate_family_chat_summary(
                 latest_message_at=None,
                 cached=False,
                 trace_id=f"family-chat-empty-{request.family_id}",
-                generated_at=datetime.utcnow(),
+                generated_at=_utcnow(),
             )
 
         latest_message = messages[-1]
@@ -508,7 +509,7 @@ async def generate_family_chat_summary(
             latest_message_at=latest_message_at,
             cached=False,
             trace_id=f"family-chat-summary-{uuid4().hex[:12]}",
-            generated_at=datetime.utcnow(),
+            generated_at=_utcnow(),
         )
     except HTTPException:
         raise
@@ -586,7 +587,7 @@ async def generate_memo_summary(
             suggested_tags=summary_result.get("suggested_tags") or [],
             cached=False,
             trace_id=f"memo-summary-{uuid4().hex[:12]}",
-            generated_at=datetime.utcnow(),
+            generated_at=_utcnow(),
         )
     except HTTPException:
         raise
@@ -619,7 +620,7 @@ async def get_recent_agent_audit_logs(
             limit=safe_limit,
             total_count=len(items),
             items=[AgentAuditLogEntry(**item) for item in items],
-            fetched_at=datetime.utcnow(),
+            fetched_at=_utcnow(),
         )
     except Exception as exc:
         print(f"Agent audit read error: {exc}")
@@ -654,7 +655,7 @@ async def preview_personal_note_create(
 
         planned = await gemini_service.plan_personal_note_create(
             prompt=prompt,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
         )
 
         title = str(planned.get("title") or "").strip()
@@ -677,7 +678,7 @@ async def preview_personal_note_create(
             str(planned.get("summary") or "").strip()
             or f"개인 메모 '{title}' 초안을 만들었어요."
         )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -760,7 +761,7 @@ async def decide_personal_note_create(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentNoteCreateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -804,7 +805,7 @@ async def preview_personal_note_update(
         planned = await gemini_service.plan_personal_note_update(
             prompt=prompt,
             memos=memos,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
         )
         if not planned:
             raise HTTPException(status_code=400, detail="수정할 개인 메모를 찾을 수 없습니다.")
@@ -843,7 +844,7 @@ async def preview_personal_note_update(
             str(planned.get("summary") or "").strip()
             or f"개인 메모 '{title}' 수정 초안을 만들었어요."
         )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -926,7 +927,7 @@ async def decide_personal_note_update(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentNoteUpdateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -965,17 +966,17 @@ async def preview_personal_reminder_create(
 
         planned = await gemini_service.plan_personal_reminder_create(
             prompt=prompt,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
         )
 
         message = str(planned.get("message") or "").strip()
         remind_at = planned.get("remind_at")
-        if remind_at is not None and isinstance(remind_at, datetime) and remind_at.tzinfo is not None:
-            remind_at = remind_at.replace(tzinfo=None)
+        if remind_at is not None and isinstance(remind_at, datetime):
+            remind_at = normalize_utc_naive(remind_at)
 
         if not message or not isinstance(remind_at, datetime):
             raise HTTPException(status_code=400, detail="리마인더 초안을 생성할 수 없습니다.")
-        if remind_at <= datetime.utcnow():
+        if remind_at <= _utcnow():
             raise HTTPException(
                 status_code=400,
                 detail="리마인더 시각이 현재보다 미래여야 합니다. 시간을 더 구체적으로 적어주세요.",
@@ -1001,7 +1002,7 @@ async def preview_personal_reminder_create(
                 f"{preview_payload['formatted_remind_at']}부터 "
                 f"{preview_payload['recurrence_label']} 반복으로 만들어요."
             )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -1084,7 +1085,7 @@ async def decide_personal_reminder_create(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentReminderCreateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -1135,7 +1136,7 @@ async def preview_personal_todo_create(
 
         planned = await gemini_service.plan_personal_todo_create(
             prompt=prompt,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
         )
 
         title = str(planned.get("title") or "").strip()
@@ -1166,7 +1167,7 @@ async def preview_personal_todo_create(
         params_hash = _build_todo_preview_params_hash(preview_payload)
         request_id = f"todo_create_{uuid4().hex[:16]}"
         summary = str(planned.get("summary") or "").strip() or f"개인 할 일 '{title}'을 만들어요."
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -1250,7 +1251,7 @@ async def decide_personal_todo_create(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentTodoCreateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -1304,7 +1305,7 @@ async def preview_personal_todo_complete(
         planned = await gemini_service.plan_personal_todo_complete(
             prompt=prompt,
             pending_todos=pending_todos,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
         )
         if not planned or not str(planned.get("todo_id") or "").strip():
             raise HTTPException(
@@ -1337,7 +1338,7 @@ async def preview_personal_todo_complete(
             str(planned.get("summary") or "").strip()
             or f"개인 할 일 '{preview_payload['title']}'을 완료 처리해요."
         )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -1420,7 +1421,7 @@ async def decide_personal_todo_complete(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentTodoCompleteResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -1471,7 +1472,7 @@ async def preview_personal_calendar_create(
 
         planned = await gemini_service.plan_personal_calendar_create(
             prompt=prompt,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
             selected_date_iso=request.selected_date.isoformat()
             if request.selected_date is not None
             else None,
@@ -1525,7 +1526,7 @@ async def preview_personal_calendar_create(
             str(planned.get("summary") or "").strip()
             or f"개인 일정 '{title}'을 만들어요."
         )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -1610,7 +1611,7 @@ async def decide_personal_calendar_create(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentCalendarCreateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise
@@ -1660,7 +1661,7 @@ async def preview_personal_calendar_update(
         planned = await gemini_service.plan_personal_calendar_update(
             prompt=prompt,
             calendar_items=calendar_items,
-            current_time_iso=datetime.utcnow().isoformat(timespec="seconds"),
+            current_time_iso=_utcnow().isoformat(timespec="seconds"),
             selected_date_iso=request.selected_date.isoformat()
             if request.selected_date is not None
             else None,
@@ -1758,7 +1759,7 @@ async def preview_personal_calendar_update(
             str(planned.get("summary") or "").strip()
             or f"개인 일정 '{title}' 수정 초안을 만들었어요."
         )
-        generated_at = datetime.utcnow()
+        generated_at = _utcnow()
 
         await FirestoreCache.set_ai_action_request(
             request.user_id,
@@ -1842,7 +1843,7 @@ async def decide_personal_calendar_update(
                 approved=bool(decision_result.get("approved")),
             ),
             result=AgentCalendarUpdateResult(**result_payload),
-            executed_at=decision_result.get("executed_at") or datetime.utcnow(),
+            executed_at=decision_result.get("executed_at") or _utcnow(),
         )
     except HTTPException:
         raise

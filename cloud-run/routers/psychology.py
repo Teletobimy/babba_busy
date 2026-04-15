@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from datetime import datetime
 import uuid
 from typing import Optional
 import json
@@ -17,6 +16,7 @@ from models import (
 from services import FirestoreCache
 from agents.psychology_agents import PsychologyPMAgent, TestType, PSYCHOLOGY_TESTS
 from dependencies import get_current_user
+from time_utils import utcnow_naive
 
 
 # Request 모델
@@ -102,7 +102,7 @@ async def start_psychology_test(
             "answers": [],
             "current_index": 0,
             "total_questions": len(questions),
-            "started_at": datetime.utcnow(),
+            "started_at": utcnow_naive(),
         }
 
         await FirestoreCache.set_psychology_session(user_id, session_id, session)
@@ -317,7 +317,7 @@ async def get_psychology_result(
         # 세션에 결과 저장
         session["scores"] = scores
         session["analysis_result"] = analysis
-        session["completed_at"] = datetime.utcnow()
+        session["completed_at"] = utcnow_naive()
 
         await FirestoreCache.set_psychology_session(user_id, session_id, session)
 
@@ -411,7 +411,7 @@ async def analyze_psychology_stream(
                 session["scores"] = scores
                 session["analysis_result"] = result["final_report"]
                 session["agent_reports"] = result["agent_reports"]
-                session["completed_at"] = datetime.utcnow()
+                session["completed_at"] = utcnow_naive()
 
                 await FirestoreCache.set_psychology_session(request.user_id, request.session_id, session)
 
@@ -510,7 +510,7 @@ async def generate_comprehensive_report(
             "success": True,
             "comprehensive_report": report,
             "included_tests": [r["test_type"] for r in results],
-            "generated_at": datetime.utcnow(),
+            "generated_at": utcnow_naive(),
         }
 
     except HTTPException:
