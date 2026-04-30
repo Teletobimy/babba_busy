@@ -318,7 +318,7 @@ final smartUpcomingTodosProvider = Provider<List<TodoItem>>((ref) {
     if (todo.isCompleted) return false; // 완료 항목 제외
     if (todo.dueDate == null && todo.startTime == null) return false;
     final todoDate = todo.startTime ?? todo.dueDate!;
-    return todoDate.isAfter(now) && todoDate.isBefore(weekLater);
+    return !todoDate.isBefore(today) && todoDate.isBefore(weekLater);
   }).toList()
     ..sort((a, b) {
       final aTime = a.startTime ?? a.dueDate ?? a.createdAt;
@@ -360,7 +360,7 @@ final smartUpcomingExpandedTodosProvider = Provider<List<TodoItem>>((ref) {
     if (todo.isCompleted) return false;
     if (todo.dueDate == null && todo.startTime == null) return false;
     final todoDate = todo.startTime ?? todo.dueDate!;
-    return todoDate.isAfter(now) && todoDate.isBefore(weekLater);
+    return !todoDate.isBefore(today) && todoDate.isBefore(weekLater);
   }).toList()
     ..sort((a, b) {
       final aTime = a.startTime ?? a.dueDate ?? a.createdAt;

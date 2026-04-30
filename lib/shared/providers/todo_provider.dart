@@ -365,7 +365,7 @@ List<TodoItem> _generateRecurringInstances(
         : currentDate;
 
     // 범위 내 인스턴스인지 확인
-    if (currentDate.isAfter(rangeStart.subtract(const Duration(days: 1)))) {
+    if (!currentDate.isBefore(rangeStart)) {
       // 공휴일 제외 옵션 확인
       bool shouldAdd = true;
       if (todo.excludeHolidays) {
