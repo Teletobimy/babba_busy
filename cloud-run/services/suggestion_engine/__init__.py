@@ -29,6 +29,13 @@ from .keyword_filter import (
     NEGATIVE_CONTEXT_KEYWORDS,
     POSITIVE_INTENT_KEYWORDS,
 )
+from .llm_judge import (
+    JudgeVerdict,
+    JudgeCaller,
+    build_judge_prompt,
+    parse_judge_response,
+    judge_drafts,
+)
 
 __all__ = [
     "SuggestionContext",
@@ -42,4 +49,9 @@ __all__ = [
     "filter_candidates",
     "NEGATIVE_CONTEXT_KEYWORDS",
     "POSITIVE_INTENT_KEYWORDS",
+    "JudgeVerdict",
+    "JudgeCaller",
+    "build_judge_prompt",
+    "parse_judge_response",
+    "judge_drafts",
 ]
