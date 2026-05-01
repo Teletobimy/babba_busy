@@ -36,6 +36,14 @@ from .llm_judge import (
     parse_judge_response,
     judge_drafts,
 )
+from .pipeline import (
+    PipelineResult,
+    SuggestionRecord,
+    STAGE_NAMES,
+    compute_fingerprint,
+    run_pipeline,
+    stamp_lifecycle,
+)
 
 __all__ = [
     "SuggestionContext",
@@ -54,4 +62,10 @@ __all__ = [
     "build_judge_prompt",
     "parse_judge_response",
     "judge_drafts",
+    "PipelineResult",
+    "SuggestionRecord",
+    "STAGE_NAMES",
+    "compute_fingerprint",
+    "run_pipeline",
+    "stamp_lifecycle",
 ]

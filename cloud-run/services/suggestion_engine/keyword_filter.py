@@ -68,18 +68,18 @@ def evaluate_keywords(
     ctx: SuggestionContext,
     extra_text_signals: str | None = None,
 ) -> KeywordEvaluation:
-    """draft + ctx의 텍스트 신호를 보고 키워드 매칭.
+    """ctx의 사용자 신호 텍스트에서만 키워드 매칭.
 
-    text 합성 대상:
-      - draft.title, draft.body, draft.target_label
-      - extra_text_signals (호출자가 추가로 넘김 — 최근 메모 합치기 등)
+    중요: draft.title/body/target_label은 보지 않음. rule이 자체 생성한 텍스트라
+    여기 매칭되면 fast_pass가 noise가 됨 (모든 reminder_setup draft가 자기 title에
+    "알림" 들어있어 항상 fast_pass되는 식). 진짜 사용자 의도 신호만 본다.
+
+    text 합성 대상 (사용자 입력 only):
+      - extra_text_signals (호출자가 추가로 넘김 — 최근 메모/메시지 합치기 등)
       - ctx의 todo 제목들 (최대 5개)
       - ctx의 event 제목들 (최대 5개)
     """
     parts: list[str] = []
-    parts.append(_normalize(draft.title))
-    parts.append(_normalize(draft.body))
-    parts.append(_normalize(draft.target_label))
     if extra_text_signals:
         parts.append(_normalize(extra_text_signals))
 
