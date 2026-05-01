@@ -625,6 +625,11 @@ class FirestoreCache:
             if bool(data.get("isCompleted")):
                 continue
 
+            reminder_minutes_raw = data.get("reminderMinutes")
+            reminder_minutes = (
+                reminder_minutes_raw if isinstance(reminder_minutes_raw, list) else []
+            )
+
             items.append(
                 {
                     "id": doc.id,
@@ -633,6 +638,7 @@ class FirestoreCache:
                     "due_date": data.get("dueDate"),
                     "created_at": data.get("createdAt"),
                     "visibility": str(data.get("visibility") or "private"),
+                    "reminder_minutes": reminder_minutes,
                 }
             )
 

@@ -1,15 +1,18 @@
 """
-User Brain Router (Phase B1)
+User Brain Router (Phase B1 + B2)
 
 3-Brain Architecture의 가장 활동적 tier — 개인 사용자의 KB, reflection, suggestion 조회.
+B2 추가: /internal/reflect 엔드포인트 — Cloud Scheduler가 단일 사용자 reflection 1회 실행.
 
 참조: docs/ai/BABBA_3BRAIN_DESIGN_V1.md
 """
 
+import os
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel
 
 from dependencies import get_current_user
 from models import (
@@ -27,6 +30,7 @@ from models import (
     UserBrainSuggestionListResponse,
 )
 from services import FirestoreCache
+from services.user_brain_reflection import run_reflection_for_user
 from time_utils import utcnow_naive as _utcnow
 
 router = APIRouter(prefix="/api/agent/brain/user", tags=["UserBrain"])
@@ -165,6 +169,82 @@ async def list_user_brain_reflections(
             status_code=500,
             detail="User Brain reflection 조회 중 오류가 발생했습니다.",
         )
+
+
+# ============ Internal: reflection trigger (Cloud Scheduler) ============
+
+
+class _InternalReflectRequest(BaseModel):
+    user_id: str
+    judge_enabled: bool = True
+
+
+class _InternalReflectResponse(BaseModel):
+    ok: bool
+    user_id: str
+    reflection_period: Optional[str] = None
+    written_suggestions: int = 0
+    rule_candidate_count: int = 0
+    fast_passed: int = 0
+    needs_judge: int = 0
+    judge_passed: int = 0
+    blocked_by_keyword: int = 0
+    deduped: int = 0
+    error: Optional[str] = None
+
+
+def _verify_internal_token(authorization: Optional[str]) -> None:
+    """Cloud Scheduler가 호출할 때 사용하는 내부 토큰 검증.
+
+    환경변수 INTERNAL_AGENT_TOKEN 미설정 시 모든 호출 차단 (안전 기본값).
+    """
+    expected = os.getenv("INTERNAL_AGENT_TOKEN", "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="internal endpoint disabled")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing internal bearer token")
+    provided = authorization[len("Bearer "):].strip()
+    if provided != expected:
+        raise HTTPException(status_code=401, detail="invalid internal token")
+
+
+@router.post(
+    "/internal/reflect",
+    response_model=_InternalReflectResponse,
+    responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def internal_reflect(
+    body: _InternalReflectRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """단일 사용자에 대해 reflection 1회 실행 (Cloud Scheduler 트리거 용).
+
+    인증: `Authorization: Bearer <INTERNAL_AGENT_TOKEN>` 헤더 필수.
+    Cloud Run 자체는 --allow-unauthenticated 이므로 토큰 검증으로 보호.
+    """
+    _verify_internal_token(authorization)
+
+    outcome = await run_reflection_for_user(
+        body.user_id,
+        judge_enabled=body.judge_enabled,
+    )
+    p = outcome.pipeline
+    return _InternalReflectResponse(
+        ok=outcome.error is None,
+        user_id=outcome.user_id,
+        reflection_period=outcome.reflection_period,
+        written_suggestions=outcome.written_suggestions,
+        rule_candidate_count=p.rule_candidate_count,
+        fast_passed=p.fast_passed,
+        needs_judge=p.needs_judge,
+        judge_passed=p.judge_passed,
+        blocked_by_keyword=p.blocked_by_keyword,
+        deduped=p.deduped,
+        error=outcome.error,
+    )
+
+
+# ============ User Brain 조회 (인증된 사용자) ============
 
 
 @router.get(
