@@ -12,6 +12,7 @@ from routers.jobs import router as jobs_router
 from routers.memo import router as memo_router
 from routers.psychology import router as psychology_router
 from routers.summary import router as summary_router
+from routers.user_brain import router as user_brain_router
 
 settings = get_settings()
 
@@ -75,6 +76,7 @@ app.include_router(business_router)
 app.include_router(psychology_router)
 app.include_router(memo_router)
 app.include_router(jobs_router)
+app.include_router(user_brain_router)
 
 
 # 헬스체크

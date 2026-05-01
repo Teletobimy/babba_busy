@@ -2148,6 +2148,93 @@ class FirestoreCache:
             limit,
         )
 
+    # ============ User Brain (Phase B1) ============
+    # 경로 메모: subcollection 양식 (path = collection/document/collection/document...)
+    #   users/{uid}/ai_brain_kb/main          — 단일 KB 문서
+    #   users/{uid}/ai_brain_reflections/{id} — reflection 컬렉션
+    #   users/{uid}/ai_brain_suggestions/{id} — suggestion 컬렉션
+
+    @staticmethod
+    def _get_user_brain_kb_sync(user_id: str) -> Optional[dict]:
+        doc = (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_kb")
+            .document("main")
+            .get()
+        )
+        return doc.to_dict() if doc.exists else None
+
+    @staticmethod
+    async def get_user_brain_kb(user_id: str) -> Optional[dict]:
+        return await asyncio.to_thread(
+            FirestoreCache._get_user_brain_kb_sync, user_id
+        )
+
+    @staticmethod
+    def _set_user_brain_kb_sync(
+        user_id: str, payload: dict, merge: bool = True
+    ) -> None:
+        (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_kb")
+            .document("main")
+            .set(payload, merge=merge)
+        )
+
+    @staticmethod
+    async def set_user_brain_kb(
+        user_id: str, payload: dict, merge: bool = True
+    ) -> None:
+        await asyncio.to_thread(
+            FirestoreCache._set_user_brain_kb_sync, user_id, payload, merge
+        )
+
+    @staticmethod
+    def _list_user_brain_reflections_sync(
+        user_id: str, limit: int = 10
+    ) -> list[dict]:
+        docs = (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_reflections")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+            .stream()
+        )
+        return [doc.to_dict() | {"period": doc.id} for doc in docs]
+
+    @staticmethod
+    async def list_user_brain_reflections(
+        user_id: str, limit: int = 10
+    ) -> list[dict]:
+        return await asyncio.to_thread(
+            FirestoreCache._list_user_brain_reflections_sync, user_id, limit
+        )
+
+    @staticmethod
+    def _list_user_brain_suggestions_sync(
+        user_id: str, limit: int = 20
+    ) -> list[dict]:
+        docs = (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_suggestions")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(limit)
+            .stream()
+        )
+        return [doc.to_dict() | {"suggestion_id": doc.id} for doc in docs]
+
+    @staticmethod
+    async def list_user_brain_suggestions(
+        user_id: str, limit: int = 20
+    ) -> list[dict]:
+        return await asyncio.to_thread(
+            FirestoreCache._list_user_brain_suggestions_sync, user_id, limit
+        )
+
 
 class FirebaseAuth:
     """Firebase 인증 서비스"""

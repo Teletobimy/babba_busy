@@ -867,3 +867,108 @@ class MemoCategoryAnalysisResultResponse(BaseModel):
 class ProcessJobRequest(BaseModel):
     """내부 작업 처리 요청 (Cloud Tasks에서 호출)"""
     job_id: str
+
+
+# ============ 3-Brain Architecture: User Brain (Phase B1) ============
+# 참조: docs/ai/BABBA_3BRAIN_DESIGN_V1.md
+
+class UserBrainKnowledge(BaseModel):
+    """개인 brain knowledge base — 사용자가 명시한 정보 + 추론된 패턴"""
+    personal_knowledge: str = ""              # 명시적 선호/제약 (자유 텍스트, 최대 3000자)
+    inferred_patterns: List[str] = Field(default_factory=list)  # 추론 패턴 항목들
+    rhythm_summary: Optional[str] = None       # 활동 리듬 요약 (최대 500자)
+
+
+class UserBrainCurrentState(BaseModel):
+    """현재 상태 스냅샷 (reflection job이 갱신)"""
+    active_todos: int = 0
+    upcoming_events: int = 0
+    completed_today: int = 0
+    completion_rate_7d: float = 0.0            # 최근 7일 완료율
+    last_active_at: Optional[datetime] = None
+
+
+class UserBrainPlatformContext(BaseModel):
+    """Platform Brain 주입 (cascade injection)"""
+    injected_at: Optional[datetime] = None
+    platform_kb_version: int = 0
+    summary: str = ""                          # Platform → User 요약 (최대 1500자)
+    relevant_signals: List[str] = Field(default_factory=list)  # 관련 signal id
+
+
+class UserBrainGroupContext(BaseModel):
+    """본인이 속한 가족(들)의 상태 요약 — Group Brain에서 cascade"""
+    family_id: str
+    family_name: Optional[str] = None
+    summary: str = ""                          # 가족 상태 요약 (최대 800자)
+    last_synced_at: Optional[datetime] = None
+
+
+class UserBrainKB(BaseModel):
+    """`users/{uid}/ai_brain/main` 단일 문서 스키마"""
+    user_id: str
+    knowledge: UserBrainKnowledge = Field(default_factory=UserBrainKnowledge)
+    current_state: UserBrainCurrentState = Field(default_factory=UserBrainCurrentState)
+    platform_context: Optional[UserBrainPlatformContext] = None
+    group_contexts: List[UserBrainGroupContext] = Field(default_factory=list)
+    version: int = 1
+    seeded_at: Optional[datetime] = None
+    last_reflection_at: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
+
+
+class UserBrainReflectionEntry(BaseModel):
+    """`users/{uid}/ai_brain/reflections/{period}` 1건"""
+    period: str                                # "tick_20260501T0930" or "daily_20260501"
+    type: str                                  # "tick" | "daily"
+    summary: str                               # 최대 1500자
+    insights: List[str] = Field(default_factory=list)
+    state_hash: Optional[str] = None           # tick 중복 방지용
+    created_at: datetime
+
+
+class UserBrainReflectionListResponse(BaseModel):
+    ok: bool = True
+    user_id: str
+    items: List[UserBrainReflectionEntry] = Field(default_factory=list)
+    fetched_at: datetime
+
+
+class UserBrainSuggestionLifecycleStages(BaseModel):
+    """Suggestion 8-stage lifecycle timestamps (RFC: 6 events 표준)"""
+    signal: datetime
+    dedup: Optional[datetime] = None
+    policy: Optional[datetime] = None
+    agent: Optional[datetime] = None
+    suggestion: Optional[datetime] = None
+    shown: Optional[datetime] = None
+    accepted: Optional[datetime] = None
+    completed: Optional[datetime] = None
+
+
+class UserBrainSuggestionEntry(BaseModel):
+    """`users/{uid}/ai_brain/suggestions/{id}` 1건"""
+    suggestion_id: str
+    type: str                                  # "reminder_setup" | "priority_advice" | ...
+    title: str
+    body: Optional[str] = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    source_stage: str = "rule"                 # "rule" | "keyword" | "llm"
+    action_type: Optional[str] = None          # 후속 action (e.g. "bulk_set_reminder")
+    stages: UserBrainSuggestionLifecycleStages
+    accepted: Optional[bool] = None
+    created_at: datetime
+
+
+class UserBrainSuggestionListResponse(BaseModel):
+    ok: bool = True
+    user_id: str
+    items: List[UserBrainSuggestionEntry] = Field(default_factory=list)
+    fetched_at: datetime
+
+
+class UserBrainKBResponse(BaseModel):
+    ok: bool = True
+    kb: UserBrainKB
+    fetched_at: datetime
+

@@ -103,6 +103,20 @@
       "indexes": [
         { "queryScope": "COLLECTION_GROUP", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "ai_brain_reflections",
+      "fieldPath": "created_at",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ai_brain_suggestions",
+      "fieldPath": "created_at",
+      "indexes": [
+        { "queryScope": "COLLECTION_GROUP", "order": "DESCENDING" }
+      ]
     }
   ]
 }
