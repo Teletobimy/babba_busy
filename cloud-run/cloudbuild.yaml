@@ -48,7 +48,7 @@ steps:
       - '--set-env-vars'
       - 'ENVIRONMENT=production,GCP_PROJECT_ID=$PROJECT_ID'
       - '--set-secrets'
-      - 'GEMINI_API_KEY=gemini-api-key:latest'
+      - 'GEMINI_API_KEY=gemini-api-key:latest,INTERNAL_AGENT_TOKEN=internal-agent-token:latest'
 
 images:
   - 'gcr.io/$PROJECT_ID/babba-ai-api:$COMMIT_SHA'
