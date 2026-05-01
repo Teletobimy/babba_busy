@@ -1,5 +1,5 @@
-import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
 
 // AI tool audit retention 정책 (RFC-003 §8)
 const AUDIT_RETENTION_DAYS = 30;
@@ -13,21 +13,23 @@ const BATCH_LIMIT = 500;
  * - users/{uid}/ai_action_requests/* : updated_at < (now - 7d) 삭제
  *
  * 한 회당 최대 500개씩 (Firestore batch 한계). 남은 건 다음 날 회차에서 처리.
- * 한 번에 모두 못 비워도 retention 정책은 지켜짐 (오래된 것부터 순차 삭제).
  */
-export const cleanupAuditLogs = functions
-  .runWith({ timeoutSeconds: 540, memory: "512MB" })
-  .pubsub.schedule("0 3 * * *")
-  .timeZone("Asia/Seoul")
-  .onRun(async () => {
-    const db = admin.firestore();
+export const cleanupAuditLogs = onSchedule(
+  {
+    schedule: "0 3 * * *",
+    timeZone: "Asia/Seoul",
+    region: "asia-northeast3",
+    memory: "512MiB",
+    timeoutSeconds: 540,
+  },
+  async () => {
+    const db = getFirestore();
     const now = Date.now();
-
     let totalDeleted = 0;
 
     // 1. tool_audit_log — 30일 이상 된 audit 로그
     try {
-      const auditCutoff = admin.firestore.Timestamp.fromMillis(
+      const auditCutoff = Timestamp.fromMillis(
         now - AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000
       );
       const stale = await db
@@ -51,7 +53,7 @@ export const cleanupAuditLogs = functions
 
     // 2. ai_action_requests — 7일 이상 된 요청 문서 (status 무관)
     try {
-      const requestCutoff = admin.firestore.Timestamp.fromMillis(
+      const requestCutoff = Timestamp.fromMillis(
         now - ACTION_REQUEST_RETENTION_DAYS * 24 * 60 * 60 * 1000
       );
       const stale = await db
@@ -74,5 +76,5 @@ export const cleanupAuditLogs = functions
     }
 
     console.log(`[auditRetention] total deleted: ${totalDeleted}`);
-    return null;
-  });
+  }
+);
