@@ -22,6 +22,13 @@ from .domain import (
     SuggestionEvent,
 )
 from .rule_registry import build_rule_candidates, RULE_REGISTRY
+from .keyword_filter import (
+    KeywordEvaluation,
+    evaluate_keywords,
+    filter_candidates,
+    NEGATIVE_CONTEXT_KEYWORDS,
+    POSITIVE_INTENT_KEYWORDS,
+)
 
 __all__ = [
     "SuggestionContext",
@@ -30,4 +37,9 @@ __all__ = [
     "SuggestionEvent",
     "build_rule_candidates",
     "RULE_REGISTRY",
+    "KeywordEvaluation",
+    "evaluate_keywords",
+    "filter_candidates",
+    "NEGATIVE_CONTEXT_KEYWORDS",
+    "POSITIVE_INTENT_KEYWORDS",
 ]
