@@ -42,7 +42,7 @@ steps:
       - '--min-instances'
       - '1'
       - '--max-instances'
-      - '10'
+      - '1'
       - '--timeout'
       - '60s'
       - '--set-env-vars'

@@ -19,6 +19,7 @@ import 'providers/home_filters.dart';
 import 'widgets/ai_home_action_entry_sheet.dart';
 import 'widgets/ai_reminder_create_sheet.dart';
 import 'widgets/ai_summary_card.dart';
+import 'widgets/proactive_suggestion_card.dart';
 import 'widgets/ai_todo_action_sheet.dart';
 import 'widgets/ai_todo_complete_sheet.dart';
 import 'widgets/upcoming_events_card.dart';
@@ -243,6 +244,21 @@ class HomeScreen extends ConsumerWidget {
                 child: const AiSummaryCard()
                     .animate()
                     .fadeIn(duration: 400.ms, delay: 300.ms)
+                    .slideY(begin: 0.1),
+              ),
+            ),
+
+            // Proactive AI 제안 카드 (User Brain B3)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: AppTheme.spacingL,
+                  right: AppTheme.spacingL,
+                  top: AppTheme.spacingS,
+                ),
+                child: const ProactiveSuggestionCard()
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 320.ms)
                     .slideY(begin: 0.1),
               ),
             ),

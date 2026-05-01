@@ -3128,3 +3128,256 @@ class JobStatusResult {
   bool get isCompleted => status == 'completed';
   bool get isFailed => status == 'failed';
 }
+
+
+// ============ User Brain (Phase B3) ============
+
+class UserBrainSuggestionStages {
+  final DateTime? signal;
+  final DateTime? dedup;
+  final DateTime? policy;
+  final DateTime? agent;
+  final DateTime? suggestion;
+  final DateTime? shown;
+  final DateTime? accepted;
+  final DateTime? completed;
+
+  UserBrainSuggestionStages({
+    this.signal,
+    this.dedup,
+    this.policy,
+    this.agent,
+    this.suggestion,
+    this.shown,
+    this.accepted,
+    this.completed,
+  });
+
+  factory UserBrainSuggestionStages.fromJson(Map<String, dynamic> json) {
+    return UserBrainSuggestionStages(
+      signal: _parseDateTime(json['signal']),
+      dedup: _parseDateTime(json['dedup']),
+      policy: _parseDateTime(json['policy']),
+      agent: _parseDateTime(json['agent']),
+      suggestion: _parseDateTime(json['suggestion']),
+      shown: _parseDateTime(json['shown']),
+      accepted: _parseDateTime(json['accepted']),
+      completed: _parseDateTime(json['completed']),
+    );
+  }
+}
+
+class UserBrainSuggestion {
+  final String suggestionId;
+  final String type;
+  final String title;
+  final String? body;
+  final double confidence;
+  final String sourceStage;
+  final String? actionType;
+  final Map<String, dynamic> actionPayload;
+  final String? targetLabel;
+  final UserBrainSuggestionStages stages;
+  final bool? accepted;
+  final DateTime? createdAt;
+
+  UserBrainSuggestion({
+    required this.suggestionId,
+    required this.type,
+    required this.title,
+    this.body,
+    this.confidence = 0.0,
+    this.sourceStage = 'rule',
+    this.actionType,
+    this.actionPayload = const {},
+    this.targetLabel,
+    required this.stages,
+    this.accepted,
+    this.createdAt,
+  });
+
+  factory UserBrainSuggestion.fromJson(Map<String, dynamic> json) {
+    final stagesRaw = json['stages'];
+    return UserBrainSuggestion(
+      suggestionId: (json['suggestion_id'] ?? '').toString(),
+      type: (json['type'] ?? 'rule').toString(),
+      title: (json['title'] ?? '').toString(),
+      body: _readNullableString(json['body']),
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0.0,
+      sourceStage: (json['source_stage'] ?? 'rule').toString(),
+      actionType: _readNullableString(json['action_type']),
+      actionPayload: (json['action_payload'] is Map)
+          ? Map<String, dynamic>.from(json['action_payload'])
+          : const {},
+      targetLabel: _readNullableString(json['target_label']),
+      stages: UserBrainSuggestionStages.fromJson(
+        stagesRaw is Map ? Map<String, dynamic>.from(stagesRaw) : const {},
+      ),
+      accepted: json['accepted'] is bool ? json['accepted'] as bool : null,
+      createdAt: _parseDateTime(json['created_at']),
+    );
+  }
+}
+
+class UserBrainSuggestionListResult {
+  final String userId;
+  final List<UserBrainSuggestion> items;
+  final DateTime? fetchedAt;
+
+  UserBrainSuggestionListResult({
+    required this.userId,
+    this.items = const [],
+    this.fetchedAt,
+  });
+
+  factory UserBrainSuggestionListResult.fromJson(Map<String, dynamic> json) {
+    return UserBrainSuggestionListResult(
+      userId: (json['user_id'] ?? '').toString(),
+      items: (json['items'] is List)
+          ? (json['items'] as List)
+                .whereType<Map>()
+                .map((e) => UserBrainSuggestion.fromJson(
+                      Map<String, dynamic>.from(e),
+                    ))
+                .toList()
+          : const <UserBrainSuggestion>[],
+      fetchedAt: _parseDateTime(json['fetched_at']),
+    );
+  }
+}
+
+class UserBrainReflectResult {
+  final bool ok;
+  final String userId;
+  final String? reflectionPeriod;
+  final int writtenSuggestions;
+  final int ruleCandidateCount;
+  final int fastPassed;
+  final int needsJudge;
+  final int judgePassed;
+  final int blockedByKeyword;
+  final int deduped;
+  final String? error;
+
+  UserBrainReflectResult({
+    required this.ok,
+    required this.userId,
+    this.reflectionPeriod,
+    this.writtenSuggestions = 0,
+    this.ruleCandidateCount = 0,
+    this.fastPassed = 0,
+    this.needsJudge = 0,
+    this.judgePassed = 0,
+    this.blockedByKeyword = 0,
+    this.deduped = 0,
+    this.error,
+  });
+
+  factory UserBrainReflectResult.fromJson(Map<String, dynamic> json) {
+    return UserBrainReflectResult(
+      ok: json['ok'] == true,
+      userId: (json['user_id'] ?? '').toString(),
+      reflectionPeriod: _readNullableString(json['reflection_period']),
+      writtenSuggestions: (json['written_suggestions'] as num?)?.toInt() ?? 0,
+      ruleCandidateCount: (json['rule_candidate_count'] as num?)?.toInt() ?? 0,
+      fastPassed: (json['fast_passed'] as num?)?.toInt() ?? 0,
+      needsJudge: (json['needs_judge'] as num?)?.toInt() ?? 0,
+      judgePassed: (json['judge_passed'] as num?)?.toInt() ?? 0,
+      blockedByKeyword: (json['blocked_by_keyword'] as num?)?.toInt() ?? 0,
+      deduped: (json['deduped'] as num?)?.toInt() ?? 0,
+      error: _readNullableString(json['error']),
+    );
+  }
+}
+
+extension UserBrainApi on AiApiService {
+  /// 본인 User Brain reflection 1회 실행 (홈 화면 mount 시 호출)
+  Future<UserBrainReflectResult> runUserBrainReflect() async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+    try {
+      final headers = await _getHeaders();
+      final response = await http.post(
+        Uri.parse('${AiApiService._baseUrl}/api/agent/brain/user/reflect'),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return UserBrainReflectResult.fromJson(Map<String, dynamic>.from(data));
+      }
+      throw AiApiException(
+        'User Brain reflect 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// 본인 User Brain suggestion 목록 조회
+  Future<UserBrainSuggestionListResult> listUserBrainSuggestions({
+    int limit = 20,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+    final safeLimit = limit.clamp(1, 50);
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse(
+          '${AiApiService._baseUrl}/api/agent/brain/user/suggestions?limit=$safeLimit',
+        ),
+        headers: headers,
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return UserBrainSuggestionListResult.fromJson(
+          Map<String, dynamic>.from(data),
+        );
+      }
+      throw AiApiException(
+        'User Brain suggestions 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+
+  /// suggestion lifecycle stage 1개 stamp (shown / accepted / dismissed / completed)
+  Future<DateTime?> stampUserBrainSuggestion({
+    required String suggestionId,
+    required String stage,
+  }) async {
+    if (!hasConfiguredBaseUrl) {
+      throw AiApiException('AI API URL이 설정되지 않았습니다.');
+    }
+    try {
+      final headers = await _getHeaders();
+      final response = await http.patch(
+        Uri.parse(
+          '${AiApiService._baseUrl}/api/agent/brain/user/suggestions/$suggestionId/stamp',
+        ),
+        headers: headers,
+        body: jsonEncode({'stage': stage}),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return _parseDateTime(data['stamped_at']);
+      }
+      // 404는 dismiss 후 race 등 — 무시 가능
+      if (response.statusCode == 404) return null;
+      throw AiApiException(
+        'stamp 실패: ${response.statusCode}',
+        statusCode: response.statusCode,
+      );
+    } catch (e) {
+      if (e is AiApiException) rethrow;
+      throw AiApiException('네트워크 오류: $e');
+    }
+  }
+}

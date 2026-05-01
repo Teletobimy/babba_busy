@@ -2241,6 +2241,47 @@ class FirestoreCache:
             FirestoreCache._list_user_brain_suggestions_sync, user_id, limit
         )
 
+    @staticmethod
+    def _get_user_brain_suggestion_sync(user_id: str, suggestion_id: str) -> Optional[dict]:
+        doc = (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_suggestions")
+            .document(suggestion_id)
+            .get()
+        )
+        return doc.to_dict() if doc.exists else None
+
+    @staticmethod
+    async def get_user_brain_suggestion(
+        user_id: str, suggestion_id: str
+    ) -> Optional[dict]:
+        return await asyncio.to_thread(
+            FirestoreCache._get_user_brain_suggestion_sync, user_id, suggestion_id
+        )
+
+    @staticmethod
+    def _update_user_brain_suggestion_sync(
+        user_id: str, suggestion_id: str, updates: dict
+    ) -> None:
+        """dot-path key 지원 (예: 'stages.shown'). update()는 dot-path 자동 처리."""
+        (
+            db.collection("users")
+            .document(user_id)
+            .collection("ai_brain_suggestions")
+            .document(suggestion_id)
+            .update(updates)
+        )
+
+    @staticmethod
+    async def update_user_brain_suggestion(
+        user_id: str, suggestion_id: str, updates: dict
+    ) -> None:
+        await asyncio.to_thread(
+            FirestoreCache._update_user_brain_suggestion_sync,
+            user_id, suggestion_id, updates,
+        )
+
 
 class FirebaseAuth:
     """Firebase 인증 서비스"""

@@ -171,6 +171,127 @@ async def list_user_brain_reflections(
         )
 
 
+# ============ User-auth reflect (B3 — Flutter가 호출) ============
+
+
+class _UserReflectResponse(BaseModel):
+    ok: bool
+    user_id: str
+    reflection_period: Optional[str] = None
+    written_suggestions: int = 0
+    rule_candidate_count: int = 0
+    fast_passed: int = 0
+    needs_judge: int = 0
+    judge_passed: int = 0
+    blocked_by_keyword: int = 0
+    deduped: int = 0
+    error: Optional[str] = None
+
+
+@router.post(
+    "/reflect",
+    response_model=_UserReflectResponse,
+    responses={500: {"model": ErrorResponse}},
+)
+async def user_brain_reflect(current_user: dict = Depends(get_current_user)):
+    """본인 User Brain reflection 1회 실행. Flutter 홈 화면 mount 시 호출."""
+    outcome = await run_reflection_for_user(current_user["uid"], judge_enabled=True)
+    p = outcome.pipeline
+    return _UserReflectResponse(
+        ok=outcome.error is None,
+        user_id=outcome.user_id,
+        reflection_period=outcome.reflection_period,
+        written_suggestions=outcome.written_suggestions,
+        rule_candidate_count=p.rule_candidate_count,
+        fast_passed=p.fast_passed,
+        needs_judge=p.needs_judge,
+        judge_passed=p.judge_passed,
+        blocked_by_keyword=p.blocked_by_keyword,
+        deduped=p.deduped,
+        error=outcome.error,
+    )
+
+
+# ============ Lifecycle stamping (B3-4 — shown/accepted/dismissed) ============
+
+
+_ALLOWED_STAMP_STAGES = {"shown", "accepted", "dismissed", "completed"}
+
+
+class _StampStageRequest(BaseModel):
+    stage: str                                # "shown" | "accepted" | "dismissed" | "completed"
+
+
+class _StampStageResponse(BaseModel):
+    ok: bool
+    suggestion_id: str
+    stage: str
+    stamped_at: datetime
+
+
+@router.patch(
+    "/suggestions/{suggestion_id}/stamp",
+    response_model=_StampStageResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def stamp_suggestion_stage(
+    suggestion_id: str,
+    body: _StampStageRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """본인 suggestion lifecycle stage 1개 stamp.
+
+    stages.{stage} 필드만 갱신 (다른 stage 영향 없음). 'dismissed'는 accepted=False도 함께 set.
+    중복 stamp는 멱등 (이미 있으면 그대로 두고 stamped_at만 반환).
+    """
+    stage = body.stage.strip().lower()
+    if stage not in _ALLOWED_STAMP_STAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"stage는 {sorted(_ALLOWED_STAMP_STAGES)} 중 하나여야 합니다.",
+        )
+
+    uid = current_user["uid"]
+    now = _utcnow()
+    updates: dict[str, object] = {f"stages.{stage}": now}
+    if stage == "accepted":
+        updates["accepted"] = True
+    elif stage == "dismissed":
+        updates["accepted"] = False
+
+    try:
+        existing = await FirestoreCache.get_user_brain_suggestion(uid, suggestion_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="suggestion을 찾을 수 없습니다.")
+
+        # 멱등: 이미 stamp된 stage면 그 시각 그대로 반환
+        existing_stages = (existing.get("stages") or {})
+        if existing_stages.get(stage):
+            return _StampStageResponse(
+                ok=True,
+                suggestion_id=suggestion_id,
+                stage=stage,
+                stamped_at=existing_stages[stage],
+            )
+
+        await FirestoreCache.update_user_brain_suggestion(uid, suggestion_id, updates)
+        return _StampStageResponse(
+            ok=True, suggestion_id=suggestion_id, stage=stage, stamped_at=now,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"User brain stamp error: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="suggestion stamp 처리 중 오류가 발생했습니다.",
+        )
+
+
 # ============ Internal: reflection trigger (Cloud Scheduler) ============
 
 
