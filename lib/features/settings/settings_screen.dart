@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/app_theme.dart';
@@ -566,6 +567,13 @@ class SettingsScreen extends ConsumerWidget {
                       children: [
                         // 버전 정보 및 업데이트 체크
                         const _VersionTile(),
+                        const Divider(height: 1),
+                        _SettingsTile(
+                          icon: Iconsax.shield_search,
+                          title: 'AI 활동 기록',
+                          subtitle: '내가 AI에게 시킨 작업 (30일 보관)',
+                          onTap: () => context.push('/settings/ai-audit'),
+                        ),
                         const Divider(height: 1),
                         _SettingsTile(
                           icon: Iconsax.message_question,

@@ -37,6 +37,9 @@ export { onAlbumCreated, onAlbumPhotosAdded } from "./triggers/albumTriggers";
 // 사용자 계정 삭제 (GDPR 준수)
 export { deleteUserAccount } from "./triggers/userDeletionTrigger";
 
+// AI tool audit retention 정책 (매일 03:00 KST)
+export { cleanupAuditLogs } from "./triggers/auditRetentionTrigger";
+
 // 마이그레이션 함수 (일회성 실행용)
 export {
   migrateRemindersToNextReminderAt,

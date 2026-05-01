@@ -63,7 +63,19 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isCompleted', 'completedAt']);
       }
 
-      // 사용자 하위 컬렉션 (business_reviews, albums 등 - todos 제외)
+      // AI tool audit 로그 — 본인만 읽기, 클라이언트 쓰기 금지 (서버 admin SDK 전용)
+      match /tool_audit_log/{auditId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      // AI action 요청 pending 문서 — 본인만 읽기, 클라이언트 쓰기 금지
+      match /ai_action_requests/{requestId} {
+        allow read: if isOwner(userId);
+        allow write: if false;
+      }
+
+      // 사용자 하위 컬렉션 (business_reviews, albums 등 - 위에 명시된 컬렉션 제외)
       match /{subcollection}/{docId} {
         allow read: if isOwner(userId);
         allow write: if isOwner(userId);

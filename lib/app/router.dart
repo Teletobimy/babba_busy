@@ -23,6 +23,7 @@ import '../features/tools/community/community_detail_screen.dart';
 import '../features/memo/memo_category_analysis_history_screen.dart';
 import '../features/memo/memo_category_analysis_detail_screen.dart';
 import '../features/settings/settings_screen.dart';
+import '../features/settings/ai_audit_history_screen.dart';
 import '../features/together_time/together_time_screen.dart';
 import '../features/reports/report_screen.dart';
 import '../features/chore/chore_rotation_screen.dart';
@@ -559,6 +560,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                 const NoTransitionPage(child: SettingsScreen()),
           ),
         ],
+      ),
+      // 설정 하위 — AI 활동 기록 (독립 화면)
+      GoRoute(
+        path: '/settings/ai-audit',
+        name: 'settings-ai-audit',
+        builder: (context, state) => const AiAuditHistoryScreen(),
       ),
       // 함께하는 시간 찾기 (독립 화면)
       GoRoute(
